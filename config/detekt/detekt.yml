@@ -1,0 +1,8 @@
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']
+
+style:
+  MagicNumber:
+    active: true
+    excludes: ['**/ui/theme/**', '**/theme/**']
