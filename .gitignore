@@ -1,0 +1,25 @@
+# Gradle / build output
+.gradle
+/build
+/captures
+.externalNativeBuild
+.cxx
+.kotlin
+
+# IDE (Android Studio / IntelliJ)
+*.iml
+/.idea/
+
+# Machine-specific config
+/local.properties
+.claude/settings.local.json
+
+# Signing keys & secrets — NEVER commit
+*.jks
+*.keystore
+keystore.properties
+secrets.properties
+
+# OS / misc
+.DS_Store
+*.hprof

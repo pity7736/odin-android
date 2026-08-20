@@ -1,0 +1,99 @@
+<!--
+CANONICAL PLAN FORMAT. This template is the single source of truth for the
+structure of a plan.md. Copy it into specs/<module>/<feature>/plan.md and fill
+every section, then DELETE all HTML comments.
+
+WHAT plan.md IS:
+- The WORK ORDER for ONE change to the feature (new feature, update, or bug fix).
+- Disposable and point-in-time. It guides the implementer for THIS change only.
+- Overwritten wholesale by the next change to the feature. git history keeps
+  every prior work order (`git log -- specs/<module>/<feature>/plan.md`), so
+  nothing is lost — there is no need to keep old plans in the tree, and NO
+  per-change filenames (plan-<change>.md). One plan.md, rewritten each time.
+
+LIFECYCLE:
+- WORK ORDER (while building): all sections present; it guides implementation.
+- FROZEN (after the change ships): the moment the change merges, plan.md becomes
+  a read-only historical record of that change. Do NOT keep editing it. It sits
+  untouched until the NEXT change rewrites it from scratch.
+
+THE HYDRATE GATE (do not skip):
+- Before a change merges, the DURABLE decisions this work order introduced MUST
+  be promoted ("hydrated") into design.md. design.md is the living source of
+  truth; plan.md is a snapshot. If a decision lives only in plan.md, it is lost
+  to future readers who read design.md. Hydrate first, then freeze.
+
+RULES:
+- design.md is the authority for anything durable. plan.md never restates the
+  full design — it references design.md and records only what THIS change does.
+- name the APPROACH, not the code: shapes/signatures to guide the implementer,
+  not full bodies or query text. These are transient and the source owns them.
+-->
+
+# Work Order: <feature name> — <this change in a few words>
+
+**Feature design:** `specs/<module>/<feature>/design.md` (the living source of truth)
+**Corresponds to Spec:** `specs/<module>/<feature>/spec.md`
+
+> Work order for: **<this change>**. Disposable — overwritten by the next change
+> (git keeps the history). The living design is in design.md; hydrate it before
+> this change merges, then freeze this file.
+
+## Change
+<!-- What this change does and WHY, in a few sentences. For a new feature: the
+     scope being built. For an update: what behavior changes and why. For a bug
+     fix: the observed wrong behavior, the expected behavior, and the root cause.
+     Link the spec scenarios this change satisfies. -->
+
+## Architecture & Files (this change)
+<!-- ONLY the files this change touches, annotated CREATE / MODIFY, laid out by
+     layer (domain → application → infrastructure → presentation). Not the whole
+     feature tree (that lives in design.md) — just the delta. -->
+```
+app/src/main/java/dev/raiseexception/odin/<module>/
+├── domain/...                              # CREATE | MODIFY
+├── application/...                         # CREATE | MODIFY
+├── infrastructure/...                      # CREATE | MODIFY
+└── presentation/...                        # CREATE | MODIFY
+
+app/src/test/...                            # CREATE | MODIFY   (JVM unit tests)
+app/src/androidTest/...                     # CREATE | MODIFY   (instrumented/UI tests, if any)
+```
+
+## Key Types & Signatures
+<!-- Interfaces/type shapes/signatures that guide the implementer for THIS
+     change: ports (repository interfaces), entity constructors, use-case
+     signatures, UiState shape, ViewModel events. Shapes, not bodies. Transient —
+     the source owns these once written. Keep it TERSE. -->
+
+## Implementation Phases (TDD)
+<!-- The ordered work for THIS change, phase by phase, in DEPENDENCY ORDER
+     (domain → application → infrastructure → presentation). This is the single
+     list of what to build/fix and in what sequence — the implementer follows it
+     top to bottom.
+
+     Each phase states, concretely:
+     - Red:   the tests to write FIRST, and what they assert. Every spec scenario
+              and every gap MUST appear as a Red assertion somewhere. Put each
+              test at the right level (JVM src/test vs instrumented src/androidTest).
+     - Green: what to implement to make them pass.
+
+     For a BUG FIX, Phase 1 is the FAILING reproduction tests — one Red assertion
+     per rejection/edge path the defect touches — and later phases are the fix.
+     Put the tests at the RIGHT LEVEL (the layer where the defect lives). -->
+
+### Phase 1: <layer / concern>
+**Red:** <the tests to write first and what they assert>
+**Green:** <what to implement to make them pass>
+
+### Phase 2: <layer / concern>
+**Red:** ...
+**Green:** ...
+
+## Design decisions to hydrate into design.md
+<!-- The pre-merge checklist for the HYDRATE GATE. List every durable decision
+     THIS change introduced or altered that must be promoted into design.md
+     (Design Decisions & Rationale, Data Flow, Screen & States / Backend
+     Interaction, Known Limitations, Quality Pillars). Tick each once it is in
+     design.md. Empty only if the change genuinely altered nothing durable. -->
+- [ ] ...
