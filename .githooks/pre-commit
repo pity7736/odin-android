@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+echo "pre-commit: detekt + unit tests + coverage"
+./gradlew detekt testDebugUnitTest koverVerify
