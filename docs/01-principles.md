@@ -1,10 +1,12 @@
 # odin-android: Development Principles
 
-odin-android is the Kotlin/Android client for Odin — a zero-knowledge,
-end-to-end encrypted personal finance app. It lets users track accounts, income,
-expenses, transfers, and categories entirely on their device: all financial logic
-and all encryption/decryption happen client-side, and the backend only ever
-stores and returns opaque encrypted blobs it cannot read.
+odin-android is a zero-knowledge, end-to-end encrypted personal finance app for
+Android. It lets users track accounts, income, expenses, transfers, and
+categories entirely on their device: all financial logic, all
+encryption/decryption, and all data storage happen locally. The app is
+**standalone-first** — it works fully without a server. An optional server layer
+provides backup and multi-device sync, but never gates access to the user's own
+data.
 
 Our development process is founded on three core principles:
 

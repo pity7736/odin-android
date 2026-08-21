@@ -14,7 +14,9 @@ Decided stack (see `docs/02-architecture.md` for how the pieces fit):
 - **DI:** **manual** — constructor injection + one composition root (`di/`). No DI
   framework yet (Hilt is a later, mechanical migration).
 - **Local DB:** **Room**.
-- **Networking + JSON:** **Retrofit** + **kotlinx.serialization**.
+- **Networking + JSON (optional server layer):** **Retrofit** +
+  **kotlinx.serialization**. Only used when the optional server layer (backup /
+  multi-device sync) is enabled.
 - **Crypto:** **Bouncy Castle** for Argon2id; platform APIs for AES-256-GCM
   (`javax.crypto.Cipher`), `SecureRandom`, and Android Keystore.
 - **Money:** **`BigDecimal`** for all monetary values — **never** `Double`/`Float`.

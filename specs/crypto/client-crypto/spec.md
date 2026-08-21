@@ -26,6 +26,24 @@ As an Odin user, I want my financial data to be protected before it leaves my
 device and accessible only on my device, so that the service stores only opaque
 data it cannot read.
 
+### Unique protection per user
+
+As an Odin user, I want my protection to be unique to me, so that even if
+another user picks the same password, their protection cannot be used to access
+my data.
+
+### Keep my data accessible during a session
+
+As an Odin user, I want my data protection to remain available after I register
+or log in, so that I can access my financial data throughout the session without
+re-entering my password.
+
+### Consistent protection settings
+
+As an Odin user, I want the protection settings used at registration to be
+stored, so that future logins produce the same result and I can always access my
+data.
+
 ## Acceptance Criteria
 
 - The same password, with that user's stored setup, always produces the same
@@ -50,6 +68,17 @@ data it cannot read.
   same typed password always produces the same credentials regardless of device.
 - Every invalid, corrupted, wrong-key, or tampered input results in a clean,
   explicit failure — no key and no data is produced on failure.
+- Each user's protection setup includes a unique value generated at registration,
+  ensuring two users with the same password always produce different credentials
+  and different protection keys.
+- After registration or login, the user's data protection stays available for the
+  session. Other features can access it without the user re-entering their
+  password.
+- Retrieving data protection when none has been stored fails with a clear "not
+  found" indication.
+- The protection settings (algorithm, version, iterations, memory, parallelism,
+  output length) are fixed, known values that registration can store alongside the
+  user's account setup for future logins.
 
 ## Expected Behavior
 
@@ -153,6 +182,46 @@ data it cannot read.
 - Then the produced verifier matches what the service stored at setup
 - And the protection key successfully unlocks their data key
 
+### New unique setup value
+
+- Given a new user is registering
+- When a unique setup value is generated
+- Then a fresh value is produced
+- And generating one twice never produces the same value
+
+### Storing data protection for the session
+
+- Given a user has just registered or logged in
+- When their data protection is stored for the session
+- Then it is available for other features to use
+
+### Retrieving data protection during a session
+
+- Given data protection has been stored for the session
+- When another feature retrieves it
+- Then the stored data protection is returned
+
+### Retrieving data protection when none is stored
+
+- Given no data protection has been stored for the session
+- When another feature attempts to retrieve it
+- Then it fails with a clear "not found" indication
+
+### Clearing data protection
+
+- Given data protection has been stored for the session
+- When it is cleared
+- Then it is no longer available
+- And attempting to retrieve it after clearing fails with "not found"
+
+### Reading protection settings
+
+- Given the module uses fixed protection settings
+- When registration reads the settings
+- Then the algorithm, version, iterations, memory, parallelism, and output length
+  are returned
+- And these values are consistent — they never change between reads
+
 ### Invalid inputs
 
 - Given any required input (password, key, data) is missing, empty where not
@@ -168,8 +237,11 @@ data it cannot read.
 - Communicating with the service — handled by the features that consume this
   module.
 - Any user interface.
-- Keeping the data key available during a session (biometric unlock, session
-  management) — belongs to the session feature.
+- Deciding when to store, retrieve, or clear data protection — those decisions
+  belong to the consuming features (registration, login, session). This module
+  only holds it.
+- Biometric unlock or hardware-backed protection of the data protection at rest
+  — belongs to a future session feature.
 - Password-strength or complexity policy — belongs to the registration feature.
   This module only rejects an empty password.
 - Whether empty content is permitted — this module allows protecting empty data
