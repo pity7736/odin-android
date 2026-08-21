@@ -257,16 +257,16 @@ passing (tests + detekt + coverage).
 
 ## Design decisions to hydrate into design.md
 
-- [ ] Legend: spec-to-technical term mapping (the Legend table from this plan)
-- [ ] Port/adapter architecture: `VaultCrypto` interface in domain, `BouncyCastleVaultCrypto` in infrastructure — consumers depend only on the interface for swappability
-- [ ] `Outcome<T>` as the app-wide error return mechanism with typed `DomainError`
-- [ ] `CryptoError` sealed hierarchy: `InvalidPassword`, `InvalidSalt`, `InvalidKeySize`, `DecryptionFailed`, `MalformedData`
-- [ ] Argon2id parameters: version 0x13 (v1.3), time=3, memory=65536 KiB, threads=4, output=64 bytes (split 32/32)
-- [ ] AES-256-GCM with 12-byte random nonce, no AAD
-- [ ] Wire format: `nonce || ciphertext || tag` as raw bytes (base64 is consumer responsibility), except auth hash which is pre-encoded as standard base64 with padding
-- [ ] Auth hash encoding: standard base64 with padding (convention from the existing CLI), pre-encoded inside the module as part of the crypto contract
-- [ ] Password encoding: raw UTF-8 bytes, no Unicode normalization
-- [ ] Salt: exactly 16 bytes, validated at the boundary
-- [ ] Key sizes: master key = 32 bytes, encryption key = 32 bytes, validated at the boundary
-- [ ] Contract test pattern: abstract test class against the interface, concrete subclass plugs in the implementation
-- [ ] `SecureRandom` injected via constructor for testability
+- [x] Legend: spec-to-technical term mapping (the Legend table from this plan)
+- [x] Port/adapter architecture: `VaultCrypto` interface in domain, `BouncyCastleVaultCrypto` in infrastructure — consumers depend only on the interface for swappability
+- [x] `Outcome<T>` as the app-wide error return mechanism with typed `DomainError`
+- [x] `CryptoError` sealed hierarchy: `InvalidPassword`, `InvalidSalt`, `InvalidKeySize`, `DecryptionFailed`, `MalformedData`
+- [x] Argon2id parameters: version 0x13 (v1.3), time=3, memory=65536 KiB, threads=4, output=64 bytes (split 32/32)
+- [x] AES-256-GCM with 12-byte random nonce, no AAD
+- [x] Wire format: `nonce || ciphertext || tag` as raw bytes (base64 is consumer responsibility), except auth hash which is pre-encoded as standard base64 with padding
+- [x] Auth hash encoding: standard base64 with padding (convention from the existing CLI), pre-encoded inside the module as part of the crypto contract
+- [x] Password encoding: raw UTF-8 bytes, no Unicode normalization
+- [x] Salt: exactly 16 bytes, validated at the boundary
+- [x] Key sizes: master key = 32 bytes, encryption key = 32 bytes, validated at the boundary
+- [x] Contract test pattern: abstract test class against the interface, concrete subclass plugs in the implementation
+- [x] `SecureRandom` injected via constructor for testability
