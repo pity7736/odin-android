@@ -70,6 +70,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     detektPlugins(libs.detekt.formatting)
+    implementation(libs.bouncycastle)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.junit)

@@ -12,6 +12,7 @@ coroutines = "1.10.2"
 mockk = "1.13.13"
 turbine = "1.2.0"
 robolectric = "4.14.1"
+bouncycastle = "1.80"
 kover = "0.9.1"
 detekt = "1.23.8"
 
@@ -36,6 +37,7 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+bouncycastle = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
 detekt-formatting = { group = "io.gitlab.arturbosch.detekt", name = "detekt-formatting", version.ref = "detekt" }
 
 [plugins]
