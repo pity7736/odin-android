@@ -23,20 +23,26 @@ class BouncyCastleVaultCrypto(
         else -> deriveKeysFromArgon2id(password, salt)
     }
 
+    override fun generateSalt(): ByteArray {
+        val salt = ByteArray(SALT_SIZE)
+        secureRandom.nextBytes(salt)
+        return salt
+    }
+
     private fun deriveKeysFromArgon2id(password: String, salt: ByteArray): Outcome<DerivedKeys> {
-        val output = ByteArray(ARGON_OUTPUT_LENGTH)
+        val output = ByteArray(VaultCrypto.ARGON_OUTPUT_LENGTH)
         val parameters = Argon2Parameters.Builder(Argon2Parameters.ARGON2_id)
-            .withVersion(ARGON_VERSION)
-            .withIterations(ARGON_TIME)
-            .withMemoryAsKB(ARGON_MEMORY)
-            .withParallelism(ARGON_THREADS)
+            .withVersion(VaultCrypto.ARGON_VERSION)
+            .withIterations(VaultCrypto.ARGON_ITERATIONS)
+            .withMemoryAsKB(VaultCrypto.ARGON_MEMORY)
+            .withParallelism(VaultCrypto.ARGON_PARALLELISM)
             .withSalt(salt)
             .build()
         val generator = Argon2BytesGenerator()
         generator.init(parameters)
         generator.generateBytes(password.toByteArray(Charsets.UTF_8), output)
         val authHash = Base64.getEncoder().encodeToString(output.copyOfRange(0, ENCRYPTION_KEY_SIZE))
-        val encryptionKey = output.copyOfRange(ENCRYPTION_KEY_SIZE, ARGON_OUTPUT_LENGTH)
+        val encryptionKey = output.copyOfRange(ENCRYPTION_KEY_SIZE, VaultCrypto.ARGON_OUTPUT_LENGTH)
         return Outcome.Success(DerivedKeys(authHash = authHash, encryptionKey = encryptionKey))
     }
 
@@ -105,11 +111,6 @@ class BouncyCastleVaultCrypto(
     }
 
     private companion object {
-        const val ARGON_VERSION = 0x13
-        const val ARGON_TIME = 3
-        const val ARGON_MEMORY = 65536
-        const val ARGON_THREADS = 4
-        const val ARGON_OUTPUT_LENGTH = 64
         const val SALT_SIZE = 16
         const val MASTER_KEY_SIZE = 32
         const val ENCRYPTION_KEY_SIZE = 32

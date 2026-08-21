@@ -12,6 +12,11 @@ private const val SALT_SIZE = 16
 private const val GCM_NONCE_SIZE = 12
 private const val GCM_TAG_BYTE_LENGTH = 16
 private const val MINIMUM_SEALED_SIZE = GCM_NONCE_SIZE + GCM_TAG_BYTE_LENGTH
+private const val EXPECTED_ARGON_VERSION = 0x13
+private const val EXPECTED_ARGON_ITERATIONS = 3
+private const val EXPECTED_ARGON_MEMORY = 65536
+private const val EXPECTED_ARGON_PARALLELISM = 4
+private const val EXPECTED_ARGON_OUTPUT_LENGTH = 64
 
 abstract class VaultCryptoContractTest {
 
@@ -263,6 +268,29 @@ abstract class VaultCryptoContractTest {
         val result = vaultCrypto.decrypt(ciphertext, wrongSizeKey)
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is CryptoError.InvalidKeySize)
+    }
+
+    @Test
+    fun `given nothing, when generating a salt, then returns a 16-byte value`() {
+        val salt = vaultCrypto.generateSalt()
+        assertEquals(SALT_SIZE, salt.size)
+    }
+
+    @Test
+    fun `given nothing, when generating two salts, then they are different`() {
+        val first = vaultCrypto.generateSalt()
+        val second = vaultCrypto.generateSalt()
+        assertFalse(first.contentEquals(second))
+    }
+
+    @Test
+    fun `given the protection settings, when reading them, then they match the expected values`() {
+        assertEquals("argon2id", VaultCrypto.ARGON_ALGORITHM)
+        assertEquals(EXPECTED_ARGON_VERSION, VaultCrypto.ARGON_VERSION)
+        assertEquals(EXPECTED_ARGON_ITERATIONS, VaultCrypto.ARGON_ITERATIONS)
+        assertEquals(EXPECTED_ARGON_MEMORY, VaultCrypto.ARGON_MEMORY)
+        assertEquals(EXPECTED_ARGON_PARALLELISM, VaultCrypto.ARGON_PARALLELISM)
+        assertEquals(EXPECTED_ARGON_OUTPUT_LENGTH, VaultCrypto.ARGON_OUTPUT_LENGTH)
     }
 
     @Test

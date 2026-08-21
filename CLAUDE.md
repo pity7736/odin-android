@@ -1,8 +1,9 @@
 # Odin Android - Personal Finance
 
-The Kotlin/Android client for Odin — a zero-knowledge, end-to-end encrypted
-personal finance app. All financial logic and all encryption/decryption happen
-on the device; the backend only stores and returns opaque encrypted blobs it
+A zero-knowledge, end-to-end encrypted personal finance app for Android.
+**Standalone-first:** all financial logic, encryption/decryption, and data
+storage happen on the device. The app works fully without a server. An optional
+server layer provides backup and multi-device sync of opaque encrypted blobs it
 cannot read. Built with **Kotlin** and **Jetpack Compose**.
 
 ## Quick Reference
@@ -78,7 +79,7 @@ See `docs/04-tdd-workflow.md` and `docs/05-code-standards.md` section 3 for all 
 
 ### Security
 
-- **Zero-knowledge is non-negotiable:** the backend must never receive plaintext or any key. All encryption/decryption happens on the device (the `crypto` module).
+- **Zero-knowledge is non-negotiable:** data is always encrypted at rest on the device. All encryption/decryption happens locally (the `crypto` module). When the optional server layer is enabled, the server must never receive plaintext or any key.
 - Validate input at the boundaries (domain constructors; ViewModels)
 - Never hardcode secrets
 - **Never log keys, plaintext, tokens, or passwords**

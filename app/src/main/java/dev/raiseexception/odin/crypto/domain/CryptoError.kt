@@ -31,4 +31,9 @@ sealed class CryptoError(
         internalMessage = "Data is malformed or truncated",
         externalMessage = "Los datos están incompletos o no son válidos"
     )
+
+    class MasterKeyNotFound : CryptoError(
+        internalMessage = "No master key stored in the session",
+        externalMessage = "No se encontró la protección de datos de la sesión"
+    )
 }

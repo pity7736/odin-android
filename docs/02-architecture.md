@@ -1,9 +1,10 @@
 # Architecture
 
-odin-android is the Kotlin/Android client for Odin — a zero-knowledge, end-to-end
-encrypted personal finance app. It syncs opaque encrypted chunks with a backend
-and does **all** financial logic and encryption/decryption on the device. The
-backend can never read the user's data.
+odin-android is a zero-knowledge, end-to-end encrypted personal finance app for
+Android. It is **standalone-first**: all financial logic, encryption/decryption,
+and data storage happen on the device. The app works fully without a server. An
+optional server layer provides backup and multi-device sync of opaque encrypted
+chunks it cannot read.
 
 odin-android **MUST** follow Clean Architecture. Dependencies point inward: the
 domain knows nothing about Android, Compose, Room, or Retrofit. This keeps
@@ -37,13 +38,13 @@ app/src/main/java/dev/raiseexception/odin/
 │   │   └── usecase/                # use cases (one per operation)
 │   ├── infrastructure/
 │   │   ├── local/                  # Room: @Entity, @Dao, database
-│   │   ├── remote/                 # Retrofit: API interface, request/response DTOs
+│   │   ├── remote/                 # (optional server layer) Retrofit: API interface, DTOs
 │   │   └── repository/             # repository IMPLEMENTATIONS + mappers (DTO/entity ↔ domain)
 │   └── presentation/
 │       └── <screen>/               # ViewModel + UiState + Composable screen
 └── shared/
     ├── domain/                     # cross-cutting: error types, common value objects
-    ├── infrastructure/             # cross-cutting: network client, DataStore
+    ├── infrastructure/             # cross-cutting: DataStore; network client when server layer enabled
     └── presentation/               # cross-cutting UI: theme, common Composables
 
 app/src/test/                       # JVM unit tests (fast; Robolectric when Android classes needed)
@@ -61,21 +62,26 @@ pre-create empty packages.
 
 Planned feature modules (created as features arrive, not upfront):
 
-- **`accounts`**: user identity — registration, login, session. Orchestrates the
-  auth/key handshake (it calls `crypto` to derive keys and unwrap the master key)
-  but owns neither the crypto nor the keys.
+- **`accounts`**: user identity — local registration (key setup from password),
+  local login (unlock the vault), and optional server enrollment (backup/sync).
+  Orchestrates calls to `crypto` for key derivation and master-key management but
+  owns neither the crypto nor the keys.
 - **`crypto`**: all key and encryption concerns — `VaultCrypto` (Argon2id key
-  derivation, master-key generation, wrap/unwrap, AES-256-GCM) and the session key
-  store (master-key lifecycle + Android Keystore). Owned by neither `accounts` nor
-  `vault`; both depend on it.
-- **`vault`**: the encrypted-chunk layer — local storage of chunks, and sync
-  (upload/download, version-based conflict resolution) with the backend. Uses
-  `crypto` (the master key) to encrypt/decrypt chunk content.
+  derivation, salt generation, master-key generation, wrap/unwrap, AES-256-GCM)
+  and the session key store (master-key lifecycle + Android Keystore). Owned by
+  neither `accounts` nor `vault`; both depend on it.
+- **`vault`**: the encrypted-chunk layer — local storage of chunks in Room. Uses
+  `crypto` (the master key) to encrypt/decrypt chunk content. When the optional
+  server layer is enabled, handles sync (upload/download, version-based conflict
+  resolution).
 - **`accounting`**: the client-side financial domain — accounts, categories,
   income, expenses, transfers, money. All of this lives *inside* decrypted chunks
-  and is reconstructed on the device.
-- **`shared`**: cross-cutting concerns — the network client, error types, theme,
-  common UI.
+  and is reconstructed on the device. Has its own domain repository interfaces
+  (e.g. `AccountRepository`, `ExpenseRepository`) whose implementations go through
+  the vault (decrypt chunks → extract entities). The accounting domain does not
+  know about chunks or encryption.
+- **`shared`**: cross-cutting concerns — error types, theme, common UI. The
+  network client (Retrofit) lives here when the optional server layer is enabled.
 
 ## Layers
 
@@ -106,16 +112,18 @@ Planned feature modules (created as features arrive, not upfront):
 ### c. Infrastructure Layer (`<module>/infrastructure`)
 
 - **Purpose:** implements how the app talks to the outside world for **data** —
-  the database and the network. (The UI is *not* here; it is the Presentation
-  layer.)
+  the local database and, when the optional server layer is enabled, the network.
+  (The UI is *not* here; it is the Presentation layer.)
 - **Contents:**
   - `local/` — **Room**: `@Entity` tables, `@Dao` queries (which return `Flow` so
     the UI updates reactively), the database class.
-  - `remote/` — **Retrofit**: the API interface and the request/response DTOs.
+  - `remote/` — **(optional server layer)** **Retrofit**: the API interface and
+    the request/response DTOs. Only present in modules that interact with the
+    server (e.g. `accounts` for server enrollment, `vault` for sync).
   - `repository/` — concrete implementations of the domain repository interfaces.
-    A repository is the **single-source-of-truth** decision point: it reads from
-    Room for the UI and coordinates sync with the remote API. Mappers convert Room
-    entities and network DTOs to/from domain models here.
+    A repository reads from Room as the source of truth. When the server layer is
+    enabled, it coordinates sync with the remote API. Mappers convert Room
+    entities (and network DTOs when applicable) to/from domain models here.
 - **Rules:**
   - Depends on **Domain** (it implements domain interfaces) and may use
     **Application**. Never depends on Presentation.
@@ -146,7 +154,7 @@ to the ViewModel.
   not by emitting intent objects. (Strict MVI's intents+reducer are an available
   refinement later; not used by default.)
 
-## Data Flow (offline-first)
+## Data Flow (standalone-first)
 
 ```
 User interaction (Composable) [presentation]
@@ -154,35 +162,40 @@ User interaction (Composable) [presentation]
       → Use Case [application]    (orchestrate)
           → Domain Entity [domain]  (validate, enforce rules)
           → Repository Interface [domain] → Repository Impl [infrastructure]
-                → Room (local)      ← the UI's source of truth, exposed as Flow
-                → Retrofit (remote) ← sync only
+                → Room (local)      ← the source of truth, exposed as Flow
+                → Retrofit (remote) ← optional sync/backup only
       ← Result (domain object or domain error)
   ← new UiState (StateFlow) → Composable re-renders
 ```
 
-The reactive spine: a screen observes the repository's Room `Flow`. Background
-sync writes new chunks to Room; Room re-emits; the `UiState` updates; Compose
-redraws — with no manual refresh. The **backend is the source of truth for
-sync**, but **Room is the source of truth for what the UI shows**.
+The reactive spine: a screen observes the repository's Room `Flow`. Room
+re-emits on changes; the `UiState` updates; Compose redraws — with no manual
+refresh. **Room is the source of truth.** When the optional server layer is
+enabled, background sync pushes encrypted chunks to the server for backup and
+cross-device consistency; the server mediates conflicts between devices but
+never overrides what the user sees locally.
 
 ## Error Handling
 
 Errors carry an internal message in **English** (for logs) and an external,
 user-facing message in **Spanish** (shown in the UI). They are modeled as a
 domain **sealed type**, not status codes — the ViewModel maps a domain error into
-a `UiState.Error(message)`. Two sources feed it: local domain/validation
-failures, and error responses decoded from the backend, which the infrastructure
-layer translates into the same domain error type.
+a `UiState.Error(message)`. The primary source is local domain/validation
+failures. When the optional server layer is enabled, error responses from the
+server are decoded in infrastructure and translated into the same domain error
+type, so layers above never see raw HTTP.
 
 ## Design Principles
 
 1. **Clean Architecture:** dependencies point inward. Domain has zero Android
    dependencies. Infrastructure and Presentation are sibling outer layers that
    never depend on each other.
-2. **Offline-first:** the device works without a network; Room is the UI's source
-   of truth; sync reconciles with the backend.
+2. **Standalone-first:** the app works fully without a server. Room is the source
+   of truth. An optional server layer provides backup and multi-device sync but
+   never gates access to the user's data.
 3. **Zero-knowledge:** all encryption/decryption happens on the device via the
-   `VaultCrypto` module. The backend only ever stores/returns opaque blobs.
+   `VaultCrypto` module. Data is always encrypted at rest locally. When the
+   optional server layer is enabled, it only ever stores/returns opaque blobs.
 4. **Thin ViewModels:** ViewModels are adapters. Business logic lives in use cases
    and domain entities.
 5. **Constructor injection + one composition root:** every dependency is passed in;
