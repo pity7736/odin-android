@@ -10,13 +10,13 @@ class InMemoryMasterKeyRepository : MasterKeyRepository {
     private val masterKeyReference = AtomicReference<ByteArray?>(null)
 
     override fun store(masterKey: ByteArray) {
-        masterKeyReference.set(masterKey)
+        masterKeyReference.set(masterKey.copyOf())
     }
 
     override fun get(): Outcome<ByteArray> {
         val masterKey = masterKeyReference.get()
             ?: return Outcome.Failure(CryptoError.MasterKeyNotFound())
-        return Outcome.Success(masterKey)
+        return Outcome.Success(masterKey.copyOf())
     }
 
     override fun clear() {
