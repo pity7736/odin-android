@@ -100,7 +100,7 @@ Planned feature modules (created as features arrive, not upfront):
 
 - **Purpose:** orchestrates a single operation, coordinating domain and
   repositories. Contains use cases.
-- **Contents:** **use cases** in `usecase/` (e.g. `ChunkGetter`, `RegisterUser`),
+- **Contents:** **use cases** in `usecase/` (e.g. `ChunkGetter`, `UserRegistrar`),
   one type per operation.
 - **Rules:**
   - Depends only on the **Domain** layer.

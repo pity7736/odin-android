@@ -63,6 +63,10 @@ Decided stack (see `docs/02-architecture.md` for how the pieces fit):
   - Network DTO: `ChunkRequest` / `ChunkResponse` (in `infrastructure/remote`).
   - Mappers in `infrastructure/repository` convert between them. Never leak an
     `Entity` or a DTO out of the infrastructure layer.
+- **Class names are nouns, methods are verbs.** Use cases follow this strictly:
+  the class is the agent (`UserRegistrar`, `ChunkGetter`), the method is the
+  action (`register(...)`, `get(...)`). Never name a class as a verb phrase
+  (`RegisterUser`, `GetChunk`).
 - **Constructors / factories:** prefer a plain constructor. When a factory is
   needed, use a `companion object` (e.g. validating factory returning a
   `Result`). No `Entity`/`Model` suffix on domain types.
@@ -86,6 +90,13 @@ Decided stack (see `docs/02-architecture.md` for how the pieces fit):
   "logical sections," extract those sections into named functions instead. A
   single blank line separates declarations. Exception: a blank line is allowed
   between the closing `)` of a multi-line signature and the first statement.
+- **Explicit `this.` on member access.** Always prefix class properties and
+  methods with `this.` inside the class body. Local variables are declared with
+  `val`/`var` and need no prefix — `this.` is the signal that something comes
+  from the instance. Exception: inside lambdas with a receiver (coroutine
+  `launch`, Compose lambdas), `this` is rebound to the receiver — access outer
+  class members without prefix there, since the alternative
+  (`this@ClassName.member`) is too verbose to be readable.
 - **Top-down reading:** a called function is defined **below** all its callers.
 - **Class organization:** primary constructor first, then properties, then methods;
   a `companion object` (factories/constants) goes last.
