@@ -5,6 +5,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
@@ -93,15 +95,22 @@ class RegistrationScreenTest {
     }
 
     @Test
-    fun `given idle state, when register button clicked, then onRegister is called`() {
-        var registerCalled = false
+    fun `given passwords typed, when register clicked, then onRegister receives both values`() {
+        var capturedPassword = ""
+        var capturedConfirmation = ""
         composeTestRule.setContent {
             RegistrationScreen(
                 uiState = RegistrationUiState.Idle,
-                onRegister = { _, _ -> registerCalled = true }
+                onRegister = { password, confirmation ->
+                    capturedPassword = password
+                    capturedConfirmation = confirmation
+                }
             )
         }
+        composeTestRule.onNodeWithTag("password_field").performTextInput("mySecurePassword1")
+        composeTestRule.onNodeWithTag("password_confirmation_field").performTextInput("mySecurePassword1")
         composeTestRule.onNodeWithTag("register_button").performClick()
-        assert(registerCalled)
+        assertEquals("mySecurePassword1", capturedPassword)
+        assertEquals("mySecurePassword1", capturedConfirmation)
     }
 }
