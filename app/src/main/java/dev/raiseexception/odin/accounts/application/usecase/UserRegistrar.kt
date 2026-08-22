@@ -8,11 +8,15 @@ import dev.raiseexception.odin.accounts.domain.repository.UserRepository
 import dev.raiseexception.odin.crypto.domain.VaultCrypto
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.shared.domain.Outcome
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class UserRegistrar(
     private val vaultCrypto: VaultCrypto,
     private val userRepository: UserRepository,
-    private val masterKeyRepository: MasterKeyRepository
+    private val masterKeyRepository: MasterKeyRepository,
+    private val cpuDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
 
     suspend fun register(rawPassword: String, rawPasswordConfirmation: String): Outcome<User> {
@@ -29,20 +33,21 @@ class UserRegistrar(
         return this.performRegistration(password)
     }
 
-    private suspend fun performRegistration(password: Password): Outcome<User> {
-        val salt = this.vaultCrypto.generateSalt()
-        val derivedKeys = when (val keysOutcome = this.vaultCrypto.deriveKeys(password.value, salt)) {
-            is Outcome.Success -> keysOutcome.value
-            is Outcome.Failure -> return this.cryptoFailure(keysOutcome.error.internalMessage)
+    private suspend fun performRegistration(password: Password): Outcome<User> =
+        withContext(this.cpuDispatcher) {
+            val salt = vaultCrypto.generateSalt()
+            val derivedKeys = when (val keysOutcome = vaultCrypto.deriveKeys(password.value, salt)) {
+                is Outcome.Success -> keysOutcome.value
+                is Outcome.Failure -> return@withContext cryptoFailure(keysOutcome.error.internalMessage)
+            }
+            val masterKey = vaultCrypto.generateMasterKey()
+            val wrapOutcome = vaultCrypto.wrapMasterKey(masterKey, derivedKeys.encryptionKey)
+            val wrappedMasterKey = when (wrapOutcome) {
+                is Outcome.Success -> wrapOutcome.value
+                is Outcome.Failure -> return@withContext cryptoFailure(wrapOutcome.error.internalMessage)
+            }
+            saveUser(salt, wrappedMasterKey, masterKey)
         }
-        val masterKey = this.vaultCrypto.generateMasterKey()
-        val wrapOutcome = this.vaultCrypto.wrapMasterKey(masterKey, derivedKeys.encryptionKey)
-        val wrappedMasterKey = when (wrapOutcome) {
-            is Outcome.Success -> wrapOutcome.value
-            is Outcome.Failure -> return this.cryptoFailure(wrapOutcome.error.internalMessage)
-        }
-        return this.saveUser(salt, wrappedMasterKey, masterKey)
-    }
 
     private suspend fun saveUser(salt: ByteArray, wrappedMasterKey: ByteArray, masterKey: ByteArray): Outcome<User> {
         val user = User(

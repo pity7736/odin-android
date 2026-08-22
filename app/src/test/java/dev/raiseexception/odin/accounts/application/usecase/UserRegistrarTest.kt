@@ -12,6 +12,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -42,7 +43,7 @@ class UserRegistrarTest {
 
     @Before
     fun setUp() {
-        registrar = UserRegistrar(vaultCrypto, userRepository, masterKeyRepository)
+        registrar = UserRegistrar(vaultCrypto, userRepository, masterKeyRepository, UnconfinedTestDispatcher())
     }
 
     @Test
