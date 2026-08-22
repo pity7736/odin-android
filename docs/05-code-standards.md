@@ -63,6 +63,10 @@ Decided stack (see `docs/02-architecture.md` for how the pieces fit):
   - Network DTO: `ChunkRequest` / `ChunkResponse` (in `infrastructure/remote`).
   - Mappers in `infrastructure/repository` convert between them. Never leak an
     `Entity` or a DTO out of the infrastructure layer.
+- **Class names are nouns, methods are verbs.** Use cases follow this strictly:
+  the class is the agent (`UserRegistrar`, `ChunkGetter`), the method is the
+  action (`register(...)`, `get(...)`). Never name a class as a verb phrase
+  (`RegisterUser`, `GetChunk`).
 - **Constructors / factories:** prefer a plain constructor. When a factory is
   needed, use a `companion object` (e.g. validating factory returning a
   `Result`). No `Entity`/`Model` suffix on domain types.
