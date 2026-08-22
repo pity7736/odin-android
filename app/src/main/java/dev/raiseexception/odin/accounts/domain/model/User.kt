@@ -9,21 +9,10 @@ data class User(
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is User) return false
-        return id == other.id &&
-            salt.contentEquals(other.salt) &&
-            wrappedMasterKey.contentEquals(other.wrappedMasterKey)
+        return this.id == other.id
     }
 
-    override fun hashCode(): Int {
-        var result = id.hashCode()
-        result = HASH_MULTIPLIER * result + salt.contentHashCode()
-        result = HASH_MULTIPLIER * result + wrappedMasterKey.contentHashCode()
-        return result
-    }
+    override fun hashCode(): Int = this.id.hashCode()
 
     override fun toString(): String = "User(id=$id, salt=***, wrappedMasterKey=***)"
-
-    private companion object {
-        const val HASH_MULTIPLIER = 31
-    }
 }
