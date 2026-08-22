@@ -50,10 +50,8 @@ class UserRegistrar(
             salt = salt,
             wrappedMasterKey = wrappedMasterKey
         )
-        when (val addOutcome = this.userRepository.add(user)) {
-            is Outcome.Success -> Unit
-            is Outcome.Failure -> return addOutcome
-        }
+        val addOutcome = this.userRepository.add(user)
+        if (addOutcome is Outcome.Failure) return addOutcome
         this.masterKeyRepository.store(masterKey)
         return Outcome.Success(user)
     }
