@@ -17,10 +17,10 @@ class RegistrationViewModel(
 ) : ViewModel() {
 
     private val mutableUiState = MutableStateFlow<RegistrationUiState>(RegistrationUiState.Idle)
-    val uiState: StateFlow<RegistrationUiState> = mutableUiState.asStateFlow()
+    val uiState: StateFlow<RegistrationUiState> = this.mutableUiState.asStateFlow()
 
     fun register(rawPassword: String, rawPasswordConfirmation: String) {
-        viewModelScope.launch {
+        this.viewModelScope.launch {
             mutableUiState.value = RegistrationUiState.Loading
             mutableUiState.value = mapOutcome(userRegistrar.register(rawPassword, rawPasswordConfirmation))
         }
@@ -28,7 +28,7 @@ class RegistrationViewModel(
 
     private fun mapOutcome(outcome: Outcome<User>): RegistrationUiState = when (outcome) {
         is Outcome.Success -> RegistrationUiState.Success
-        is Outcome.Failure -> mapError(outcome.error)
+        is Outcome.Failure -> this.mapError(outcome.error)
     }
 
     private fun mapError(error: DomainError): RegistrationUiState = when (error) {

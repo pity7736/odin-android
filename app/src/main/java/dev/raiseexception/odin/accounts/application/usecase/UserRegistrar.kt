@@ -16,32 +16,32 @@ class UserRegistrar(
 ) {
 
     suspend fun register(rawPassword: String, rawPasswordConfirmation: String): Outcome<User> {
-        if (userRepository.exists()) {
-            return alreadyRegisteredFailure()
+        if (this.userRepository.exists()) {
+            return this.alreadyRegisteredFailure()
         }
         val password = when (val passwordOutcome = Password.create(rawPassword)) {
             is Outcome.Success -> passwordOutcome.value
             is Outcome.Failure -> return passwordOutcome
         }
         if (rawPassword != rawPasswordConfirmation) {
-            return passwordsDoNotMatchFailure()
+            return this.passwordsDoNotMatchFailure()
         }
-        return performRegistration(password)
+        return this.performRegistration(password)
     }
 
     private suspend fun performRegistration(password: Password): Outcome<User> {
-        val salt = vaultCrypto.generateSalt()
-        val derivedKeys = when (val keysOutcome = vaultCrypto.deriveKeys(password.value, salt)) {
+        val salt = this.vaultCrypto.generateSalt()
+        val derivedKeys = when (val keysOutcome = this.vaultCrypto.deriveKeys(password.value, salt)) {
             is Outcome.Success -> keysOutcome.value
-            is Outcome.Failure -> return cryptoFailure(keysOutcome.error.internalMessage)
+            is Outcome.Failure -> return this.cryptoFailure(keysOutcome.error.internalMessage)
         }
-        val masterKey = vaultCrypto.generateMasterKey()
-        val wrapOutcome = vaultCrypto.wrapMasterKey(masterKey, derivedKeys.encryptionKey)
+        val masterKey = this.vaultCrypto.generateMasterKey()
+        val wrapOutcome = this.vaultCrypto.wrapMasterKey(masterKey, derivedKeys.encryptionKey)
         val wrappedMasterKey = when (wrapOutcome) {
             is Outcome.Success -> wrapOutcome.value
-            is Outcome.Failure -> return cryptoFailure(wrapOutcome.error.internalMessage)
+            is Outcome.Failure -> return this.cryptoFailure(wrapOutcome.error.internalMessage)
         }
-        return saveUser(salt, wrappedMasterKey, masterKey)
+        return this.saveUser(salt, wrappedMasterKey, masterKey)
     }
 
     private suspend fun saveUser(salt: ByteArray, wrappedMasterKey: ByteArray, masterKey: ByteArray): Outcome<User> {
@@ -50,11 +50,11 @@ class UserRegistrar(
             salt = salt,
             wrappedMasterKey = wrappedMasterKey
         )
-        when (val addOutcome = userRepository.add(user)) {
+        when (val addOutcome = this.userRepository.add(user)) {
             is Outcome.Success -> Unit
             is Outcome.Failure -> return addOutcome
         }
-        masterKeyRepository.store(masterKey)
+        this.masterKeyRepository.store(masterKey)
         return Outcome.Success(user)
     }
 

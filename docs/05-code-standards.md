@@ -90,6 +90,13 @@ Decided stack (see `docs/02-architecture.md` for how the pieces fit):
   "logical sections," extract those sections into named functions instead. A
   single blank line separates declarations. Exception: a blank line is allowed
   between the closing `)` of a multi-line signature and the first statement.
+- **Explicit `this.` on member access.** Always prefix class properties and
+  methods with `this.` inside the class body. Local variables are declared with
+  `val`/`var` and need no prefix — `this.` is the signal that something comes
+  from the instance. Exception: inside lambdas with a receiver (coroutine
+  `launch`, Compose lambdas), `this` is rebound to the receiver — access outer
+  class members without prefix there, since the alternative
+  (`this@ClassName.member`) is too verbose to be readable.
 - **Top-down reading:** a called function is defined **below** all its callers.
 - **Class organization:** primary constructor first, then properties, then methods;
   a `companion object` (factories/constants) goes last.
