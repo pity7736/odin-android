@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -24,13 +25,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.Flow
 
 @Composable
 fun RegistrationScreen(
     uiState: RegistrationUiState,
     onRegister: (String, String) -> Unit,
+    navigationEvent: Flow<NavigationTarget>,
+    onRegistrationSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    LaunchedEffect(Unit) {
+        navigationEvent.collect { onRegistrationSuccess() }
+    }
     var password by rememberSaveable { mutableStateOf("") }
     var passwordConfirmation by rememberSaveable { mutableStateOf("") }
     Column(
@@ -130,14 +137,6 @@ private fun RegistrationAction(
 @Composable
 private fun GeneralMessage(uiState: RegistrationUiState) {
     when (uiState) {
-        is RegistrationUiState.Success -> {
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Cuenta creada exitosamente",
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.testTag("success_message")
-            )
-        }
         is RegistrationUiState.Error -> {
             Spacer(modifier = Modifier.height(16.dp))
             Text(
