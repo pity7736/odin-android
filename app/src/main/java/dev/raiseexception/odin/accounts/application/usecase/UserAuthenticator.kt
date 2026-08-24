@@ -30,6 +30,13 @@ class UserAuthenticator(
         return this.verifyPassword(rawPassword, user)
     }
 
+    private fun emptyPasswordFailure() = Outcome.Failure(
+        LoginError.EmptyPassword(
+            internalMessage = "Password must not be blank",
+            externalMessage = "Ingrese su contraseña"
+        )
+    )
+
     private suspend fun verifyPassword(rawPassword: String, user: User): Outcome<User> =
         withContext(this.cpuDispatcher) {
             val derivedKeys = when (val keysOutcome = vaultCrypto.deriveKeys(rawPassword, user.salt)) {
@@ -52,13 +59,6 @@ class UserAuthenticator(
         is CryptoError.DecryptionFailed -> this.invalidCredentialsFailure()
         else -> this.cryptoFailure(error.internalMessage)
     }
-
-    private fun emptyPasswordFailure() = Outcome.Failure(
-        LoginError.EmptyPassword(
-            internalMessage = "Password must not be blank",
-            externalMessage = "Ingrese su contraseña"
-        )
-    )
 
     private fun invalidCredentialsFailure() = Outcome.Failure(
         LoginError.InvalidCredentials(
