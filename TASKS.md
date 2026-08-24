@@ -29,6 +29,7 @@ locally.
 ### Infrastructure
 
 - [ ] Navigation (login vs registration vs home screen routing)
+- [ ] MainActivity will accumulate navigation wiring as screen count grows
 - [ ] Global exception handler in ViewModels (catch uncaught library exceptions, map to UiState.Error instead of crashing)
 
 ### Quality
