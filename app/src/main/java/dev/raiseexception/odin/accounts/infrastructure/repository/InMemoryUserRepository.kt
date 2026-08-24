@@ -1,5 +1,6 @@
 package dev.raiseexception.odin.accounts.infrastructure.repository
 
+import dev.raiseexception.odin.accounts.domain.LoginError
 import dev.raiseexception.odin.accounts.domain.RegistrationError
 import dev.raiseexception.odin.accounts.domain.model.User
 import dev.raiseexception.odin.accounts.domain.repository.UserRepository
@@ -23,4 +24,15 @@ class InMemoryUserRepository : UserRepository {
     }
 
     override suspend fun exists(): Boolean = storedUser != null
+
+    override suspend fun get(): Outcome<User> {
+        val user = this.storedUser
+            ?: return Outcome.Failure(
+                LoginError.UserNotFound(
+                    internalMessage = "No user stored on this device",
+                    externalMessage = "Algo salió mal. Intente de nuevo más tarde"
+                )
+            )
+        return Outcome.Success(user)
+    }
 }
