@@ -66,19 +66,36 @@ inline validation feedback.
   feature with its own spec/plan — swapping the adapter does not touch the
   domain, use case, or presentation layers.
 
-- **`RegistrationUiState` is a sealed interface with five subtypes.** `Idle`,
-  `Loading`, `Success` carry no data. `ValidationError` carries optional
-  field-level messages (password and/or confirmation). `Error` carries a general
-  message. This separation lets the screen show inline errors next to the
-  relevant field vs a general error banner.
+- **`RegistrationUiState` is a sealed interface with four subtypes.** `Idle` and
+  `Loading` carry no data. `ValidationError` carries optional field-level
+  messages (password and/or confirmation). `Error` carries a general message.
+  There is no `Success` state — on success the ViewModel sends a one-shot
+  navigation event instead of updating the UiState (see below).
+
+- **One-shot navigation events use a `Channel`, not `UiState`.** `UiState` is
+  persistent screen state — the screen reads it and redraws whenever it changes.
+  Navigation is a one-time action that must fire exactly once. A `Channel`
+  guarantees single delivery even if the screen is recreated (unlike
+  `SharedFlow` which can lose events, or `LaunchedEffect` on a `UiState` which
+  can re-trigger on recomposition). The ViewModel exposes the channel as a
+  `Flow` via `receiveAsFlow()`. The screen collects it in a `LaunchedEffect(Unit)`
+  — the coroutine starts when the screen enters composition and suspends on
+  `collect` until a value arrives. On receipt, it calls the `onRegistrationSuccess`
+  callback, which `MainActivity` wires to the `NavController`.
+
+- **`NavigationTarget` is an enum in the registration presentation package.**
+  Currently has a single entry (`Home`). The ViewModel sends it into the channel
+  on successful registration.
 
 - **`AppContainer` is the manual DI composition root.** It builds the full
   object graph as properties and exposes a factory method for the ViewModel.
   Precondition for a mechanical Hilt migration later.
 
-- **`MainActivity` renders the registration screen directly.** No navigation
-  graph — this is the only screen. Navigation is deferred until a second screen
-  exists.
+- **`MainActivity` hosts a `NavHost` with two routes.** `Routes.REGISTRATION`
+  (start destination) and `Routes.HOME`. Route constants live in
+  `shared/presentation/Routes` so any screen can reference them. Navigation to
+  home uses `popUpTo(Routes.REGISTRATION) { inclusive = true }` to clear
+  registration from the back stack — pressing back from home closes the app.
 
 ## Architecture & Files Summary
 
@@ -99,6 +116,7 @@ app/src/main/java/dev/raiseexception/odin/accounts/
 │       └── InMemoryUserRepository.kt
 └── presentation/
     └── registration/
+        ├── NavigationTarget.kt
         ├── RegistrationUiState.kt
         ├── RegistrationViewModel.kt
         └── RegistrationScreen.kt
@@ -106,8 +124,15 @@ app/src/main/java/dev/raiseexception/odin/accounts/
 app/src/main/java/dev/raiseexception/odin/
 ├── MainActivity.kt
 ├── OdinApplication.kt
-└── di/
-    └── AppContainer.kt
+├── di/
+│   └── AppContainer.kt
+├── home/
+│   └── presentation/
+│       └── home/
+│           └── HomeScreen.kt
+└── shared/
+    └── presentation/
+        └── Routes.kt
 
 app/src/test/java/dev/raiseexception/odin/accounts/
 ├── domain/model/PasswordTest.kt
@@ -136,9 +161,12 @@ specs/auth/registration/
    generation, and wrapping
 6. User entity is built and persisted via `UserRepository.add()`
 7. Master key is stored in `MasterKeyRepository` for session use
-8. `Outcome<User>` returns to the ViewModel, which maps it to `Success` or an
-   error `UiState`
-9. Screen re-renders with the new state
+8. `Outcome<User>` returns to the ViewModel. On success, it sends
+   `NavigationTarget.Home` into the `Channel` (UiState stays on `Loading`).
+   On failure, it maps the error to a `UiState` (ValidationError or Error)
+9. On success: the screen's `LaunchedEffect` collects the navigation event,
+   calls the `onRegistrationSuccess` callback, and `MainActivity` navigates
+   to the home screen. On failure: the screen re-renders with the error state
 
 ## Screen & States
 
@@ -147,14 +175,13 @@ specs/auth/registration/
 - Password confirmation field (masked)
 - Recommendation message about choosing a strong password
 - "Registrarse" button (replaced by a loading spinner during `Loading`)
-- Success message below the button on success
 - Inline error next to the relevant field on validation failure
 - General error message on system failure
 
 **UiState shape:**
 - `Idle` — initial, form visible, no messages
-- `Loading` — spinner replaces button, fields remain visible
-- `Success` — "Cuenta creada exitosamente" shown
+- `Loading` — spinner replaces button, fields remain visible. On success,
+  stays on `Loading` until navigation fires
 - `ValidationError` — inline error on password and/or confirmation field
 - `Error` — general error message (crypto failure, storage failure, already
   registered)
@@ -164,8 +191,6 @@ specs/auth/registration/
 - **In-memory storage:** user data is lost on process death. Registering again
   after killing the app creates a new user with new keys. Room persistence is
   planned as a separate feature.
-- **No navigation after success:** the screen shows a success message but does
-  not redirect. Navigation is deferred until a second screen exists.
 - **No login flow:** a registered user who reopens the app sees the registration
   screen again (with an "already registered" guard). Login is a separate feature.
 - **ViewModel is not scoped with `ViewModelProvider.Factory`:** the ViewModel is

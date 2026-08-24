@@ -6,7 +6,11 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -20,7 +24,9 @@ class RegistrationScreenTest {
         composeTestRule.setContent {
             RegistrationScreen(
                 uiState = RegistrationUiState.Idle,
-                onRegister = { _, _ -> }
+                onRegister = { _, _ -> },
+                navigationEvent = emptyFlow(),
+                onRegistrationSuccess = {}
             )
         }
         composeTestRule.onNodeWithTag("password_field").assertIsDisplayed()
@@ -34,22 +40,29 @@ class RegistrationScreenTest {
         composeTestRule.setContent {
             RegistrationScreen(
                 uiState = RegistrationUiState.Loading,
-                onRegister = { _, _ -> }
+                onRegister = { _, _ -> },
+                navigationEvent = emptyFlow(),
+                onRegistrationSuccess = {}
             )
         }
         composeTestRule.onNodeWithTag("loading_indicator").assertIsDisplayed()
     }
 
     @Test
-    fun `given success state, when displayed, then shows success message`() {
+    fun `given navigation event, when received, then calls onRegistrationSuccess`() {
+        val channel = Channel<NavigationTarget>(Channel.BUFFERED)
+        var callbackInvoked = false
         composeTestRule.setContent {
             RegistrationScreen(
-                uiState = RegistrationUiState.Success,
-                onRegister = { _, _ -> }
+                uiState = RegistrationUiState.Idle,
+                onRegister = { _, _ -> },
+                navigationEvent = channel.receiveAsFlow(),
+                onRegistrationSuccess = { callbackInvoked = true }
             )
         }
-        composeTestRule.onNodeWithTag("success_message").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Cuenta creada exitosamente").assertIsDisplayed()
+        channel.trySend(NavigationTarget.Home)
+        composeTestRule.waitUntil(timeoutMillis = 3000) { callbackInvoked }
+        assertTrue(callbackInvoked)
     }
 
     @Test
@@ -59,7 +72,9 @@ class RegistrationScreenTest {
                 uiState = RegistrationUiState.ValidationError(
                     passwordError = "La contraseña debe tener al menos 12 caracteres"
                 ),
-                onRegister = { _, _ -> }
+                onRegister = { _, _ -> },
+                navigationEvent = emptyFlow(),
+                onRegistrationSuccess = {}
             )
         }
         composeTestRule.onNodeWithTag("password_field_error").assertIsDisplayed()
@@ -73,7 +88,9 @@ class RegistrationScreenTest {
                 uiState = RegistrationUiState.ValidationError(
                     passwordConfirmationError = "Las contraseñas no coinciden"
                 ),
-                onRegister = { _, _ -> }
+                onRegister = { _, _ -> },
+                navigationEvent = emptyFlow(),
+                onRegistrationSuccess = {}
             )
         }
         composeTestRule.onNodeWithTag("password_confirmation_field_error").assertIsDisplayed()
@@ -87,7 +104,9 @@ class RegistrationScreenTest {
                 uiState = RegistrationUiState.Error(
                     message = "Algo salió mal. Intente de nuevo más tarde"
                 ),
-                onRegister = { _, _ -> }
+                onRegister = { _, _ -> },
+                navigationEvent = emptyFlow(),
+                onRegistrationSuccess = {}
             )
         }
         composeTestRule.onNodeWithTag("error_message").assertIsDisplayed()
@@ -104,7 +123,9 @@ class RegistrationScreenTest {
                 onRegister = { password, confirmation ->
                     capturedPassword = password
                     capturedConfirmation = confirmation
-                }
+                },
+                navigationEvent = emptyFlow(),
+                onRegistrationSuccess = {}
             )
         }
         composeTestRule.onNodeWithTag("password_field").performTextInput("mySecurePassword1")

@@ -9,6 +9,7 @@ import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -47,7 +48,7 @@ class RegistrationViewModelTest {
     }
 
     @Test
-    fun `given valid password, when registering, then emits Loading then Success`() = runTest {
+    fun `given valid password, when registering, then emits Loading and stays Loading`() = runTest {
         val user = User(
             id = "id",
             salt = ByteArray(TEST_BYTE_ARRAY_SIZE) { it.toByte() },
@@ -59,7 +60,7 @@ class RegistrationViewModelTest {
             assertEquals(RegistrationUiState.Idle, awaitItem())
             viewModel.register("validPassword1", "validPassword1")
             assertEquals(RegistrationUiState.Loading, awaitItem())
-            assertEquals(RegistrationUiState.Success, awaitItem())
+            expectNoEvents()
         }
     }
 
@@ -149,6 +150,19 @@ class RegistrationViewModelTest {
                 (state as RegistrationUiState.Error).message
             )
         }
+    }
+
+    @Test
+    fun `given valid password, when registering, then emits navigation event to Home`() = runTest {
+        val user = User(
+            id = "id",
+            salt = ByteArray(TEST_BYTE_ARRAY_SIZE) { it.toByte() },
+            wrappedMasterKey = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + 1).toByte() }
+        )
+        coEvery { userRegistrar.register("validPassword1", "validPassword1") } returns Outcome.Success(user)
+        viewModel.register("validPassword1", "validPassword1")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(NavigationTarget.Home, viewModel.navigationEvent.first())
     }
 
     @Test

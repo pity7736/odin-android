@@ -29,8 +29,7 @@ start managing my personal finances privately and securely.
   - The protected access to the user's financial data.
 - This allows the user to return and access their data by entering their
   password.
-- After a successful setup, the user sees a confirmation message and can start
-  using the app. Redirection to another area is deferred.
+- After a successful setup, the user is redirected to the home area of the app.
 - The registration form shows a recommendation message encouraging the user to
   choose a long, unique password, explaining that it protects all their financial
   information.
@@ -46,7 +45,7 @@ start managing my personal finances privately and securely.
 
 - Given a new user opening the app for the first time
 - When they enter a password of 12 or more characters, confirm it, and submit
-- Then their vault is created and they see a confirmation message
+- Then their vault is created and they are redirected to the home area
 
 ### Password at minimum length
 
@@ -114,4 +113,3 @@ start managing my personal finances privately and securely.
 - Biometric authentication
 - Session persistence ("remember me")
 - Login
-- Redirection to another area of the app after registration

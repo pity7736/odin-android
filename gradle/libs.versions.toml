@@ -16,6 +16,7 @@ robolectric = "4.14.1"
 bouncycastle = "1.80"
 kover = "0.9.1"
 detekt = "1.23.8"
+navigationCompose = "2.8.9"
 uuidCreator = "6.0.0"
 
 [libraries]
@@ -43,6 +44,7 @@ turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 bouncycastle = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
 detekt-formatting = { group = "io.gitlab.arturbosch.detekt", name = "detekt-formatting", version.ref = "detekt" }
+androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 uuid-creator = { group = "com.github.f4b6a3", name = "uuid-creator", version.ref = "uuidCreator" }
 
 [plugins]

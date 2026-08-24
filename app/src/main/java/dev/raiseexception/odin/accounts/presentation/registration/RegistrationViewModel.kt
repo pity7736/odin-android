@@ -4,12 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounts.application.usecase.UserRegistrar
 import dev.raiseexception.odin.accounts.domain.RegistrationError
-import dev.raiseexception.odin.accounts.domain.model.User
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.Outcome
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 class RegistrationViewModel(
@@ -19,16 +21,18 @@ class RegistrationViewModel(
     private val mutableUiState = MutableStateFlow<RegistrationUiState>(RegistrationUiState.Idle)
     val uiState: StateFlow<RegistrationUiState> = this.mutableUiState.asStateFlow()
 
+    private val navigationChannel = Channel<NavigationTarget>(Channel.BUFFERED)
+    val navigationEvent: Flow<NavigationTarget> = this.navigationChannel.receiveAsFlow()
+
     fun register(rawPassword: String, rawPasswordConfirmation: String) {
         this.viewModelScope.launch {
             mutableUiState.value = RegistrationUiState.Loading
-            mutableUiState.value = mapOutcome(userRegistrar.register(rawPassword, rawPasswordConfirmation))
+            val outcome = userRegistrar.register(rawPassword, rawPasswordConfirmation)
+            when (outcome) {
+                is Outcome.Success -> navigationChannel.send(NavigationTarget.Home)
+                is Outcome.Failure -> mutableUiState.value = this@RegistrationViewModel.mapError(outcome.error)
+            }
         }
-    }
-
-    private fun mapOutcome(outcome: Outcome<User>): RegistrationUiState = when (outcome) {
-        is Outcome.Success -> RegistrationUiState.Success
-        is Outcome.Failure -> this.mapError(outcome.error)
     }
 
     private fun mapError(error: DomainError): RegistrationUiState = when (error) {
