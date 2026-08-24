@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounts.application.usecase.UserRegistrar
 import dev.raiseexception.odin.accounts.domain.RegistrationError
-import dev.raiseexception.odin.accounts.domain.model.User
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.coroutines.channels.Channel
@@ -29,16 +28,11 @@ class RegistrationViewModel(
         this.viewModelScope.launch {
             mutableUiState.value = RegistrationUiState.Loading
             val outcome = userRegistrar.register(rawPassword, rawPasswordConfirmation)
-            mutableUiState.value = mapOutcome(outcome)
-            if (outcome is Outcome.Success) {
-                navigationChannel.send(NavigationTarget.Home)
+            when (outcome) {
+                is Outcome.Success -> navigationChannel.send(NavigationTarget.Home)
+                is Outcome.Failure -> mutableUiState.value = this@RegistrationViewModel.mapError(outcome.error)
             }
         }
-    }
-
-    private fun mapOutcome(outcome: Outcome<User>): RegistrationUiState = when (outcome) {
-        is Outcome.Success -> RegistrationUiState.Success
-        is Outcome.Failure -> this.mapError(outcome.error)
     }
 
     private fun mapError(error: DomainError): RegistrationUiState = when (error) {

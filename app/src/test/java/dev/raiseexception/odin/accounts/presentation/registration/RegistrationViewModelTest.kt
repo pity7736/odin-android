@@ -48,7 +48,7 @@ class RegistrationViewModelTest {
     }
 
     @Test
-    fun `given valid password, when registering, then emits Loading then Success`() = runTest {
+    fun `given valid password, when registering, then emits Loading and stays Loading`() = runTest {
         val user = User(
             id = "id",
             salt = ByteArray(TEST_BYTE_ARRAY_SIZE) { it.toByte() },
@@ -60,7 +60,7 @@ class RegistrationViewModelTest {
             assertEquals(RegistrationUiState.Idle, awaitItem())
             viewModel.register("validPassword1", "validPassword1")
             assertEquals(RegistrationUiState.Loading, awaitItem())
-            assertEquals(RegistrationUiState.Success, awaitItem())
+            expectNoEvents()
         }
     }
 

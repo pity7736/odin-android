@@ -15,6 +15,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import dev.raiseexception.odin.accounts.presentation.registration.RegistrationScreen
 import dev.raiseexception.odin.home.presentation.home.HomeScreen
+import dev.raiseexception.odin.shared.presentation.Routes
 import dev.raiseexception.odin.ui.theme.OdinTheme
 
 class MainActivity : ComponentActivity() {
@@ -29,23 +30,23 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
                     NavHost(
                         navController = navController,
-                        startDestination = "registration",
+                        startDestination = Routes.REGISTRATION,
                         modifier = Modifier.padding(innerPadding)
                     ) {
-                        composable("registration") {
+                        composable(Routes.REGISTRATION) {
                             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
                             RegistrationScreen(
                                 uiState = uiState,
                                 onRegister = viewModel::register,
                                 navigationEvent = viewModel.navigationEvent,
                                 onRegistrationSuccess = {
-                                    navController.navigate("home") {
-                                        popUpTo("registration") { inclusive = true }
+                                    navController.navigate(Routes.HOME) {
+                                        popUpTo(Routes.REGISTRATION) { inclusive = true }
                                     }
                                 }
                             )
                         }
-                        composable("home") {
+                        composable(Routes.HOME) {
                             HomeScreen()
                         }
                     }

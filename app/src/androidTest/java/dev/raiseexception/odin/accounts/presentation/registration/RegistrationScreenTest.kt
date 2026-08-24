@@ -49,12 +49,12 @@ class RegistrationScreenTest {
     }
 
     @Test
-    fun `given success state, when displayed, then calls onRegistrationSuccess`() {
+    fun `given navigation event, when received, then calls onRegistrationSuccess`() {
         val channel = Channel<NavigationTarget>(Channel.BUFFERED)
         var callbackInvoked = false
         composeTestRule.setContent {
             RegistrationScreen(
-                uiState = RegistrationUiState.Success,
+                uiState = RegistrationUiState.Idle,
                 onRegister = { _, _ -> },
                 navigationEvent = channel.receiveAsFlow(),
                 onRegistrationSuccess = { callbackInvoked = true }

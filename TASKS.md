@@ -34,3 +34,4 @@ locally.
 ### Quality
 
 - [ ] Structured logging (Timber or similar, respecting zero-knowledge — no keys/plaintext)
+- [ ] Design a better approach for ViewModel error mapping (unreachable else branch in mapError due to DomainError interface)
