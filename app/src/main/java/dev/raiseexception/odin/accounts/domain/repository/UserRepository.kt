@@ -6,4 +6,5 @@ import dev.raiseexception.odin.shared.domain.Outcome
 interface UserRepository {
     suspend fun add(user: User): Outcome<Unit>
     suspend fun exists(): Boolean
+    suspend fun get(): Outcome<User>
 }

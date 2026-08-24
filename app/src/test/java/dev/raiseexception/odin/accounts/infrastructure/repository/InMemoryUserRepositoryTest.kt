@@ -1,9 +1,11 @@
 package dev.raiseexception.odin.accounts.infrastructure.repository
 
+import dev.raiseexception.odin.accounts.domain.LoginError
 import dev.raiseexception.odin.accounts.domain.RegistrationError
 import dev.raiseexception.odin.accounts.domain.model.User
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -61,6 +63,25 @@ class InMemoryUserRepositoryTest {
 
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is RegistrationError.StorageFailure)
+    }
+
+    @Test
+    fun `given a stored user, when getting it, then returns it`() = runTest {
+        val storedUser = buildUser("user-1")
+        repository.add(storedUser)
+
+        val result = repository.get()
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(storedUser, (result as Outcome.Success).value)
+    }
+
+    @Test
+    fun `given no stored user, when getting it, then fails with user not found`() = runTest {
+        val result = repository.get()
+
+        assertTrue(result is Outcome.Failure)
+        assertTrue((result as Outcome.Failure).error is LoginError.UserNotFound)
     }
 
     private fun buildUser(id: String) = User(
