@@ -4,4 +4,6 @@ object Routes {
     const val REGISTRATION = "registration"
     const val LOGIN = "login"
     const val HOME = "home"
+    const val ACCOUNTS = "accounts"
+    const val ACCOUNT_CREATE = "account_create"
 }
