@@ -22,7 +22,7 @@ class CreateAccountScreenTest {
     val composeTestRule = createComposeRule()
 
     @Test
-    fun `given idle state, when displayed, then shows the fields and the create action`() {
+    fun given_idle_state_when_displayed_then_shows_the_fields_and_the_create_action() {
         composeTestRule.setContent {
             CreateAccountScreen(
                 uiState = CreateAccountUiState.Idle,
@@ -38,7 +38,7 @@ class CreateAccountScreenTest {
     }
 
     @Test
-    fun `given loading state, when displayed, then shows the loading indicator`() {
+    fun given_loading_state_when_displayed_then_shows_the_loading_indicator() {
         composeTestRule.setContent {
             CreateAccountScreen(
                 uiState = CreateAccountUiState.Loading,
@@ -51,7 +51,7 @@ class CreateAccountScreenTest {
     }
 
     @Test
-    fun `given a navigation event, when received, then calls onCreateSuccess`() {
+    fun given_a_navigation_event_when_received_then_calls_onCreateSuccess() {
         val channel = Channel<NavigationTarget>(Channel.BUFFERED)
         var callbackInvoked = false
         composeTestRule.setContent {
@@ -68,7 +68,7 @@ class CreateAccountScreenTest {
     }
 
     @Test
-    fun `given a validation error, when displayed, then shows each field message`() {
+    fun given_a_validation_error_when_displayed_then_shows_each_field_message() {
         composeTestRule.setContent {
             CreateAccountScreen(
                 uiState = CreateAccountUiState.ValidationError(
@@ -91,7 +91,7 @@ class CreateAccountScreenTest {
     }
 
     @Test
-    fun `given an error state, when displayed, then shows the general error message`() {
+    fun given_an_error_state_when_displayed_then_shows_the_general_error_message() {
         composeTestRule.setContent {
             CreateAccountScreen(
                 uiState = CreateAccountUiState.Error("Algo salió mal. Intente de nuevo más tarde"),
@@ -105,7 +105,7 @@ class CreateAccountScreenTest {
     }
 
     @Test
-    fun `given filled fields, when create clicked, then onCreate receives the typed values`() {
+    fun given_filled_fields_when_create_clicked_then_onCreate_receives_the_typed_values() {
         var capturedName = ""
         var capturedBalance = ""
         var capturedCurrency: Currency? = null
