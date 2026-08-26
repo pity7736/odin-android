@@ -6,6 +6,7 @@ import dev.raiseexception.odin.accounts.domain.RegistrationError
 import dev.raiseexception.odin.accounts.domain.model.User
 import dev.raiseexception.odin.shared.domain.Outcome
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -62,6 +63,22 @@ class RegistrationViewModelTest {
             assertEquals(RegistrationUiState.Loading, awaitItem())
             expectNoEvents()
         }
+    }
+
+    @Test
+    fun `given a registration in progress, when registering again, then ignores the second attempt`() = runTest {
+        val user = User(
+            id = "id",
+            salt = ByteArray(TEST_BYTE_ARRAY_SIZE) { it.toByte() },
+            wrappedMasterKey = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + 1).toByte() }
+        )
+        coEvery { userRegistrar.register("validPassword1", "validPassword1") } returns Outcome.Success(user)
+
+        viewModel.register("validPassword1", "validPassword1")
+        viewModel.register("validPassword1", "validPassword1")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { userRegistrar.register("validPassword1", "validPassword1") }
     }
 
     @Test

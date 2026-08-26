@@ -167,7 +167,9 @@ specs/accounting/accounts/creation/
 - **Reliability:** Failures are typed `Outcome`/`DomainError` values, never
   exceptions across layers; `Account.create` aggregates all field errors; a single
   authority means the ViewModel and use case can't disagree about validity.
-  Persistence is non-durable by design for now (see Known Limitations).
+  `create` ignores a second invocation while a creation is in progress (it returns
+  early when the state is already `Loading`), so a double tap cannot start two
+  creations. Persistence is non-durable by design for now (see Known Limitations).
 - **Performance:** Crypto runs off the main thread on an injected dispatcher.
   Uniqueness decrypts all records per create — O(n) but negligible for a
   single-user vault; chunk-batching is the answer if it ever matters.

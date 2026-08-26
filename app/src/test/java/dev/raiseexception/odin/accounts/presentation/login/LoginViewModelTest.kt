@@ -6,6 +6,7 @@ import dev.raiseexception.odin.accounts.domain.LoginError
 import dev.raiseexception.odin.accounts.domain.model.User
 import dev.raiseexception.odin.shared.domain.Outcome
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -71,6 +72,17 @@ class LoginViewModelTest {
         viewModel.login("validPassword1")
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(NavigationTarget.Home, viewModel.navigationEvent.first())
+    }
+
+    @Test
+    fun `given a login in progress, when logging in again, then ignores the second attempt`() = runTest {
+        coEvery { userAuthenticator.authenticate("validPassword1") } returns Outcome.Success(user)
+
+        viewModel.login("validPassword1")
+        viewModel.login("validPassword1")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { userAuthenticator.authenticate("validPassword1") }
     }
 
     @Test

@@ -25,12 +25,13 @@ class RegistrationViewModel(
     val navigationEvent: Flow<NavigationTarget> = this.navigationChannel.receiveAsFlow()
 
     fun register(rawPassword: String, rawPasswordConfirmation: String) {
+        if (this.mutableUiState.value is RegistrationUiState.Loading) return
+        this.mutableUiState.value = RegistrationUiState.Loading
         this.viewModelScope.launch {
-            mutableUiState.value = RegistrationUiState.Loading
             val outcome = userRegistrar.register(rawPassword, rawPasswordConfirmation)
             when (outcome) {
                 is Outcome.Success -> navigationChannel.send(NavigationTarget.Home)
-                is Outcome.Failure -> mutableUiState.value = this@RegistrationViewModel.mapError(outcome.error)
+                is Outcome.Failure -> mutableUiState.value = mapError(outcome.error)
             }
         }
     }

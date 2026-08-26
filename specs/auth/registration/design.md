@@ -214,7 +214,9 @@ specs/auth/registration/
   master key. The master key is held in memory only (via `MasterKeyRepository`).
 - **Reliability:** every failure path is modeled as a typed `RegistrationError`
   mapped to a specific `UiState`. The UI is always in exactly one valid state
-  (sealed interface). No silent error swallowing.
+  (sealed interface). No silent error swallowing. `register` ignores a second
+  invocation while a registration is in progress (it returns early when the state
+  is already `Loading`), so a double tap cannot start two registrations.
 - **Performance:** Argon2id runs on `Dispatchers.Default` via an injected
   dispatcher, keeping the main thread free and avoiding ANRs.
 - **Observability:** domain errors carry internal English messages for debugging.

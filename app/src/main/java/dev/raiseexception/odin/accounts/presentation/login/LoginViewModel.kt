@@ -25,12 +25,13 @@ class LoginViewModel(
     val navigationEvent: Flow<NavigationTarget> = this.navigationChannel.receiveAsFlow()
 
     fun login(rawPassword: String) {
+        if (this.mutableUiState.value is LoginUiState.Loading) return
+        this.mutableUiState.value = LoginUiState.Loading
         this.viewModelScope.launch {
-            mutableUiState.value = LoginUiState.Loading
             val outcome = userAuthenticator.authenticate(rawPassword)
             when (outcome) {
                 is Outcome.Success -> navigationChannel.send(NavigationTarget.Home)
-                is Outcome.Failure -> mutableUiState.value = this@LoginViewModel.mapError(outcome.error)
+                is Outcome.Failure -> mutableUiState.value = mapError(outcome.error)
             }
         }
     }
