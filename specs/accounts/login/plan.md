@@ -1,7 +1,7 @@
 # Work Order: User Login — build the login feature (unlock + startup routing)
 
-**Feature design:** `specs/auth/login/design.md` (the living source of truth — created at the hydrate gate)
-**Corresponds to Spec:** `specs/auth/login/spec.md`
+**Feature design:** `specs/accounts/login/design.md` (the living source of truth — created at the hydrate gate)
+**Corresponds to Spec:** `specs/accounts/login/spec.md`
 
 > Work order for: **building User Login from scratch** (login screen + password
 > verification + splash-gated app-open routing). Disposable — overwritten by the

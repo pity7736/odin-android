@@ -1,4 +1,4 @@
-# Feature: User Registration
+# Feature: User Creation
 
 ## Overview
 

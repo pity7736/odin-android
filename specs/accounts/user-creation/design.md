@@ -1,6 +1,6 @@
-# Technical Design: User Registration
+# Technical Design: User Creation
 
-**Corresponds to Spec:** `specs/auth/registration/spec.md`
+**Corresponds to Spec:** `specs/accounts/user-creation/spec.md`
 
 ## Overview
 
@@ -155,7 +155,7 @@ app/src/test/java/dev/raiseexception/odin/accounts/
 app/src/androidTest/java/dev/raiseexception/odin/accounts/
 └── presentation/registration/RegistrationScreenTest.kt
 
-specs/auth/registration/
+specs/accounts/user-creation/
 ├── spec.md
 ├── design.md
 └── plan.md
