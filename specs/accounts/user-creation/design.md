@@ -183,8 +183,8 @@ specs/accounts/user-creation/
 ## Screen & States
 
 **Registration screen** — single screen with:
-- Password field (masked)
-- Password confirmation field (masked)
+- Password field (masked by default, with an independent reveal toggle)
+- Password confirmation field (masked by default, with an independent reveal toggle)
 - Recommendation message about choosing a strong password
 - "Registrarse" button (replaced by a loading spinner during `Loading`)
 - Inline error next to the relevant field on validation failure
