@@ -214,4 +214,15 @@ class UserRegistrarTest {
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is RegistrationError.AlreadyRegistered)
     }
+
+    @Test
+    fun `given user already exists, when registering, then already registered has correct message`() = runTest {
+        coEvery { userRepository.exists() } returns true
+
+        val result = registrar.register(validPassword, validPasswordConfirmation)
+
+        val error = (result as Outcome.Failure).error as RegistrationError.AlreadyRegistered
+        val expectedMessage = "Ya existe un usuario en este dispositivo"
+        assertTrue(error.externalMessage == expectedMessage)
+    }
 }

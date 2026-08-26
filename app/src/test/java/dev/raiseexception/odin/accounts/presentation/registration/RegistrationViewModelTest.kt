@@ -187,7 +187,7 @@ class RegistrationViewModelTest {
         coEvery { userRegistrar.register("validPassword1", "validPassword1") } returns Outcome.Failure(
             RegistrationError.AlreadyRegistered(
                 internalMessage = "User already registered on this device",
-                externalMessage = "Ya existe una cuenta en este dispositivo"
+                externalMessage = "Ya existe un usuario en este dispositivo"
             )
         )
 
@@ -198,7 +198,7 @@ class RegistrationViewModelTest {
             val state = awaitItem()
             assertTrue(state is RegistrationUiState.Error)
             assertEquals(
-                "Ya existe una cuenta en este dispositivo",
+                "Ya existe un usuario en este dispositivo",
                 (state as RegistrationUiState.Error).message
             )
         }
