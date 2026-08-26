@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,7 +25,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.Flow
 
@@ -39,7 +45,9 @@ fun RegistrationScreen(
         navigationEvent.collect { onRegistrationSuccess() }
     }
     var password by rememberSaveable { mutableStateOf("") }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var passwordConfirmation by rememberSaveable { mutableStateOf("") }
+    var passwordConfirmationVisible by rememberSaveable { mutableStateOf(false) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -62,16 +70,18 @@ fun RegistrationScreen(
         PasswordField(
             value = password,
             onValueChange = { password = it },
-            label = "Contraseña",
-            testTag = "password_field",
+            config = FieldConfig("Contraseña", "password_field"),
+            revealState = RevealState(passwordVisible) { passwordVisible = !passwordVisible },
             errorMessage = extractPasswordError(uiState)
         )
         Spacer(modifier = Modifier.height(16.dp))
         PasswordField(
             value = passwordConfirmation,
             onValueChange = { passwordConfirmation = it },
-            label = "Confirmar contraseña",
-            testTag = "password_confirmation_field",
+            config = FieldConfig("Confirmar contraseña", "password_confirmation_field"),
+            revealState = RevealState(passwordConfirmationVisible) {
+                passwordConfirmationVisible = !passwordConfirmationVisible
+            },
             errorMessage = extractPasswordConfirmationError(uiState)
         )
         Spacer(modifier = Modifier.height(24.dp))
@@ -83,32 +93,47 @@ fun RegistrationScreen(
     }
 }
 
+private data class RevealState(val visible: Boolean, val onToggle: () -> Unit)
+private data class FieldConfig(val label: String, val testTag: String)
+
 @Composable
 private fun PasswordField(
     value: String,
     onValueChange: (String) -> Unit,
-    label: String,
-    testTag: String,
+    config: FieldConfig,
+    revealState: RevealState,
     errorMessage: String?
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         TextField(
             value = value,
             onValueChange = onValueChange,
-            label = { Text(label) },
-            visualTransformation = PasswordVisualTransformation(),
+            label = { Text(config.label) },
+            visualTransformation = if (revealState.visible) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             singleLine = true,
             isError = errorMessage != null,
+            trailingIcon = {
+                RevealToggle(
+                    passwordVisible = revealState.visible,
+                    onToggle = revealState.onToggle,
+                    testTag = "${config.testTag}_reveal_toggle"
+                )
+            },
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag(testTag)
+                .testTag(config.testTag)
         )
         if (errorMessage != null) {
             Text(
                 text = errorMessage,
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.testTag("${testTag}_error")
+                modifier = Modifier.testTag("${config.testTag}_error")
             )
         }
     }
@@ -146,6 +171,20 @@ private fun GeneralMessage(uiState: RegistrationUiState) {
             )
         }
         else -> Unit
+    }
+}
+
+@Composable
+private fun RevealToggle(passwordVisible: Boolean, onToggle: () -> Unit, testTag: String) {
+    val label = if (passwordVisible) "Ocultar" else "Mostrar"
+    val description = if (passwordVisible) "Ocultar contraseña" else "Mostrar contraseña"
+    TextButton(
+        onClick = onToggle,
+        modifier = Modifier
+            .testTag(testTag)
+            .semantics { contentDescription = description }
+    ) {
+        Text(label)
     }
 }
 

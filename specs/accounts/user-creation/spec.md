@@ -21,6 +21,8 @@ start managing my personal finances privately and securely.
 - The password must be between 12 and 100 characters long. No other complexity
   rules. Any character is accepted, including special characters.
 - The password and password confirmation must match.
+- Both password fields are hidden by default, with the option to reveal each one
+  independently.
 - The password is used on the device to set up the protection for the user's
   data. The password itself is never stored or sent anywhere.
 - After setup, the following are saved on the device:
@@ -105,6 +107,13 @@ start managing my personal finances privately and securely.
 - When they attempt to register again
 - Then they see a message telling them an account already exists on this device
 - And no new vault is created
+
+### Revealing a password field
+
+- Given a new user on the user creation form
+- When they choose to reveal one of the password fields
+- Then that field becomes visible
+- And they can hide it again independently of the other field
 
 ## Out of Scope
 
