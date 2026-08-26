@@ -37,11 +37,7 @@ class CreateAccountViewModel(
             mutableUiState.value = CreateAccountUiState.Loading
             val outcome = accountCreator.create(rawName, rawBalance, currency, type, rawDescription)
             when (outcome) {
-                is Outcome.Success -> {
-                    mutableUiState.value = CreateAccountUiState.Idle
-                    navigationChannel.send(NavigationTarget.AccountsList)
-                }
-
+                is Outcome.Success -> navigationChannel.send(NavigationTarget.AccountsList)
                 is Outcome.Failure -> mutableUiState.value = this@CreateAccountViewModel.mapError(outcome.error)
             }
         }
