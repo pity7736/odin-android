@@ -49,7 +49,7 @@ fun RegistrationScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Crear cuenta",
+            text = "Crear usuario",
             style = MaterialTheme.typography.headlineMedium
         )
         Spacer(modifier = Modifier.height(8.dp))

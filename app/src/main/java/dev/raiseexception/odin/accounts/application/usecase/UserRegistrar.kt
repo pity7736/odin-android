@@ -64,7 +64,7 @@ class UserRegistrar(
     private fun alreadyRegisteredFailure() = Outcome.Failure(
         RegistrationError.AlreadyRegistered(
             internalMessage = "User already registered on this device",
-            externalMessage = "Ya existe una cuenta en este dispositivo"
+            externalMessage = "Ya existe un usuario en este dispositivo"
         )
     )
 

@@ -15,7 +15,7 @@ class InMemoryUserRepository : UserRepository {
             return Outcome.Failure(
                 RegistrationError.StorageFailure(
                     internalMessage = "User already exists in storage",
-                    externalMessage = "Ya existe una cuenta en este dispositivo"
+                    externalMessage = "Ya existe un usuario en este dispositivo"
                 )
             )
         }
