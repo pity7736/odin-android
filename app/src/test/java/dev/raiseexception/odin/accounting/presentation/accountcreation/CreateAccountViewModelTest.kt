@@ -8,6 +8,7 @@ import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.shared.domain.Outcome
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -63,6 +64,17 @@ class CreateAccountViewModelTest {
         viewModel.create("Ahorros", "1500.00", Currency.COP, AccountType.SAVINGS, "Fondo de emergencia")
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(NavigationTarget.AccountsList, viewModel.navigationEvent.first())
+    }
+
+    @Test
+    fun `given a creation in progress, when creating again, then ignores the second attempt`() = runTest {
+        coEvery { accountCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Success(savingsAccount)
+
+        viewModel.create("Ahorros", "1500.00", Currency.COP, AccountType.SAVINGS, "")
+        viewModel.create("Ahorros", "1500.00", Currency.COP, AccountType.SAVINGS, "")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { accountCreator.create(any(), any(), any(), any(), any()) }
     }
 
     @Test

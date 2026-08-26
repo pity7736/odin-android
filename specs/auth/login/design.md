@@ -215,9 +215,11 @@ success until navigation fires), `ValidationError(passwordError)` (blank input),
   screenshots and the recent-apps preview.
 - **Reliability:** every failure path is a typed `LoginError` mapped to exactly
   one `LoginUiState`; the screen is always in one valid state (sealed interface).
-  No silent error swallowing. (Latent gap: an uncaught exception thrown from a
-  future non-Outcome dependency would crash the coroutine — tracked as a global
-  ViewModel exception handler in `TASKS.md`.)
+  No silent error swallowing. `login` ignores a second invocation while a login is
+  in progress (it returns early when the state is already `Loading`), so a double
+  tap cannot start two authentications. (Latent gap: an uncaught exception thrown
+  from a future non-Outcome dependency would crash the coroutine — tracked as a
+  global ViewModel exception handler in `TASKS.md`.)
 - **Performance:** Argon2id + unwrap run on the injected `cpuDispatcher`
   (`Dispatchers.Default`), keeping the main thread free during the intentionally
   slow derivation; the `Loading` state disables re-submission.
