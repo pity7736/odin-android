@@ -155,6 +155,25 @@ class ChunkGetterTest {
 - The test **body** follows the same order as the name: arrange (given) → act
   (when) → assert (then).
 
+- **Exception — instrumented tests (`src/androidTest`):** use
+  `given_…_when_…_then_…` with **underscores** instead of spaces, and **no
+  commas**, dropping the backticks (the name becomes a plain identifier):
+
+```kotlin
+class CreateAccountScreenTest {
+    @Test
+    fun given_idle_state_when_displayed_then_shows_the_fields_and_the_create_action() { /* ... */ }
+}
+```
+
+  Why: instrumented tests are compiled to DEX and installed on the device.
+  Method names containing spaces are only legal in DEX version 040, which the
+  toolchain emits only when `minSdk >= 30`; with the app's `minSdk = 26` the
+  `dexBuilderDebugAndroidTest` task fails before any test runs. JVM unit tests
+  (`src/test`) never dex, so they **keep** the backtick spaced form above. The
+  underscore name still maps to its spec scenario one-to-one — only the word
+  separator changes.
+
 ### 3.2. Test Simplicity
 
 Tests are simple and declarative: one behavior per test, no conditionals or loops

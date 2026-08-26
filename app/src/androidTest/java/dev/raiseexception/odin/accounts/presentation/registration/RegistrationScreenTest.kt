@@ -20,7 +20,7 @@ class RegistrationScreenTest {
     val composeTestRule = createComposeRule()
 
     @Test
-    fun `given idle state, when displayed, then shows password fields submit and recommendation`() {
+    fun given_idle_state_when_displayed_then_shows_password_fields_submit_and_recommendation() {
         composeTestRule.setContent {
             RegistrationScreen(
                 uiState = RegistrationUiState.Idle,
@@ -36,7 +36,7 @@ class RegistrationScreenTest {
     }
 
     @Test
-    fun `given loading state, when displayed, then shows loading indicator`() {
+    fun given_loading_state_when_displayed_then_shows_loading_indicator() {
         composeTestRule.setContent {
             RegistrationScreen(
                 uiState = RegistrationUiState.Loading,
@@ -49,7 +49,7 @@ class RegistrationScreenTest {
     }
 
     @Test
-    fun `given navigation event, when received, then calls onRegistrationSuccess`() {
+    fun given_navigation_event_when_received_then_calls_onRegistrationSuccess() {
         val channel = Channel<NavigationTarget>(Channel.BUFFERED)
         var callbackInvoked = false
         composeTestRule.setContent {
@@ -66,7 +66,7 @@ class RegistrationScreenTest {
     }
 
     @Test
-    fun `given validation error with password error, when displayed, then shows error next to password field`() {
+    fun given_validation_error_with_password_error_when_displayed_then_shows_error_next_to_password_field() {
         composeTestRule.setContent {
             RegistrationScreen(
                 uiState = RegistrationUiState.ValidationError(
@@ -82,7 +82,7 @@ class RegistrationScreenTest {
     }
 
     @Test
-    fun `given validation error with confirmation error, when displayed, then shows error next to confirmation field`() {
+    fun given_validation_error_with_confirmation_error_when_displayed_then_shows_error_next_to_confirmation_field() {
         composeTestRule.setContent {
             RegistrationScreen(
                 uiState = RegistrationUiState.ValidationError(
@@ -98,7 +98,7 @@ class RegistrationScreenTest {
     }
 
     @Test
-    fun `given error state, when displayed, then shows general error message`() {
+    fun given_error_state_when_displayed_then_shows_general_error_message() {
         composeTestRule.setContent {
             RegistrationScreen(
                 uiState = RegistrationUiState.Error(
@@ -114,7 +114,7 @@ class RegistrationScreenTest {
     }
 
     @Test
-    fun `given passwords typed, when register clicked, then onRegister receives both values`() {
+    fun given_passwords_typed_when_register_clicked_then_onRegister_receives_both_values() {
         var capturedPassword = ""
         var capturedConfirmation = ""
         composeTestRule.setContent {

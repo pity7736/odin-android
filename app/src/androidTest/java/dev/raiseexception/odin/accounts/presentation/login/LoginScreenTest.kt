@@ -22,7 +22,7 @@ class LoginScreenTest {
     val composeTestRule = createComposeRule()
 
     @Test
-    fun `given idle state, when displayed, then shows password field and submit hidden by default`() {
+    fun given_idle_state_when_displayed_then_shows_password_field_and_submit_hidden_by_default() {
         composeTestRule.setContent {
             LoginScreen(
                 uiState = LoginUiState.Idle,
@@ -38,7 +38,7 @@ class LoginScreenTest {
     }
 
     @Test
-    fun `given hidden password, when reveal toggled, then password becomes visible and can be hidden again`() {
+    fun given_hidden_password_when_reveal_toggled_then_password_becomes_visible_and_can_be_hidden_again() {
         composeTestRule.setContent {
             LoginScreen(
                 uiState = LoginUiState.Idle,
@@ -55,7 +55,7 @@ class LoginScreenTest {
     }
 
     @Test
-    fun `given loading state, when displayed, then shows loading indicator and disables submit`() {
+    fun given_loading_state_when_displayed_then_shows_loading_indicator_and_disables_submit() {
         composeTestRule.setContent {
             LoginScreen(
                 uiState = LoginUiState.Loading,
@@ -69,7 +69,7 @@ class LoginScreenTest {
     }
 
     @Test
-    fun `given validation error, when displayed, then shows error next to password field`() {
+    fun given_validation_error_when_displayed_then_shows_error_next_to_password_field() {
         composeTestRule.setContent {
             LoginScreen(
                 uiState = LoginUiState.ValidationError(passwordError = "Ingrese su contraseña"),
@@ -83,7 +83,7 @@ class LoginScreenTest {
     }
 
     @Test
-    fun `given error state, when displayed, then shows general error message`() {
+    fun given_error_state_when_displayed_then_shows_general_error_message() {
         composeTestRule.setContent {
             LoginScreen(
                 uiState = LoginUiState.Error(message = "Contraseña incorrecta"),
@@ -97,7 +97,7 @@ class LoginScreenTest {
     }
 
     @Test
-    fun `given a password typed, when login clicked, then onLogin receives the password`() {
+    fun given_a_password_typed_when_login_clicked_then_onLogin_receives_the_password() {
         var capturedPassword = ""
         composeTestRule.setContent {
             LoginScreen(
@@ -113,7 +113,7 @@ class LoginScreenTest {
     }
 
     @Test
-    fun `given navigation event, when received, then calls onLoginSuccess`() {
+    fun given_navigation_event_when_received_then_calls_onLoginSuccess() {
         val channel = Channel<NavigationTarget>(Channel.BUFFERED)
         var callbackInvoked = false
         composeTestRule.setContent {
