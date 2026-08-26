@@ -88,6 +88,17 @@ whether to start on login (a vault exists) or registration (none exists).
   navigates with `popUpTo(LOGIN){inclusive}` so back from home closes the app.
   The password field is masked with a reveal toggle (new vs registration).
 
+- **`LoginViewModel` is destination-scoped, like registration and create-account.**
+  The `LoginScreen` destination obtains it via
+  `androidx.lifecycle.viewmodel.compose.viewModel { … }` (backed by the
+  `NavBackStackEntry`'s `ViewModelStore`, instance from the `AppContainer`
+  factory). It survives configuration changes and is cleared when the login
+  entry leaves the back stack — and the success navigation's `popUpTo(LOGIN)
+  { inclusive = true }` does exactly that, so the post-success `Loading` state is
+  inert (the instance is destroyed). `startupViewModel` stays Activity-level: it
+  decides the start route before the `NavHost` exists, so it cannot be scoped to a
+  destination.
+
 ## Architecture & Files Summary
 
 ```

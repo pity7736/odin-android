@@ -11,8 +11,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
@@ -27,38 +29,30 @@ import dev.raiseexception.odin.accounts.presentation.login.LoginViewModel
 import dev.raiseexception.odin.accounts.presentation.registration.RegistrationScreen
 import dev.raiseexception.odin.accounts.presentation.registration.RegistrationViewModel
 import dev.raiseexception.odin.accounts.presentation.startup.StartupState
+import dev.raiseexception.odin.accounts.presentation.startup.StartupViewModel
 import dev.raiseexception.odin.home.presentation.home.HomeScreen
 import dev.raiseexception.odin.shared.presentation.Routes
 import dev.raiseexception.odin.ui.theme.OdinTheme
 
 class MainActivity : ComponentActivity() {
 
-    private val loginViewModel: LoginViewModel by viewModels {
+    private val startupViewModel: StartupViewModel by viewModels {
         viewModelFactory {
-            initializer { (application as OdinApplication).appContainer.loginViewModel() }
+            initializer { (application as OdinApplication).appContainer.startupViewModel() }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
-        val appContainer = (application as OdinApplication).appContainer
-        val startupViewModel = appContainer.startupViewModel()
-        val registrationViewModel = appContainer.registrationViewModel()
-        val createAccountViewModel = appContainer.createAccountViewModel()
-        splashScreen.setKeepOnScreenCondition { startupViewModel.state.value is StartupState.Deciding }
+        splashScreen.setKeepOnScreenCondition { this.startupViewModel.state.value is StartupState.Deciding }
         enableEdgeToEdge()
         setContent {
             OdinTheme {
                 val startupState by startupViewModel.state.collectAsStateWithLifecycle()
                 when (val decided = startupState) {
                     is StartupState.Deciding -> Unit
-                    is StartupState.Decided -> AppNavHost(
-                        startRoute = decided.startRoute,
-                        registrationViewModel = registrationViewModel,
-                        loginViewModel = loginViewModel,
-                        createAccountViewModel = createAccountViewModel
-                    )
+                    is StartupState.Decided -> AppNavHost(startRoute = decided.startRoute)
                 }
             }
         }
@@ -66,12 +60,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun AppNavHost(
-    startRoute: String,
-    registrationViewModel: RegistrationViewModel,
-    loginViewModel: LoginViewModel,
-    createAccountViewModel: CreateAccountViewModel
-) {
+private fun AppNavHost(startRoute: String) {
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         val navController = rememberNavController()
         NavHost(
@@ -80,10 +69,10 @@ private fun AppNavHost(
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Routes.REGISTRATION) {
-                RegistrationDestination(registrationViewModel, navController)
+                RegistrationDestination(navController)
             }
             composable(Routes.LOGIN) {
-                LoginDestination(loginViewModel, navController)
+                LoginDestination(navController)
             }
             composable(Routes.HOME) {
                 HomeScreen(onOpenAccounts = { navController.navigate(Routes.ACCOUNTS) })
@@ -92,35 +81,18 @@ private fun AppNavHost(
                 AccountsListScreen(onCreateAccount = { navController.navigate(Routes.ACCOUNT_CREATE) })
             }
             composable(Routes.ACCOUNT_CREATE) {
-                CreateAccountDestination(createAccountViewModel, navController)
+                CreateAccountDestination(navController)
             }
         }
     }
 }
 
 @Composable
-private fun CreateAccountDestination(
-    createAccountViewModel: CreateAccountViewModel,
-    navController: NavHostController
-) {
-    val uiState by createAccountViewModel.uiState.collectAsStateWithLifecycle()
-    CreateAccountScreen(
-        uiState = uiState,
-        onCreate = createAccountViewModel::create,
-        navigationEvent = createAccountViewModel.navigationEvent,
-        onCreateSuccess = {
-            navController.navigate(Routes.ACCOUNTS) {
-                popUpTo(Routes.ACCOUNT_CREATE) { inclusive = true }
-            }
-        }
-    )
-}
-
-@Composable
-private fun RegistrationDestination(
-    registrationViewModel: RegistrationViewModel,
-    navController: NavHostController
-) {
+private fun RegistrationDestination(navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val registrationViewModel: RegistrationViewModel = viewModel {
+        application.appContainer.registrationViewModel()
+    }
     val uiState by registrationViewModel.uiState.collectAsStateWithLifecycle()
     RegistrationScreen(
         uiState = uiState,
@@ -135,10 +107,11 @@ private fun RegistrationDestination(
 }
 
 @Composable
-private fun LoginDestination(
-    loginViewModel: LoginViewModel,
-    navController: NavHostController
-) {
+private fun LoginDestination(navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val loginViewModel: LoginViewModel = viewModel {
+        application.appContainer.loginViewModel()
+    }
     val uiState by loginViewModel.uiState.collectAsStateWithLifecycle()
     LoginScreen(
         uiState = uiState,
@@ -147,6 +120,25 @@ private fun LoginDestination(
         onLoginSuccess = {
             navController.navigate(Routes.HOME) {
                 popUpTo(Routes.LOGIN) { inclusive = true }
+            }
+        }
+    )
+}
+
+@Composable
+private fun CreateAccountDestination(navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val createAccountViewModel: CreateAccountViewModel = viewModel {
+        application.appContainer.createAccountViewModel()
+    }
+    val uiState by createAccountViewModel.uiState.collectAsStateWithLifecycle()
+    CreateAccountScreen(
+        uiState = uiState,
+        onCreate = createAccountViewModel::create,
+        navigationEvent = createAccountViewModel.navigationEvent,
+        onCreateSuccess = {
+            navController.navigate(Routes.ACCOUNTS) {
+                popUpTo(Routes.ACCOUNT_CREATE) { inclusive = true }
             }
         }
     )

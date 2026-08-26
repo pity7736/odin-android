@@ -16,7 +16,12 @@ canonical file formats live in the three templates beside this file.
 - **`spec.md`** — the WHAT, in business language. Living.
 - **`design.md`** — the durable HOW and WHY. Living, and the **single source of
   truth** for anything durable. When design.md and a plan.md disagree, design.md
-  wins.
+  wins. It describes the design **as it is now**, in the present tense — never how
+  it changed. No history, no changelog language ("earlier…", "used to be…", "has
+  been removed", "now matches…"), no reference to prior states or to the change
+  that produced the current one. A reader must not be able to tell whether a
+  decision was made on day one or last week. Git history is where the evolution
+  lives; `design.md` is a snapshot of the present.
 - **`plan.md`** — the WORK ORDER for the *current* change (new feature, update,
   or bug fix). Disposable: **overwritten wholesale** by the next change; git
   history keeps every prior work order. It is never pruned or morphed — it is
@@ -195,6 +200,13 @@ Discovery (above) must be complete first.
      introduced is reflected there. `design.md` must match the shipped code when
      you are done. Do NOT copy code the source owns (signatures, field lists) —
      capture the rationale, the thing the code cannot tell a future reader.
+     **When this change FIXES a Known Limitation, do not annotate it as fixed —
+     rewrite it.** Delete the limitation entry and, if the fix embodies a durable
+     choice, add it fresh to **Design Decisions & Rationale** as a present-tense
+     decision (with its rejected alternative). A resolved limitation is no longer a
+     limitation; it must read as a decision, with no trace of ever having been a
+     problem. Edit every touched entry to describe the current state only — never
+     leave "was X, now Y" phrasing behind.
    - **Freeze:** leave `plan.md` exactly as it is — it is now the historical work
      order for this change. Do NOT prune it, do NOT edit it further. The next
      change to this feature overwrites it from scratch; git keeps this one.
@@ -319,5 +331,11 @@ Then split by KIND:
   four).
 - `design.md` contains no code the source owns (signatures, field lists) — only
   the durable shape and the rationale.
+- `design.md` is written entirely in the present tense — no history or changelog
+  language ("earlier…", "used to be…", "has been removed", "now matches…"), no
+  reference to the change that produced the current state.
+- Any Known Limitation this change resolved is GONE from Known Limitations —
+  deleted, and (if durable) rewritten as a present-tense entry in Design Decisions
+  & Rationale, with no trace of having been a limitation.
 - `plan.md` is left frozen as the historical work order — not pruned, not edited
   further.

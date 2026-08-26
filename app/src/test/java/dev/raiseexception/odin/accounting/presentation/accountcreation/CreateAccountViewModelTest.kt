@@ -66,13 +66,13 @@ class CreateAccountViewModelTest {
     }
 
     @Test
-    fun `given a valid account, when creating, then returns to Idle so the form is reusable`() = runTest {
+    fun `given a valid account, when creating, then emits Loading and stays Loading`() = runTest {
         coEvery { accountCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Success(savingsAccount)
         viewModel.uiState.test {
             assertEquals(CreateAccountUiState.Idle, awaitItem())
             viewModel.create("Ahorros", "1500.00", Currency.COP, AccountType.SAVINGS, "")
             assertEquals(CreateAccountUiState.Loading, awaitItem())
-            assertEquals(CreateAccountUiState.Idle, awaitItem())
+            expectNoEvents()
         }
     }
 

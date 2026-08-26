@@ -74,6 +74,17 @@ introduces the shared encrypted-storage shape that later accounting entities
   encryption.
 - **Money serialized as a String at the infra boundary** to keep the `BigDecimal`
   amount exact across encrypt/decrypt.
+- **`CreateAccountViewModel` is destination-scoped.** The `ACCOUNT_CREATE`
+  destination obtains it via `androidx.lifecycle.viewmodel.compose.viewModel { … }`
+  (backed by the `NavBackStackEntry`'s `ViewModelStore`; instance from the
+  `AppContainer` factory). It survives configuration changes and is cleared
+  (`onCleared()` → `viewModelScope` cancelled) when the entry leaves the back
+  stack. On success `create` emits `Loading` and sends the navigation event, and
+  the success navigation `popUpTo(ACCOUNT_CREATE) { inclusive = true }` removes the
+  entry and destroys the ViewModel — so a fresh `Idle` ViewModel is created on the
+  next visit to the form, with no need to reset `uiState` on success. Rejected
+  alternative: an Activity-scoped or reused app-level instance — it would outlive
+  the screen, forcing a manual `Idle` reset and never cancelling its scope.
 
 ## Architecture & Files Summary
 ```
@@ -141,11 +152,6 @@ specs/accounting/accounts/creation/
 - **Balance input is dot-only** — the domain parses with a dot decimal and no
   grouping separators; comma decimals / period grouping (es-CO) are unsupported.
   Acceptable for now (dev users), tracked in `TASKS.md`.
-- **`createAccountViewModel` is not lifecycle-scoped** — recreated on
-  configuration change (`viewModelScope` leak + form-state loss); tracked in
-  `TASKS.md`. (`loginViewModel` was fixed.) It is also a reused app-level instance,
-  so `create` resets `uiState` to `Idle` on success — otherwise the instance stays
-  `Loading` and the next visit to the form shows an infinite spinner.
 - **In-memory store is not thread-safe** — acceptable for a single-user throwaway
   store replaced by Room; no read/write overlap occurs in practice.
 - **Out of scope** (per spec): editing/deleting accounts, transactions, credit-card

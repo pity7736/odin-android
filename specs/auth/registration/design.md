@@ -97,6 +97,18 @@ inline validation feedback.
   home uses `popUpTo(Routes.REGISTRATION) { inclusive = true }` to clear
   registration from the back stack — pressing back from home closes the app.
 
+- **`RegistrationViewModel` is destination-scoped.** The `RegistrationScreen`
+  destination obtains it via `androidx.lifecycle.viewmodel.compose.viewModel { … }`,
+  backed by the `NavBackStackEntry`'s `ViewModelStore` (the `AppContainer` factory
+  supplies the instance). It survives configuration changes and is cleared
+  (`onCleared()` → `viewModelScope` cancelled) when the entry leaves the back
+  stack. Because the success navigation uses
+  `popUpTo(Routes.REGISTRATION) { inclusive = true }`, the entry is removed and the
+  ViewModel destroyed on success — so the `UiState` staying on `Loading` after
+  success is inert, and a later return to the screen gets a fresh `Idle` ViewModel.
+  Rejected alternative: an Activity-scoped ViewModel — it would outlive the screen
+  and never clear until the Activity finishes.
+
 ## Architecture & Files Summary
 
 ```
@@ -193,10 +205,6 @@ specs/auth/registration/
   planned as a separate feature.
 - **No login flow:** a registered user who reopens the app sees the registration
   screen again (with an "already registered" guard). Login is a separate feature.
-- **ViewModel is not scoped with `ViewModelProvider.Factory`:** the ViewModel is
-  created directly from `AppContainer`, so it does not survive Activity
-  recreation. Acceptable for now since the screen has no complex state to
-  preserve across configuration changes.
 
 ## Quality Pillars
 

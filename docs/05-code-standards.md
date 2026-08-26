@@ -106,6 +106,15 @@ Decided stack (see `docs/02-architecture.md` for how the pieces fit):
 
 ### 2.5. Compose
 
+- **Composable naming (overrides §2.2 for functions).** A `@Composable` that emits
+  UI is named in `PascalCase` (`RegistrationScreen`, `AppNavHost`), following the
+  official Compose API guidelines — this is the one exception to the
+  `camelCase`-for-functions rule in §2.2. Composables that *return a value* instead
+  of emitting UI keep `camelCase` (`rememberNavController()`,
+  `collectAsStateWithLifecycle()`). A plain Kotlin LSP that is not Compose-aware
+  may flag the `PascalCase` form as "function should start lowercase"; that warning
+  is expected and is silenced by pointing detekt/lint at the Compose ruleset, not
+  by renaming.
 - **Composables are pure functions of state.** A screen Composable takes a
   `UiState` and lambdas for events; it holds no business logic and does no I/O.
 - **State hoisting:** stateless Composables receive state + callbacks from the
