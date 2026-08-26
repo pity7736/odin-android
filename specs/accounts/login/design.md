@@ -1,6 +1,6 @@
 # Technical Design: User Login
 
-**Corresponds to Spec:** `specs/auth/login/spec.md`
+**Corresponds to Spec:** `specs/accounts/login/spec.md`
 
 ## Overview
 
@@ -134,7 +134,7 @@ app/src/test/java/dev/raiseexception/odin/accounts/
 app/src/androidTest/java/dev/raiseexception/odin/accounts/
 └── presentation/login/LoginScreenTest.kt
 
-specs/auth/login/
+specs/accounts/login/
 ├── spec.md
 ├── design.md
 └── plan.md

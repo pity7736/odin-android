@@ -1,7 +1,7 @@
-# Work Order: User Registration — Redirect to Home After Success
+# Work Order: User Creation — Redirect to Home After Success
 
-**Feature design:** `specs/auth/registration/design.md` (the living source of truth)
-**Corresponds to Spec:** `specs/auth/registration/spec.md`
+**Feature design:** `specs/accounts/user-creation/design.md` (the living source of truth)
+**Corresponds to Spec:** `specs/accounts/user-creation/spec.md`
 
 > Work order for: **redirect to the home screen after successful registration**.
 > Disposable — overwritten by the next change (git keeps the history). The living
