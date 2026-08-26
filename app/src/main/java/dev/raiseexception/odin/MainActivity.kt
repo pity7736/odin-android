@@ -138,7 +138,7 @@ private fun CreateAccountDestination(navController: NavHostController) {
         navigationEvent = createAccountViewModel.navigationEvent,
         onCreateSuccess = {
             navController.navigate(Routes.ACCOUNTS) {
-                popUpTo(Routes.ACCOUNT_CREATE) { inclusive = true }
+                popUpTo(Routes.ACCOUNTS) { inclusive = true }
             }
         }
     )

@@ -80,9 +80,11 @@ introduces the shared encrypted-storage shape that later accounting entities
   `AppContainer` factory). It survives configuration changes and is cleared
   (`onCleared()` → `viewModelScope` cancelled) when the entry leaves the back
   stack. On success `create` emits `Loading` and sends the navigation event, and
-  the success navigation `popUpTo(ACCOUNT_CREATE) { inclusive = true }` removes the
-  entry and destroys the ViewModel — so a fresh `Idle` ViewModel is created on the
-  next visit to the form, with no need to reset `uiState` on success. Rejected
+  the success navigation `popUpTo(ACCOUNTS) { inclusive = true }` removes the
+  `ACCOUNT_CREATE` entry and the pre-existing `ACCOUNTS` entry before pushing a
+  fresh `ACCOUNTS`, leaving a clean `[Home, Accounts]` back stack. This destroys
+  the ViewModel — so a fresh `Idle` ViewModel is created on the next visit to the
+  form, with no need to reset `uiState` on success. Rejected
   alternative: an Activity-scoped or reused app-level instance — it would outlive
   the screen, forcing a manual `Idle` reset and never cancelling its scope.
 
@@ -175,4 +177,4 @@ specs/accounting/accounts/creation/
   single-user vault; chunk-batching is the answer if it ever matters.
 - **Observability:** Deferred — no structured logging yet (tracked in `TASKS.md`);
   when added it must respect zero-knowledge (never log keys/plaintext).
-</content>
+ 
