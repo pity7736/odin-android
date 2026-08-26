@@ -22,21 +22,26 @@ class Account private constructor(
 
         fun create(
             name: String,
-            initialBalance: BigDecimal,
-            currency: Currency,
-            type: AccountType,
+            initialBalance: String,
+            currency: Currency?,
+            type: AccountType?,
             description: String
         ): Outcome<Account> {
             val trimmedName = name.trim()
             val trimmedDescription = description.trim()
+            val amount = parseAmount(initialBalance)
             val nameError = validateName(trimmedName)
-            val balanceError = validateBalance(initialBalance)
+            val balanceError = validateBalance(initialBalance, amount)
+            val currencyError = if (currency == null) "La moneda es obligatoria." else null
+            val typeError = if (type == null) "El tipo de cuenta es obligatorio." else null
             val descriptionError = validateDescription(trimmedDescription)
-            if (nameError != null || balanceError != null || descriptionError != null) {
+            if (anyError(nameError, balanceError, currencyError, typeError, descriptionError)) {
                 return Outcome.Failure(
                     AccountCreationError.InvalidInput(
                         nameError = nameError,
                         balanceError = balanceError,
+                        currencyError = currencyError,
+                        typeError = typeError,
                         descriptionError = descriptionError
                     )
                 )
@@ -45,11 +50,17 @@ class Account private constructor(
                 Account(
                     id = UuidCreator.getTimeOrderedEpoch().toString(),
                     name = trimmedName,
-                    initialBalance = Money.of(initialBalance, currency),
-                    type = type,
+                    initialBalance = Money.of(amount!!, currency!!),
+                    type = type!!,
                     description = trimmedDescription
                 )
             )
+        }
+
+        private fun parseAmount(rawBalance: String): BigDecimal? = try {
+            BigDecimal(rawBalance.trim())
+        } catch (@Suppress("SwallowedException") exception: NumberFormatException) {
+            null
         }
 
         private fun validateName(trimmedName: String): String? = when {
@@ -58,9 +69,11 @@ class Account private constructor(
             else -> null
         }
 
-        private fun validateBalance(initialBalance: BigDecimal): String? = when {
-            initialBalance.signum() < 0 -> "El saldo inicial no puede ser negativo."
-            initialBalance.scale() > MAX_DECIMAL_PLACES ->
+        private fun validateBalance(rawBalance: String, amount: BigDecimal?): String? = when {
+            rawBalance.isBlank() -> "El saldo inicial es obligatorio."
+            amount == null -> "El saldo inicial no es un número válido."
+            amount.signum() < 0 -> "El saldo inicial no puede ser negativo."
+            amount.scale() > MAX_DECIMAL_PLACES ->
                 "El saldo inicial admite máximo $MAX_DECIMAL_PLACES decimales."
             else -> null
         }
@@ -70,5 +83,7 @@ class Account private constructor(
                 "La descripción no puede superar los $MAX_DESCRIPTION_LENGTH caracteres."
             else -> null
         }
+
+        private fun anyError(vararg errors: String?): Boolean = errors.any { it != null }
     }
 }

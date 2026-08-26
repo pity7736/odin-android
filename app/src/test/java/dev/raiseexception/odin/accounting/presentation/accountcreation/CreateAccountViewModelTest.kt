@@ -8,7 +8,6 @@ import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.shared.domain.Outcome
 import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -22,7 +21,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.math.BigDecimal
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CreateAccountViewModelTest {
@@ -34,7 +32,7 @@ class CreateAccountViewModelTest {
     private val savingsAccount = (
         Account.create(
             name = "Ahorros",
-            initialBalance = BigDecimal("1500.00"),
+            initialBalance = "1500.00",
             currency = Currency.COP,
             type = AccountType.SAVINGS,
             description = "Fondo de emergencia"
@@ -60,54 +58,6 @@ class CreateAccountViewModelTest {
     }
 
     @Test
-    fun `given no currency, when creating, then shows the currency error and skips creation`() = runTest {
-        viewModel.uiState.test {
-            assertEquals(CreateAccountUiState.Idle, awaitItem())
-            viewModel.create("Ahorros", "1500.00", null, AccountType.SAVINGS, "")
-            assertEquals(CreateAccountUiState.Loading, awaitItem())
-            val error = awaitItem() as CreateAccountUiState.ValidationError
-            assertEquals("Debes seleccionar una moneda.", error.currencyError)
-        }
-        coVerify(exactly = 0) { accountCreator.create(any(), any(), any(), any(), any()) }
-    }
-
-    @Test
-    fun `given no type, when creating, then shows the type error and skips creation`() = runTest {
-        viewModel.uiState.test {
-            assertEquals(CreateAccountUiState.Idle, awaitItem())
-            viewModel.create("Ahorros", "1500.00", Currency.COP, null, "")
-            assertEquals(CreateAccountUiState.Loading, awaitItem())
-            val error = awaitItem() as CreateAccountUiState.ValidationError
-            assertEquals("Debes seleccionar un tipo de cuenta.", error.typeError)
-        }
-        coVerify(exactly = 0) { accountCreator.create(any(), any(), any(), any(), any()) }
-    }
-
-    @Test
-    fun `given a blank balance, when creating, then shows the required error and skips creation`() = runTest {
-        viewModel.uiState.test {
-            assertEquals(CreateAccountUiState.Idle, awaitItem())
-            viewModel.create("Ahorros", "", Currency.COP, AccountType.SAVINGS, "")
-            assertEquals(CreateAccountUiState.Loading, awaitItem())
-            val error = awaitItem() as CreateAccountUiState.ValidationError
-            assertEquals("El saldo inicial es obligatorio.", error.balanceError)
-        }
-        coVerify(exactly = 0) { accountCreator.create(any(), any(), any(), any(), any()) }
-    }
-
-    @Test
-    fun `given a non-numeric balance, when creating, then shows the invalid error and skips creation`() = runTest {
-        viewModel.uiState.test {
-            assertEquals(CreateAccountUiState.Idle, awaitItem())
-            viewModel.create("Ahorros", "abc", Currency.COP, AccountType.SAVINGS, "")
-            assertEquals(CreateAccountUiState.Loading, awaitItem())
-            val error = awaitItem() as CreateAccountUiState.ValidationError
-            assertEquals("El saldo inicial no es un número válido.", error.balanceError)
-        }
-        coVerify(exactly = 0) { accountCreator.create(any(), any(), any(), any(), any()) }
-    }
-
-    @Test
     fun `given a valid account, when creating, then emits navigation to the accounts list`() = runTest {
         coEvery { accountCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Success(savingsAccount)
         viewModel.create("Ahorros", "1500.00", Currency.COP, AccountType.SAVINGS, "Fondo de emergencia")
@@ -116,23 +66,37 @@ class CreateAccountViewModelTest {
     }
 
     @Test
-    fun `given several invalid fields, when creating, then shows a validation error with each message`() = runTest {
+    fun `given a valid account, when creating, then returns to Idle so the form is reusable`() = runTest {
+        coEvery { accountCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Success(savingsAccount)
+        viewModel.uiState.test {
+            assertEquals(CreateAccountUiState.Idle, awaitItem())
+            viewModel.create("Ahorros", "1500.00", Currency.COP, AccountType.SAVINGS, "")
+            assertEquals(CreateAccountUiState.Loading, awaitItem())
+            assertEquals(CreateAccountUiState.Idle, awaitItem())
+        }
+    }
+
+    @Test
+    fun `given invalid input, when creating, then maps each field error into the validation state`() = runTest {
         coEvery { accountCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Failure(
             AccountCreationError.InvalidInput(
                 nameError = "El nombre es obligatorio.",
-                balanceError = "El saldo inicial no puede ser negativo.",
-                descriptionError = null
+                balanceError = "El saldo inicial es obligatorio.",
+                currencyError = "La moneda es obligatoria.",
+                typeError = "El tipo de cuenta es obligatorio.",
+                descriptionError = "La descripción no puede superar los 500 caracteres."
             )
         )
         viewModel.uiState.test {
             assertEquals(CreateAccountUiState.Idle, awaitItem())
-            viewModel.create("", "10.00", Currency.COP, AccountType.SAVINGS, "")
+            viewModel.create("", "", null, null, "")
             assertEquals(CreateAccountUiState.Loading, awaitItem())
-            val state = awaitItem()
-            assertTrue(state is CreateAccountUiState.ValidationError)
-            val validationError = state as CreateAccountUiState.ValidationError
-            assertEquals("El nombre es obligatorio.", validationError.nameError)
-            assertEquals("El saldo inicial no puede ser negativo.", validationError.balanceError)
+            val error = awaitItem() as CreateAccountUiState.ValidationError
+            assertEquals("El nombre es obligatorio.", error.nameError)
+            assertEquals("El saldo inicial es obligatorio.", error.balanceError)
+            assertEquals("La moneda es obligatoria.", error.currencyError)
+            assertEquals("El tipo de cuenta es obligatorio.", error.typeError)
+            assertEquals("La descripción no puede superar los 500 caracteres.", error.descriptionError)
         }
     }
 

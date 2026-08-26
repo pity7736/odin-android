@@ -74,8 +74,8 @@ class CreateAccountScreenTest {
                 uiState = CreateAccountUiState.ValidationError(
                     nameError = "El nombre es obligatorio.",
                     balanceError = "El saldo inicial no puede ser negativo.",
-                    currencyError = "Debes seleccionar una moneda.",
-                    typeError = "Debes seleccionar un tipo de cuenta.",
+                    currencyError = "La moneda es obligatoria.",
+                    typeError = "El tipo de cuenta es obligatorio.",
                     descriptionError = "La descripción no puede superar los 500 caracteres."
                 ),
                 onCreate = { _, _, _, _, _ -> },

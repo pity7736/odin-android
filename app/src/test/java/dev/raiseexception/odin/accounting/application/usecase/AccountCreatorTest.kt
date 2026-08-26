@@ -11,7 +11,6 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.math.BigDecimal
 
 class AccountCreatorTest {
 
@@ -22,7 +21,7 @@ class AccountCreatorTest {
     fun `given invalid input, when creating, then returns invalid input and does not touch the repository`() = runTest {
         val result = creator.create(
             name = "",
-            initialBalance = BigDecimal("10.00"),
+            initialBalance = "10.00",
             currency = Currency.USD,
             type = AccountType.CASH,
             description = ""
@@ -41,7 +40,7 @@ class AccountCreatorTest {
 
         val result = creator.create(
             name = "Ahorros",
-            initialBalance = BigDecimal("1500.00"),
+            initialBalance = "1500.00",
             currency = Currency.COP,
             type = AccountType.SAVINGS,
             description = "Fondo de emergencia"
@@ -57,7 +56,7 @@ class AccountCreatorTest {
 
         val result = creator.create(
             name = "Ahorros",
-            initialBalance = BigDecimal("1500.00"),
+            initialBalance = "1500.00",
             currency = Currency.COP,
             type = AccountType.SAVINGS,
             description = ""
@@ -79,7 +78,7 @@ class AccountCreatorTest {
 
         val result = creator.create(
             name = "Ahorros",
-            initialBalance = BigDecimal("1500.00"),
+            initialBalance = "1500.00",
             currency = Currency.COP,
             type = AccountType.SAVINGS,
             description = ""
@@ -102,7 +101,7 @@ class AccountCreatorTest {
 
         val result = creator.create(
             name = "Ahorros",
-            initialBalance = BigDecimal("1500.00"),
+            initialBalance = "1500.00",
             currency = Currency.COP,
             type = AccountType.SAVINGS,
             description = ""

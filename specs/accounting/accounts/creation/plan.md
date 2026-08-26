@@ -15,20 +15,16 @@ optional description); invalid input is rejected with per-field errors; the
 account is **encrypted before being stored**; on success the user lands on a
 placeholder accounts list.
 
-**Validation is split by layer, by asking "does this concept exist in the
-domain?"**
-- **Presentation** owns UI concerns: whether a currency/type has been **selected**
-  (*"seleccionar"* is a UI act, not a domain concept) and whether the balance
-  **text parses** into a number. These produce the "Debes seleccionar…" and the
-  balance required/invalid messages.
-- **Domain** owns business rules on already-typed values: name (non-blank, ≤200,
-  trimmed), initial balance (≥0, ≤2 decimals), description (≤500), and name
-  uniqueness. A valid `Account` is impossible to construct otherwise.
-- **The UI just consumes a per-field error collection** and renders each message
-  by its field — it neither knows nor cares whether an error came from the
-  domain, the use case, or the ViewModel's own checks. "Show all errors at once"
-  is satisfied by the collector not short-circuiting, not by forcing all rules
-  into one place.
+**Validation has a single authority: the domain aggregate's `create` factory.**
+(This replaces an earlier layer-split approach that proved incoherent — see
+design.md for the rationale and the reversal.) `Account.create` receives the raw,
+possibly-incomplete input and validates EVERYTHING — presence/required, balance
+parsing/format, and value rules (lengths, sign, decimals) — aggregating every
+offending field into one `InvalidInput`. The **use case is pure orchestration**
+(create → uniqueness → persist) and the **ViewModel is dumb** (forward raw fields,
+map the result to state). All errors come back at once by construction; `Account`
+is a fully self-protecting aggregate. Required-field messages are worded neutrally
+("La moneda es obligatoria."), not as UI actions.
 
 This is also the app's **first feature that persists domain data**. Per the plan
 discussion we deliberately do NOT introduce Room yet (the data model is still
@@ -104,12 +100,12 @@ app/build.gradle.kts                                               # MODIFY (ser
 
 ## Key Types & Signatures
 
-Business rules live in the domain; `Money` is the one value object (carries the
-monetary precision invariant) and lives on `Account`. The entity has **no
-nullable fields**; the optional description is empty-not-null. Currency/type reach
-the domain as **non-null enums** (their "was one selected?" question is answered
-in presentation). Validation failures are `Outcome` values, never exceptions.
-Internal messages English, external Spanish (exact strings in spec.md).
+All validation lives in `Account.create`. `Money` is the one value object (carries
+the monetary precision invariant) and lives on `Account`. The entity has **no
+nullable fields** (description is empty-not-null). `create`'s **inputs** are raw:
+strings for name/balance/description, and **nullable** enums for currency/type
+(`null` = not provided). Validation failures are `Outcome` values, never
+exceptions. Internal messages English, external Spanish (exact strings in spec.md).
 
 **Domain — the one value object + enums:**
 ```
@@ -132,28 +128,29 @@ data class Account private constructor(
 ) {
   val currency: Currency get() = initialBalance.currency   // delegated to Money; no separate field
   companion object {
-    fun create(name: String, initialBalance: BigDecimal, currency: Currency,
-               type: AccountType, description: String): Outcome<Account>
+    fun create(name: String, initialBalance: String, currency: Currency?,
+               type: AccountType?, description: String): Outcome<Account>
   }
 }
 
 sealed class AccountCreationError(internalMessage, externalMessage) : DomainError {
   class InvalidInput(val nameError: String?, val balanceError: String?,
-                     val descriptionError: String?)  // domain-owned field errors, collected (no short-circuit)
+                     val currencyError: String?, val typeError: String?,
+                     val descriptionError: String?)  // all field errors, collected (no short-circuit)
   class DuplicateName
   class CryptoFailure
   class StorageFailure
 }
 ```
-`Account.create` receives already-typed, non-null inputs and validates only the
-domain's own rules — name (non-blank → "El nombre es obligatorio.", ≤200 → "El
-nombre no puede superar los 200 caracteres.", trimmed); initial balance (≥0 → "El
-saldo inicial no puede ser negativo.", ≤2 decimals → "El saldo inicial admite
-máximo 2 decimales."; builds `Money.of`); description (≤500 → "La descripción no
-puede superar los 500 caracteres.", trimmed, blank→""). It collects ALL offending
-fields into one `InvalidInput` (does NOT stop at the first). It does NOT validate
-currency/type presence or parse the balance text — those are presentation
-concerns. The `id` (UUIDv7) is assigned inside `create`.
+`Account.create` is the single validation authority. It validates EVERY field and
+collects all errors into one `InvalidInput` (never stops at the first): name
+(non-blank → "El nombre es obligatorio.", ≤200, trimmed); balance (raw String →
+blank → "El saldo inicial es obligatorio.", unparseable → "El saldo inicial no es
+un número válido.", ≥0, ≤2 decimals); currency `null` → "La moneda es
+obligatoria."; type `null` → "El tipo de cuenta es obligatorio."; description
+(≤500, trimmed, blank→""). Only when everything is valid does it build `Money.of`
+and the `Account` (UUIDv7 id assigned here). Parsing the balance string lives here
+too.
 
 **Domain — port:**
 ```
@@ -166,8 +163,8 @@ interface AccountRepository {
 **Application — use case (orchestration only; no business rules, no crypto):**
 ```
 class AccountCreator(private val accountRepository: AccountRepository) {
-  suspend fun create(name: String, initialBalance: BigDecimal, currency: Currency,
-                     type: AccountType, description: String): Outcome<Account>
+  suspend fun create(name: String, initialBalance: String, currency: Currency?,
+                     type: AccountType?, description: String): Outcome<Account>
 }
 ```
 Flow: `Account.create(...)` → on `Failure` return it as-is; on `Success` →
@@ -218,7 +215,7 @@ This feature only WRITES accounts; the only read is for uniqueness (name).
   this feature; that arrives with the future read/list feature.
 Store failures → `CryptoFailure` / `StorageFailure`.
 
-**Presentation — the ViewModel validates UI concerns, then calls the use case:**
+**Presentation — the ViewModel is dumb (forward + map):**
 ```
 sealed interface CreateAccountUiState {
   data object Idle; data object Loading
@@ -233,17 +230,11 @@ class CreateAccountViewModel(private val accountCreator: AccountCreator) : ViewM
              type: AccountType?, rawDescription: String)
 }
 ```
-The ViewModel's `create` first does **UI validation**: currency == null →
-`currencyError` = "Debes seleccionar una moneda."; type == null → `typeError` =
-"Debes seleccionar un tipo de cuenta."; `rawBalance` blank → `balanceError` = "El
-saldo inicial es obligatorio."; `rawBalance` not a number → `balanceError` = an
-invalid-number message. If any of these fail it emits `ValidationError` with them
-and does NOT call the use case. Otherwise it calls
-`accountCreator.create(rawName, parsedBalance, currency, type, rawDescription)`
-and maps the result: `InvalidInput` → `ValidationError(nameError, balanceError,
-descriptionError)`; `DuplicateName` → `ValidationError(nameError = external)`;
-`CryptoFailure`/`StorageFailure` → `Error`; `Success` → send
-`NavigationTarget.AccountsList`.
+`create` sets `Loading`, forwards the raw fields straight to `accountCreator.create`,
+and maps the `Outcome`: `Success` → send `NavigationTarget.AccountsList`;
+`InvalidInput` → `ValidationError` copying all five field messages; `DuplicateName`
+→ `ValidationError(nameError = external)`; `CryptoFailure`/`StorageFailure` →
+`Error`. No validation, parsing, or messages in the ViewModel.
 
 **Navigation:** `Routes.ACCOUNTS = "accounts"`, `Routes.ACCOUNT_CREATE =
 "account_create"`. `CreateAccountScreen` mirrors `RegistrationScreen` (stateless,
@@ -269,19 +260,18 @@ No test. Confirm `./gradlew help` resolves.
 
 ### Phase 1: Domain — Money, enums, Account.create, errors
 **Red:** `MoneyTest` (holds amount + currency; amount scale ≤2; sign-agnostic).
-`AccountCreateTest` on `Account.create` (typed non-null inputs) asserting each
-DOMAIN rule + exact Spanish message: name blank → "El nombre es obligatorio.";
-name >200 → "El nombre no puede superar los 200 caracteres."; name trimmed;
-balance <0 → "El saldo inicial no puede ser negativo."; balance >2 decimals → "El
-saldo inicial admite máximo 2 decimales."; zero allowed; description >500 → "La
-descripción no puede superar los 500 caracteres."; description blank → stored "";
-all-valid → `Success(Account)`; **multiple invalid domain fields → one
-`InvalidInput` with each set at once** (name + balance covers the spec's
-"show all errors" example). NOTE: currency/type-missing and balance-parsing are
-NOT tested here — they're presentation (Phase 5).
-**Green:** implement `Money`, the enums, `AccountCreationError`, and `Account`
-(private ctor + `create` factory: collect domain field errors, build `Money.of`,
-assign a UUIDv7 id — `UuidCreator.getTimeOrderedEpoch()`).
+`AccountCreateTest` on `Account.create` (raw/nullable inputs) asserting EVERY rule
++ exact Spanish message: name blank → "El nombre es obligatorio."; name >200; name
+trimmed; balance blank → "El saldo inicial es obligatorio."; balance non-numeric →
+"El saldo inicial no es un número válido."; balance <0; balance >2 decimals; zero
+allowed; currency null → "La moneda es obligatoria."; type null → "El tipo de
+cuenta es obligatorio."; description >500; description blank → stored ""; all-valid
+→ `Success(Account)`; **empty form → one `InvalidInput` with every field set at
+once** (the spec's "show all errors" case).
+**Green:** implement `Money`, the enums, `AccountCreationError` (InvalidInput with
+name/balance/currency/type/description), and `Account` (private ctor + `create`
+factory: validate all, parse balance, collect errors, build `Money.of`, assign a
+UUIDv7 id — `UuidCreator.getTimeOrderedEpoch()`).
 
 ### Phase 2: Application — AccountCreator (orchestration)
 **Red:** `AccountCreatorTest` (MockK `AccountRepository`, `UnconfinedTestDispatcher`,
@@ -311,18 +301,14 @@ feature.)
 **Green:** implement `AccountRecord` (serializable DTO + type tag, amount as
 String) and `VaultAccountRepository`.
 
-### Phase 5: Presentation — CreateAccountViewModel (UI validation + mapping)
+### Phase 5: Presentation — CreateAccountViewModel (dumb: forward + map)
 **Red:** `CreateAccountViewModelTest` (MockK `AccountCreator`, Turbine on `uiState`,
-`UnconfinedTestDispatcher`). Assert the ViewModel's OWN validation: currency null →
-`ValidationError(currencyError = "Debes seleccionar una moneda.")` and use case
-NOT called; type null → `typeError` message, not called; blank balance → "El saldo
-inicial es obligatorio.", not called; non-numeric balance → invalid-number
-message, not called. And mapping of use-case results: Loading→success emits
-`NavigationTarget.AccountsList`; `InvalidInput` → `ValidationError` with matching
-field messages (incl. name + balance at once); `DuplicateName` →
+`UnconfinedTestDispatcher`). The VM does NO validation — it forwards and maps:
+Loading→success emits `NavigationTarget.AccountsList`; `InvalidInput` →
+`ValidationError` copying all five field messages; `DuplicateName` →
 `ValidationError(nameError)`; `CryptoFailure`/`StorageFailure` → `Error`.
 **Green:** implement `CreateAccountUiState`, `NavigationTarget`,
-`CreateAccountViewModel`.
+`CreateAccountViewModel` (forward raw fields to the use case, map the `Outcome`).
 
 ### Phase 6: Presentation — screens & navigation
 **Red:** `CreateAccountScreenTest` (Compose, `createComposeRule`): valid input
@@ -347,21 +333,19 @@ Finish with `./gradlew check` GREEN (tests + detekt + Kover).
    the accounts list carries a single "+" FAB → `ACCOUNT_CREATE`. Leaves the auth →
    HOME flow untouched. A multi-action speed-dial FAB is deferred until there is
    more than one thing to create.
-2. **Show-all-errors across the selection boundary.** RESOLVED: accepted. Because
-   currency/type reach the domain as non-null enums, if they're unselected the
-   ViewModel shows those selection errors and does NOT call the domain that submit,
-   so a co-occurring domain-owned error (e.g. empty name) surfaces on the next
-   submit. The spec's explicit "all at once" example (empty name + negative
-   balance, currency present) is fully covered; only a presentation-owned error
-   (unselected currency/type or unparseable balance) co-occurring with a
-   domain-owned error is deferred a round.
+2. **Show-all-errors — resolved by making validation single-authority.** The
+   original layer-split (presentation: selection/parse; domain: field rules) hid
+   the name error on the empty form and kept generating seams. After discussion it
+   was reworked so **all** validation lives in `Account.create`, which takes the
+   raw/nullable input and returns every field error at once. VM dumb, use case pure
+   orchestration. See design.md for the full rationale.
 
 ## Code-review outcomes (post-implementation)
 
 Ran `/code-review` at medium after the green build. Five findings; resolutions:
 
-1. **Money input is dot-only, not locale-aware** (`CreateAccountViewModel.parseBalance`
-   uses `BigDecimal(text)`). DEFERRED — acceptable now (production users are
+1. **Money input is dot-only, not locale-aware** (`Account.create` parses the
+   balance with `BigDecimal(text)`). DEFERRED — acceptable now (production users are
    developers who type with a dot); logged in `TASKS.md` as a cross-cutting
    money-input enhancement.
 2. **`InMemoryEncryptedRecordStore` not thread-safe** (read/write overlap →
@@ -372,35 +356,36 @@ Ran `/code-review` at medium after the green build. Five findings; resolutions:
    `loginViewModel` is now obtained via `viewModels { … }` (activity `ViewModelStore`);
    `createAccountViewModel` (and `registration`/`startup`) still have this and are
    logged in `TASKS.md`. Known Limitation for this feature.
-4. **Show-all-errors across the selection boundary.** No change — this is the
-   accepted decision above.
+4. **Show-all-errors across the selection boundary.** Resolved by the
+   single-authority redesign (see Resolved decisions #2) — `Account.create` returns
+   every field error at once, including the empty-form name error.
 5. **Balance field used the default text keyboard.** FIXED — dedicated
    `BalanceField` with `KeyboardType.Decimal`.
 
 ## Design decisions to hydrate into design.md
-- [ ] The `accounting` module and its package layout; money is a canonical
+- [x] The `accounting` module and its package layout; money is a canonical
       `Money(amount, currency)` value object (`BigDecimal`, scale ≤2) living on
       `Account`; `Account.currency` delegates to `initialBalance.currency`; entity
       has no nullable fields (description is empty-not-null); amount serialized as
       a String; currency/type are enums.
-- [ ] Validation is split by layer: presentation owns selection presence and
-      balance parsing (UI concepts); the domain (`Account.create`) owns the
-      business rules (name, balance ≥0/precision, description, uniqueness). The UI
-      consumes an origin-agnostic per-field error collection.
-- [ ] Persistence is in-memory behind a port for now; Room deferred until the data
+- [x] Validation is single-authority: `Account.create` validates everything
+      (presence/required, balance parse, value rules) from raw/nullable input and
+      returns all field errors at once; use case orchestrates; ViewModel dumb;
+      required messages worded neutrally.
+- [x] Persistence is in-memory behind a port for now; Room deferred until the data
       model settles (Known Limitation: accounts do not survive app restart).
-- [ ] One shared encrypted store across all entities (anti-enumeration); entity
+- [x] One shared encrypted store across all entities (anti-enumeration); entity
       type lives inside the ciphertext, never as a plaintext column; listing/
       uniqueness decrypts and filters by type (Security).
-- [ ] Encryption is not deferred — the in-memory store holds encrypted blobs;
+- [x] Encryption is not deferred — the in-memory store holds encrypted blobs;
       crypto path: serialize → `VaultCrypto.encrypt` → store (Data Flow).
-- [ ] Uniqueness is a post-validation check (`DuplicateName`); case-insensitive
+- [x] Uniqueness is a post-validation check (`DuplicateName`); case-insensitive
       compare done in the repository.
-- [ ] Navigation: new `ACCOUNTS` / `ACCOUNT_CREATE` routes; entry from Home
+- [x] Navigation: new `ACCOUNTS` / `ACCOUNT_CREATE` routes; entry from Home
       ("Mis cuentas") → accounts list → single "+" FAB → create form;
       post-creation lands on the placeholder list (Screen & States). The balance
       input uses a numeric decimal keyboard.
-- [ ] Known Limitations: placeholder accounts list; credit cards, other
+- [x] Known Limitations: placeholder accounts list; credit cards, other
       currencies, editing/deleting, and transactions are out of scope; balance
       input is dot-only (locale-aware money input deferred, tracked in TASKS.md);
       `createAccountViewModel` is not lifecycle-scoped (config-change leak/state

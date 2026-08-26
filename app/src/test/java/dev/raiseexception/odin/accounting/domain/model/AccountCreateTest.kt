@@ -17,7 +17,7 @@ class AccountCreateTest {
     fun `given all valid fields, when creating an account, then returns success`() {
         val result = Account.create(
             name = "Ahorros",
-            initialBalance = BigDecimal("1500.00"),
+            initialBalance = "1500.00",
             currency = Currency.COP,
             type = AccountType.SAVINGS,
             description = "Fondo de emergencia"
@@ -37,7 +37,7 @@ class AccountCreateTest {
     fun `given a zero balance, when creating an account, then returns success with zero balance`() {
         val result = Account.create(
             name = "Efectivo",
-            initialBalance = BigDecimal("0"),
+            initialBalance = "0",
             currency = Currency.USD,
             type = AccountType.CASH,
             description = ""
@@ -52,7 +52,7 @@ class AccountCreateTest {
     fun `given a name with surrounding spaces, when creating an account, then stores the trimmed name`() {
         val result = Account.create(
             name = "  Ahorros  ",
-            initialBalance = BigDecimal("10.00"),
+            initialBalance = "10.00",
             currency = Currency.USD,
             type = AccountType.CASH,
             description = ""
@@ -66,77 +66,127 @@ class AccountCreateTest {
     fun `given a blank name, when creating an account, then returns name required error`() {
         val result = Account.create(
             name = "   ",
-            initialBalance = BigDecimal("10.00"),
+            initialBalance = "10.00",
             currency = Currency.USD,
             type = AccountType.CASH,
             description = ""
         )
 
-        val error = failureInvalidInput(result)
-        assertEquals("El nombre es obligatorio.", error.nameError)
+        assertEquals("El nombre es obligatorio.", failureInvalidInput(result).nameError)
     }
 
     @Test
     fun `given a name longer than 200 characters, when creating an account, then returns name too long error`() {
         val result = Account.create(
             name = "a".repeat(MAX_NAME_LENGTH + 1),
-            initialBalance = BigDecimal("10.00"),
+            initialBalance = "10.00",
             currency = Currency.USD,
             type = AccountType.CASH,
             description = ""
         )
 
-        val error = failureInvalidInput(result)
-        assertEquals("El nombre no puede superar los 200 caracteres.", error.nameError)
+        assertEquals("El nombre no puede superar los 200 caracteres.", failureInvalidInput(result).nameError)
+    }
+
+    @Test
+    fun `given a blank balance, when creating an account, then returns balance required error`() {
+        val result = Account.create(
+            name = "Ahorros",
+            initialBalance = "",
+            currency = Currency.USD,
+            type = AccountType.CASH,
+            description = ""
+        )
+
+        assertEquals("El saldo inicial es obligatorio.", failureInvalidInput(result).balanceError)
+    }
+
+    @Test
+    fun `given a non-numeric balance, when creating an account, then returns invalid number error`() {
+        val result = Account.create(
+            name = "Ahorros",
+            initialBalance = "abc",
+            currency = Currency.USD,
+            type = AccountType.CASH,
+            description = ""
+        )
+
+        assertEquals("El saldo inicial no es un número válido.", failureInvalidInput(result).balanceError)
     }
 
     @Test
     fun `given a negative balance, when creating an account, then returns negative balance error`() {
         val result = Account.create(
             name = "Ahorros",
-            initialBalance = BigDecimal("-1.00"),
+            initialBalance = "-1.00",
             currency = Currency.USD,
             type = AccountType.CASH,
             description = ""
         )
 
-        val error = failureInvalidInput(result)
-        assertEquals("El saldo inicial no puede ser negativo.", error.balanceError)
+        assertEquals("El saldo inicial no puede ser negativo.", failureInvalidInput(result).balanceError)
     }
 
     @Test
     fun `given a balance with more than two decimals, when creating an account, then returns decimals error`() {
         val result = Account.create(
             name = "Ahorros",
-            initialBalance = BigDecimal("10.255"),
+            initialBalance = "10.255",
             currency = Currency.USD,
             type = AccountType.CASH,
             description = ""
         )
 
-        val error = failureInvalidInput(result)
-        assertEquals("El saldo inicial admite máximo 2 decimales.", error.balanceError)
+        assertEquals("El saldo inicial admite máximo 2 decimales.", failureInvalidInput(result).balanceError)
+    }
+
+    @Test
+    fun `given no currency, when creating an account, then returns currency required error`() {
+        val result = Account.create(
+            name = "Ahorros",
+            initialBalance = "10.00",
+            currency = null,
+            type = AccountType.CASH,
+            description = ""
+        )
+
+        assertEquals("La moneda es obligatoria.", failureInvalidInput(result).currencyError)
+    }
+
+    @Test
+    fun `given no type, when creating an account, then returns type required error`() {
+        val result = Account.create(
+            name = "Ahorros",
+            initialBalance = "10.00",
+            currency = Currency.USD,
+            type = null,
+            description = ""
+        )
+
+        assertEquals("El tipo de cuenta es obligatorio.", failureInvalidInput(result).typeError)
     }
 
     @Test
     fun `given a description longer than 500 characters, when creating, then returns description too long error`() {
         val result = Account.create(
             name = "Ahorros",
-            initialBalance = BigDecimal("10.00"),
+            initialBalance = "10.00",
             currency = Currency.USD,
             type = AccountType.CASH,
             description = "a".repeat(MAX_DESCRIPTION_LENGTH + 1)
         )
 
-        val error = failureInvalidInput(result)
-        assertEquals("La descripción no puede superar los 500 caracteres.", error.descriptionError)
+        assertEquals(
+            "La descripción no puede superar los 500 caracteres.",
+            failureInvalidInput(result).descriptionError
+        )
     }
 
     @Test
     fun `given a blank description, when creating an account, then stores an empty description`() {
         val result = Account.create(
             name = "Ahorros",
-            initialBalance = BigDecimal("10.00"),
+            initialBalance = "10.00",
             currency = Currency.USD,
             type = AccountType.CASH,
             description = "    "
@@ -147,18 +197,20 @@ class AccountCreateTest {
     }
 
     @Test
-    fun `given a blank name and a negative balance, when creating an account, then returns both errors at once`() {
+    fun `given an empty form, when creating an account, then returns every field error at once`() {
         val result = Account.create(
             name = "",
-            initialBalance = BigDecimal("-1.00"),
-            currency = Currency.USD,
-            type = AccountType.CASH,
+            initialBalance = "",
+            currency = null,
+            type = null,
             description = ""
         )
 
         val error = failureInvalidInput(result)
         assertEquals("El nombre es obligatorio.", error.nameError)
-        assertEquals("El saldo inicial no puede ser negativo.", error.balanceError)
+        assertEquals("El saldo inicial es obligatorio.", error.balanceError)
+        assertEquals("La moneda es obligatoria.", error.currencyError)
+        assertEquals("El tipo de cuenta es obligatorio.", error.typeError)
         assertNull(error.descriptionError)
     }
 

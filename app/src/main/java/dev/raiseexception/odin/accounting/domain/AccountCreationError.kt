@@ -10,6 +10,8 @@ sealed class AccountCreationError(
     class InvalidInput(
         val nameError: String?,
         val balanceError: String?,
+        val currencyError: String?,
+        val typeError: String?,
         val descriptionError: String?
     ) : AccountCreationError(
         internalMessage = "One or more account fields are invalid",

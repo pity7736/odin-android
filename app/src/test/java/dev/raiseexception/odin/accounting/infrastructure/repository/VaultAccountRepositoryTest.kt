@@ -17,7 +17,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.math.BigDecimal
 
 private const val MASTER_KEY_SIZE = 32
 
@@ -51,7 +50,7 @@ class VaultAccountRepositoryTest {
     private fun account(name: String) = (
         Account.create(
             name = name,
-            initialBalance = BigDecimal("1500.00"),
+            initialBalance = "1500.00",
             currency = Currency.COP,
             type = AccountType.SAVINGS,
             description = "Fondo de emergencia"

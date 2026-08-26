@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import java.math.BigDecimal
 
 class CreateAccountViewModel(
     private val accountCreator: AccountCreator
@@ -36,60 +35,33 @@ class CreateAccountViewModel(
     ) {
         this.viewModelScope.launch {
             mutableUiState.value = CreateAccountUiState.Loading
-            val parsedBalance = parseBalance(rawBalance)
-            val uiValidationError = validateSelections(currency, type, rawBalance, parsedBalance)
-            if (uiValidationError != null) {
-                mutableUiState.value = uiValidationError
-                return@launch
-            }
-            val outcome = accountCreator.create(rawName, parsedBalance!!, currency!!, type!!, rawDescription)
+            val outcome = accountCreator.create(rawName, rawBalance, currency, type, rawDescription)
             when (outcome) {
-                is Outcome.Success -> navigationChannel.send(NavigationTarget.AccountsList)
+                is Outcome.Success -> {
+                    mutableUiState.value = CreateAccountUiState.Idle
+                    navigationChannel.send(NavigationTarget.AccountsList)
+                }
+
                 is Outcome.Failure -> mutableUiState.value = this@CreateAccountViewModel.mapError(outcome.error)
             }
         }
-    }
-
-    private fun validateSelections(
-        currency: Currency?,
-        type: AccountType?,
-        rawBalance: String,
-        parsedBalance: BigDecimal?
-    ): CreateAccountUiState.ValidationError? {
-        val balanceError = when {
-            rawBalance.isBlank() -> "El saldo inicial es obligatorio."
-            parsedBalance == null -> "El saldo inicial no es un número válido."
-            else -> null
-        }
-        val currencyError = if (currency == null) "Debes seleccionar una moneda." else null
-        val typeError = if (type == null) "Debes seleccionar un tipo de cuenta." else null
-        if (balanceError == null && currencyError == null && typeError == null) {
-            return null
-        }
-        return CreateAccountUiState.ValidationError(
-            balanceError = balanceError,
-            currencyError = currencyError,
-            typeError = typeError
-        )
     }
 
     private fun mapError(error: DomainError): CreateAccountUiState = when (error) {
         is AccountCreationError.InvalidInput -> CreateAccountUiState.ValidationError(
             nameError = error.nameError,
             balanceError = error.balanceError,
+            currencyError = error.currencyError,
+            typeError = error.typeError,
             descriptionError = error.descriptionError
         )
+
         is AccountCreationError.DuplicateName -> CreateAccountUiState.ValidationError(
             nameError = error.externalMessage
         )
+
         is AccountCreationError.CryptoFailure -> CreateAccountUiState.Error(error.externalMessage)
         is AccountCreationError.StorageFailure -> CreateAccountUiState.Error(error.externalMessage)
         else -> CreateAccountUiState.Error(error.externalMessage)
-    }
-
-    private fun parseBalance(rawBalance: String): BigDecimal? = try {
-        BigDecimal(rawBalance.trim())
-    } catch (@Suppress("SwallowedException") exception: NumberFormatException) {
-        null
     }
 }

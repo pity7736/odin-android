@@ -6,7 +6,6 @@ import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.shared.domain.Outcome
-import java.math.BigDecimal
 
 class AccountCreator(
     private val accountRepository: AccountRepository
@@ -14,9 +13,9 @@ class AccountCreator(
 
     suspend fun create(
         name: String,
-        initialBalance: BigDecimal,
-        currency: Currency,
-        type: AccountType,
+        initialBalance: String,
+        currency: Currency?,
+        type: AccountType?,
         description: String
     ): Outcome<Account> {
         val account = when (val creationOutcome = Account.create(name, initialBalance, currency, type, description)) {

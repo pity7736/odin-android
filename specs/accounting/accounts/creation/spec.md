@@ -124,14 +124,14 @@ remind myself what the account is for.
 - Given the user is signed in and filling in a new account
 - When the user does not choose a currency
 - Then the account is not created
-- And the user sees the message "Debes seleccionar una moneda." next to the
+- And the user sees the message "La moneda es obligatoria." next to the
   currency
 
 ### Reject a missing type
 - Given the user is signed in and filling in a new account
 - When the user does not choose a type
 - Then the account is not created
-- And the user sees the message "Debes seleccionar un tipo de cuenta." next to
+- And the user sees the message "El tipo de cuenta es obligatorio." next to
   the type
 
 ### Reject a description that is too long
