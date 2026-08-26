@@ -33,6 +33,10 @@ locally.
 - [ ] MainActivity will accumulate navigation wiring as screen count grows
 - [ ] Global exception handler in ViewModels (catch uncaught library exceptions, map to UiState.Error instead of crashing)
 
+### Security
+
+- [ ] `RegistrationScreen` is missing `FLAG_SECURE`. `LoginScreen` sets it to prevent screenshots and Recent Apps thumbnails from capturing plaintext passwords when the reveal toggle is active. `RegistrationScreen` has the same reveal toggle and the same exposure risk but no `FLAG_SECURE`.
+
 ### Quality
 
 - [ ] Structured logging (Timber or similar, respecting zero-knowledge — no keys/plaintext)

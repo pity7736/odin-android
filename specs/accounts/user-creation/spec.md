@@ -25,7 +25,8 @@ start managing my personal finances privately and securely.
   independently.
 - The password is used on the device to set up the protection for the user's
   data. The password itself is never stored or sent anywhere.
-- After setup, the following are saved on the device:
+- After setup, the following are saved on the device and remain available
+  across app restarts and device reboots:
   - The user's identity.
   - The information needed to verify the user's password.
   - The protected access to the user's financial data.

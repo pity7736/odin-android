@@ -58,6 +58,7 @@ class UserRegistrar(
         val addOutcome = this.userRepository.add(user)
         if (addOutcome is Outcome.Failure) return addOutcome
         this.masterKeyRepository.store(masterKey)
+        masterKey.fill(0)
         return Outcome.Success(user)
     }
 
