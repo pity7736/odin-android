@@ -148,14 +148,78 @@ class VaultAccountRepositoryTest {
     }
 
     @Test
-    fun `given a corrupt stored record, when checking a name, then returns storage failure`() = runTest {
+    fun `given a corrupt stored record, when checking a name, then skips it and returns false`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         store.save("corrupt", "not json at all".encodeToByteArray())
         val repository = VaultAccountRepository(store, json)
 
         val result = repository.existsByName("Ahorros")
 
-        assertTrue(result is Outcome.Failure)
-        assertTrue((result as Outcome.Failure).error is AccountCreationError.StorageFailure)
+        assertTrue(result is Outcome.Success)
+        assertFalse((result as Outcome.Success).value)
+    }
+
+    @Test
+    fun `given no accounts, when getting all, then emits empty list`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultAccountRepository(store, json)
+
+        val result = mutableListOf<List<Account>>()
+        repository.getAll().collect { result.add(it) }
+
+        assertEquals(1, result.size)
+        assertTrue(result.first().isEmpty())
+    }
+
+    @Test
+    fun `given one account added, when getting all, then emits a list with that account`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultAccountRepository(store, json)
+        val savings = account("Ahorros")
+        repository.add(savings)
+
+        val result = mutableListOf<List<Account>>()
+        repository.getAll().collect { result.add(it) }
+
+        assertEquals(1, result.size)
+        assertEquals(1, result.first().size)
+        assertEquals(savings.id, result.first().first().id)
+    }
+
+    @Test
+    fun `given multiple accounts added, when getting all, then emits all accounts ordered by id ascending`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultAccountRepository(store, json)
+        val checking = account("Corriente")
+        val savings = account("Ahorros")
+        repository.add(checking)
+        repository.add(savings)
+
+        val result = mutableListOf<List<Account>>()
+        repository.getAll().collect { result.add(it) }
+
+        assertEquals(1, result.size)
+        val accounts = result.first()
+        assertEquals(2, accounts.size)
+        assertTrue(accounts[0].id <= accounts[1].id)
+    }
+
+    @Test
+    fun `given one account added, when getting all, then all fields round-trip correctly`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultAccountRepository(store, json)
+        val savings = account("Ahorros")
+        repository.add(savings)
+
+        val result = mutableListOf<List<Account>>()
+        repository.getAll().collect { result.add(it) }
+
+        val restored = result.first().first()
+        assertEquals(savings.id, restored.id)
+        assertEquals(savings.name, restored.name)
+        assertEquals(savings.initialBalance, restored.initialBalance)
+        assertEquals(savings.type, restored.type)
+        assertEquals(savings.description, restored.description)
+        assertEquals(savings.createdAt, restored.createdAt)
     }
 }

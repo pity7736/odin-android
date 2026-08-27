@@ -6,6 +6,7 @@ import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.VaultAccountRepository
 import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAccountViewModel
+import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListViewModel
 import dev.raiseexception.odin.accounts.application.usecase.UserAuthenticator
 import dev.raiseexception.odin.accounts.application.usecase.UserRegistrar
 import dev.raiseexception.odin.accounts.domain.repository.UserRepository
@@ -20,6 +21,7 @@ import dev.raiseexception.odin.crypto.infrastructure.InMemoryMasterKeyRepository
 import dev.raiseexception.odin.persistence.OdinDatabase
 import dev.raiseexception.odin.shared.infrastructure.vault.EncryptedRecordStore
 import dev.raiseexception.odin.shared.infrastructure.vault.InMemoryEncryptedRecordStore
+import kotlinx.coroutines.Dispatchers
 import java.security.SecureRandom
 
 class AppContainer(context: Context) {
@@ -48,4 +50,7 @@ class AppContainer(context: Context) {
     fun startupViewModel(): StartupViewModel = StartupViewModel(userRepository)
 
     fun createAccountViewModel(): CreateAccountViewModel = CreateAccountViewModel(accountCreator)
+
+    fun accountsListViewModel(): AccountsListViewModel =
+        AccountsListViewModel(accountRepository, Dispatchers.IO)
 }

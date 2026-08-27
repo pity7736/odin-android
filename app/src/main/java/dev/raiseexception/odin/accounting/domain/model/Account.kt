@@ -24,6 +24,23 @@ class Account private constructor(
         private const val MAX_DECIMAL_PLACES = 2
 
         @Suppress("LongParameterList")
+        fun restore(
+            id: String,
+            name: String,
+            initialBalance: Money,
+            type: AccountType,
+            description: String,
+            createdAt: Instant
+        ): Account = Account(
+            id = id,
+            name = name,
+            initialBalance = initialBalance,
+            type = type,
+            description = description,
+            createdAt = createdAt
+        )
+
+        @Suppress("LongParameterList")
         fun create(
             name: String,
             initialBalance: String,
