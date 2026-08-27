@@ -3,6 +3,8 @@ package dev.raiseexception.odin.accounting.domain.model
 import com.github.f4b6a3.uuid.UuidCreator
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
 import dev.raiseexception.odin.shared.domain.Outcome
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import java.math.BigDecimal
 
 class Account private constructor(
@@ -10,7 +12,8 @@ class Account private constructor(
     val name: String,
     val initialBalance: Money,
     val type: AccountType,
-    val description: String
+    val description: String,
+    val createdAt: Instant
 ) {
 
     val currency: Currency get() = this.initialBalance.currency
@@ -20,12 +23,14 @@ class Account private constructor(
         private const val MAX_DESCRIPTION_LENGTH = 500
         private const val MAX_DECIMAL_PLACES = 2
 
+        @Suppress("LongParameterList")
         fun create(
             name: String,
             initialBalance: String,
             currency: Currency?,
             type: AccountType?,
-            description: String
+            description: String,
+            clock: Clock = Clock.System
         ): Outcome<Account> {
             val trimmedName = name.trim()
             val trimmedDescription = description.trim()
@@ -52,7 +57,8 @@ class Account private constructor(
                     name = trimmedName,
                     initialBalance = Money.of(amount!!, currency!!),
                     type = type!!,
-                    description = trimmedDescription
+                    description = trimmedDescription,
+                    createdAt = clock.now()
                 )
             )
         }

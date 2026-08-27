@@ -48,7 +48,8 @@ class VaultAccountRepository(
         amount = account.initialBalance.amount.toPlainString(),
         currency = account.currency.name,
         accountType = account.type.name,
-        description = account.description
+        description = account.description,
+        createdAt = account.createdAt.toString()
     )
 
     private fun cryptoFailure(internalMessage: String) = Outcome.Failure(

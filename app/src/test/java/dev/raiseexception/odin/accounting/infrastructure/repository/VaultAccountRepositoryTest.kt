@@ -157,4 +157,29 @@ class VaultAccountRepositoryTest {
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is AccountCreationError.StorageFailure)
     }
+
+    @Test
+    fun `given account with createdAt when add then stored record contains createdAt as ISO-8601 string`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultAccountRepository(store, json)
+        val savings = account("Ahorros")
+
+        repository.add(savings)
+
+        val plaintext = (store.readAll() as Outcome.Success).value.first().data.decodeToString()
+        val record = json.decodeFromString(AccountRecord.serializer(), plaintext)
+        assertEquals(savings.createdAt.toString(), record.createdAt)
+    }
+
+    @Test
+    fun `given stored record with createdAt when read for uniqueness then no error`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultAccountRepository(store, json)
+        repository.add(account("Ahorros"))
+
+        val result = repository.existsByName("Ahorros")
+
+        assertTrue(result is Outcome.Success)
+        assertTrue((result as Outcome.Success).value)
+    }
 }

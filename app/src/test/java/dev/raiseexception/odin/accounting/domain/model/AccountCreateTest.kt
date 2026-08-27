@@ -2,7 +2,10 @@ package dev.raiseexception.odin.accounting.domain.model
 
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
 import dev.raiseexception.odin.shared.domain.Outcome
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,6 +15,40 @@ private const val MAX_NAME_LENGTH = 200
 private const val MAX_DESCRIPTION_LENGTH = 500
 
 class AccountCreateTest {
+
+    @Test
+    fun `given valid input when create then account has createdAt equal to clock instant`() {
+        val fixedInstant = Instant.parse("2026-01-01T00:00:00Z")
+        val fakeClock = object : Clock {
+            override fun now(): Instant = fixedInstant
+        }
+
+        val result = Account.create(
+            name = "Ahorros",
+            initialBalance = "100.00",
+            currency = Currency.USD,
+            type = AccountType.CASH,
+            description = "",
+            clock = fakeClock
+        )
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(fixedInstant, (result as Outcome.Success).value.createdAt)
+    }
+
+    @Test
+    fun `given valid input when create then createdAt is not null`() {
+        val result = Account.create(
+            name = "Ahorros",
+            initialBalance = "100.00",
+            currency = Currency.USD,
+            type = AccountType.CASH,
+            description = ""
+        )
+
+        assertTrue(result is Outcome.Success)
+        assertNotNull((result as Outcome.Success).value.createdAt)
+    }
 
     @Test
     fun `given all valid fields, when creating an account, then returns success`() {

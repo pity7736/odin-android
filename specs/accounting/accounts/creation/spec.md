@@ -4,8 +4,8 @@
 A financial account is the container that holds a user's money. Creating one is
 the first step before recording any income or expense, since every future
 movement of money belongs to an account. This feature lets a user set up a new
-account by giving it a name, an initial amount, a currency, a type, and an
-optional note.
+account by giving it a name, an initial amount, a currency, a type, an optional
+note, and records the exact moment the account was created.
 
 ## User Stories
 
@@ -17,6 +17,10 @@ record income and expenses against it.
 ### Describe an account
 As a user, I want to add an optional description to an account, so that I can
 remind myself what the account is for.
+
+### Know when an account was created
+As a user, I want to know when each of my accounts was created, so that I can
+see how long I have been tracking it.
 
 ## Acceptance Criteria
 - The user must be signed in to create an account.
@@ -42,6 +46,10 @@ remind myself what the account is for.
 - After an account is created successfully, the user is taken to the list of
   their accounts.
 - There is no limit on how many accounts the user can have.
+- A creation timestamp is recorded automatically the moment the account is
+  created. It is part of the account and cannot be changed.
+- If the creation timestamp cannot be recorded, the account is not created and
+  the user sees an error.
 
 ## Expected Behavior
 
@@ -78,6 +86,19 @@ remind myself what the account is for.
 - When the user creates a valid account
 - Then the account's details are encrypted before being stored
 - And the details are never stored or sent anywhere unencrypted
+
+### Creation timestamp is recorded on account creation
+- Given the user is signed in
+- When the user creates a valid account
+- Then the account is saved with the exact moment it was created
+- And that timestamp cannot be changed
+
+### Creation fails when the timestamp cannot be recorded
+- Given the user is signed in and filling in a new account
+- When the user submits a valid account but the creation timestamp cannot be
+  recorded
+- Then the account is not created
+- And the user sees the message "No se pudo crear la cuenta. Inténtalo de nuevo."
 
 ### Reject a missing or blank name
 - Given the user is signed in and filling in a new account

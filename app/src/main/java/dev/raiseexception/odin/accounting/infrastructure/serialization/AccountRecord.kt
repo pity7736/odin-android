@@ -10,7 +10,8 @@ data class AccountRecord(
     val amount: String,
     val currency: String,
     val accountType: String,
-    val description: String
+    val description: String,
+    val createdAt: String
 ) {
     companion object {
         const val ACCOUNT_RECORD_TYPE = "account"
