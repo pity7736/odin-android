@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun HomeScreen(
     onOpenAccounts: () -> Unit,
+    onOpenCategories: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -41,6 +42,15 @@ fun HomeScreen(
                 .testTag("open_accounts_action")
         ) {
             Text("Mis cuentas")
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = onOpenCategories,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("open_categories_action")
+        ) {
+            Text("Categorías")
         }
     }
 }
