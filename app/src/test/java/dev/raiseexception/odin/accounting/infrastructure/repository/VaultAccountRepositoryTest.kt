@@ -5,7 +5,6 @@ import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.infrastructure.serialization.AccountRecord
-import dev.raiseexception.odin.crypto.domain.CryptoError
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.crypto.infrastructure.BouncyCastleVaultCrypto
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -19,21 +18,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 private const val MASTER_KEY_SIZE = 32
-
-private class FakeMasterKeyRepository(private var masterKey: ByteArray?) : MasterKeyRepository {
-    override fun store(masterKey: ByteArray) {
-        this.masterKey = masterKey
-    }
-
-    override fun get(): Outcome<ByteArray> {
-        val key = this.masterKey ?: return Outcome.Failure(CryptoError.MasterKeyNotFound())
-        return Outcome.Success(key)
-    }
-
-    override fun clear() {
-        this.masterKey = null
-    }
-}
 
 class VaultAccountRepositoryTest {
 

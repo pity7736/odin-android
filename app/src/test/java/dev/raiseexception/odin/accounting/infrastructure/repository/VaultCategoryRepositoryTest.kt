@@ -7,7 +7,6 @@ import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.infrastructure.serialization.CategoryRecord
-import dev.raiseexception.odin.crypto.domain.CryptoError
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.crypto.infrastructure.BouncyCastleVaultCrypto
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -21,21 +20,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 private const val MASTER_KEY_SIZE = 32
-
-private class CategoryFakeMasterKeyRepository(private var masterKey: ByteArray?) : MasterKeyRepository {
-    override fun store(masterKey: ByteArray) {
-        this.masterKey = masterKey
-    }
-
-    override fun get(): Outcome<ByteArray> {
-        val key = this.masterKey ?: return Outcome.Failure(CryptoError.MasterKeyNotFound())
-        return Outcome.Success(key)
-    }
-
-    override fun clear() {
-        this.masterKey = null
-    }
-}
 
 class VaultCategoryRepositoryTest {
 
@@ -71,7 +55,7 @@ class VaultCategoryRepositoryTest {
 
     @Test
     fun `given a saved category, when reading all, then all fields are intact`() = runTest {
-        val store = storeWith(CategoryFakeMasterKeyRepository(masterKey))
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultCategoryRepository(store, json)
         val food = category("Alimentación")
 
@@ -89,26 +73,38 @@ class VaultCategoryRepositoryTest {
     }
 
     @Test
-    fun `given a saved category, when checking the same name case-insensitively, then returns true`() = runTest {
-        val store = storeWith(CategoryFakeMasterKeyRepository(masterKey))
+    fun `given a category saved, when checking same name and type case-insensitively, then returns true`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultCategoryRepository(store, json)
         repository.add(category("Alimentación"))
 
-        val result = repository.existsByName("alimentación")
+        val result = repository.existsByNameAndType("alimentación", CategoryType.EXPENSE)
 
         assertTrue(result is Outcome.Success)
         assertTrue((result as Outcome.Success).value)
     }
 
     @Test
+    fun `given a saved expense category, when checking the same name with income type, then returns false`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultCategoryRepository(store, json)
+        repository.add(category("Alquiler"))
+
+        val result = repository.existsByNameAndType("Alquiler", CategoryType.INCOME)
+
+        assertTrue(result is Outcome.Success)
+        assertFalse((result as Outcome.Success).value)
+    }
+
+    @Test
     fun `given a category and an account saved, when reading, then only the category is returned`() = runTest {
-        val store = storeWith(CategoryFakeMasterKeyRepository(masterKey))
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
         val categoryRepository = VaultCategoryRepository(store, json)
         val accountRepository = VaultAccountRepository(store, json)
         categoryRepository.add(category("Alimentación"))
         accountRepository.add(account("Ahorros"))
 
-        val result = categoryRepository.existsByName("Ahorros")
+        val result = categoryRepository.existsByNameAndType("Ahorros", CategoryType.EXPENSE)
 
         assertTrue(result is Outcome.Success)
         assertFalse((result as Outcome.Success).value)
@@ -116,7 +112,7 @@ class VaultCategoryRepositoryTest {
 
     @Test
     fun `given a crypto failure on save, when adding, then returns CryptoFailure`() = runTest {
-        val store = storeWith(CategoryFakeMasterKeyRepository(null))
+        val store = storeWith(FakeMasterKeyRepository(null))
         val repository = VaultCategoryRepository(store, json)
 
         val result = repository.add(category("Alimentación"))
@@ -127,11 +123,11 @@ class VaultCategoryRepositoryTest {
 
     @Test
     fun `given a corrupt record exists, when reading all, then the corrupt record is skipped`() = runTest {
-        val store = storeWith(CategoryFakeMasterKeyRepository(masterKey))
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
         store.save("corrupt", "not json at all".encodeToByteArray())
         val repository = VaultCategoryRepository(store, json)
 
-        val result = repository.existsByName("Alimentación")
+        val result = repository.existsByNameAndType("Alimentación", CategoryType.EXPENSE)
 
         assertTrue(result is Outcome.Success)
         assertFalse((result as Outcome.Success).value)

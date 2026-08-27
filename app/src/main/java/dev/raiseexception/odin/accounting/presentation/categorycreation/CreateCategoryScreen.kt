@@ -1,14 +1,21 @@
 package dev.raiseexception.odin.accounting.presentation.categorycreation
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -24,8 +31,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import kotlinx.coroutines.flow.Flow
 
@@ -42,7 +51,7 @@ fun CreateCategoryScreen(
     }
     var name by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
-    var color by rememberSaveable { mutableStateOf("") }
+    var selectedColor by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedType by rememberSaveable { mutableStateOf<CategoryType?>(null) }
     val validation = uiState as? CreateCategoryUiState.ValidationError
     Column(
@@ -67,14 +76,8 @@ fun CreateCategoryScreen(
             testTag = "description_field",
             errorMessage = validation?.descriptionError
         )
-        LabeledField(
-            value = color,
-            onValueChange = { color = it },
-            label = "Color (opcional, p. ej. #E57373)",
-            testTag = "color_field",
-            errorMessage = validation?.colorError
-        )
-        CreateAction(uiState) { onCreate(name, selectedType, description, color.ifBlank { null }) }
+        ColorPicker(selectedColor, { selectedColor = it })
+        CreateAction(uiState) { onCreate(name, selectedType, description, selectedColor) }
         GeneralMessage(uiState)
     }
 }
@@ -99,6 +102,47 @@ private fun LabeledField(
                 .testTag(testTag)
         )
         FieldError(errorMessage, "${testTag}_error")
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ColorPicker(selectedColor: String?, onSelect: (String) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("color_picker")
+    ) {
+        Text(text = "Color (opcional)", style = MaterialTheme.typography.labelLarge)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            for (hex in Category.DEFAULT_PALETTE) {
+                ColorSwatch(hex, selectedColor == hex) { onSelect(hex) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColorSwatch(hex: String, selected: Boolean, onClick: () -> Unit) {
+    val color = Color(android.graphics.Color.parseColor(hex))
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(40.dp)
+            .background(color, CircleShape)
+            .clickable { onClick() }
+            .testTag("color_swatch_$hex")
+    ) {
+        if (selected) {
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .background(Color.White, CircleShape)
+            )
+        }
     }
 }
 

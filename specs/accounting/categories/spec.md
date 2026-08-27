@@ -18,8 +18,9 @@ later assign it to my income and expenses and understand my spending patterns.
   automatically.
 - The name must not be empty.
 - The name must not exceed 200 characters.
-- No two categories of the same user may share the same name, regardless of
-  capitalization.
+- No two categories of the same user may share the same name and type,
+  regardless of capitalization. A category named "Alquiler" as expense and
+  another named "Alquiler" as income are considered different categories.
 
 ## Expected Behavior
 
@@ -38,12 +39,18 @@ later assign it to my income and expenses and understand my spending patterns.
 - When they enter a name longer than 200 characters
 - Then the category is not saved and they are told the name is too long
 
-### Duplicate name
-- Given the user already has a category named "Food" (or "food", "FOOD", etc.)
-- When they try to create another category with the same name in any combination
-  of uppercase and lowercase letters
-- Then the category is not saved and they are told a category with that name
-  already exists
+### Duplicate name and type
+- Given the user already has an expense category named "Alquiler" (or
+  "alquiler", "ALQUILER", etc.)
+- When they try to create another expense category with the same name in any
+  combination of uppercase and lowercase letters
+- Then the category is not saved and they are told an expense category with
+  that name already exists
+
+### Same name with different type is allowed
+- Given the user already has an expense category named "Alquiler"
+- When they create an income category also named "Alquiler"
+- Then the category is saved successfully
 
 ### Description is optional
 - Given the user is creating a category

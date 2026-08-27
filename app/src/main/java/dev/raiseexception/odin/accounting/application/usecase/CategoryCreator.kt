@@ -22,10 +22,10 @@ class CategoryCreator(
             is Outcome.Success -> creationOutcome.value
             is Outcome.Failure -> return creationOutcome
         }
-        return when (val existsOutcome = this.categoryRepository.existsByName(category.name)) {
+        return when (val existsOutcome = this.categoryRepository.existsByNameAndType(category.name, category.type)) {
             is Outcome.Failure -> existsOutcome
             is Outcome.Success -> if (existsOutcome.value) {
-                this.duplicateNameFailure()
+                this.duplicateNameFailure(category.type)
             } else {
                 this.persist(category)
             }
@@ -38,10 +38,15 @@ class CategoryCreator(
             is Outcome.Success -> Outcome.Success(category)
         }
 
-    private fun duplicateNameFailure() = Outcome.Failure(
+    private fun duplicateNameFailure(type: CategoryType) = Outcome.Failure(
         CategoryCreationError.DuplicateName(
-            internalMessage = "A category with the same name already exists",
-            externalMessage = "Ya tienes una categoría con ese nombre."
+            internalMessage = "A category with the same name and type already exists",
+            externalMessage = "Ya tienes una categoría de tipo ${typeLabel(type)} con ese nombre."
         )
     )
+
+    private fun typeLabel(type: CategoryType): String = when (type) {
+        CategoryType.INCOME -> "ingreso"
+        CategoryType.EXPENSE -> "gasto"
+    }
 }

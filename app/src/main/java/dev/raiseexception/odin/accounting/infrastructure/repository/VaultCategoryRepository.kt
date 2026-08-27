@@ -2,6 +2,7 @@ package dev.raiseexception.odin.accounting.infrastructure.repository
 
 import dev.raiseexception.odin.accounting.domain.CategoryCreationError
 import dev.raiseexception.odin.accounting.domain.model.Category
+import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
 import dev.raiseexception.odin.accounting.infrastructure.serialization.CategoryRecord
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -14,12 +15,14 @@ class VaultCategoryRepository(
     private val json: Json = Json
 ) : CategoryRepository {
 
-    override suspend fun existsByName(name: String): Outcome<Boolean> {
+    override suspend fun existsByNameAndType(name: String, type: CategoryType): Outcome<Boolean> {
         val categoryRecords = when (val decryptOutcome = this.decryptedCategoryRecords()) {
             is Outcome.Success -> decryptOutcome.value
             is Outcome.Failure -> return decryptOutcome
         }
-        return Outcome.Success(categoryRecords.any { it.name.equals(name, ignoreCase = true) })
+        return Outcome.Success(
+            categoryRecords.any { it.name.equals(name, ignoreCase = true) && it.categoryType == type.name }
+        )
     }
 
     override suspend fun add(category: Category): Outcome<Unit> {

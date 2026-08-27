@@ -29,13 +29,15 @@ class CategoryCreatorTest {
 
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is CategoryCreationError.InvalidInput)
-        coVerify(exactly = 0) { categoryRepository.existsByName(any()) }
+        coVerify(exactly = 0) { categoryRepository.existsByNameAndType(any(), any()) }
         coVerify(exactly = 0) { categoryRepository.add(any()) }
     }
 
     @Test
     fun `given valid input and unique name, when creating, then persists and returns success`() = runTest {
-        coEvery { categoryRepository.existsByName("Alimentación") } returns Outcome.Success(false)
+        coEvery {
+            categoryRepository.existsByNameAndType("Alimentación", CategoryType.EXPENSE)
+        } returns Outcome.Success(false)
         coEvery { categoryRepository.add(any()) } returns Outcome.Success(Unit)
 
         val result = creator.create(
@@ -51,7 +53,9 @@ class CategoryCreatorTest {
 
     @Test
     fun `given a duplicate name, when creating, then returns DuplicateName without calling add`() = runTest {
-        coEvery { categoryRepository.existsByName("Alimentación") } returns Outcome.Success(true)
+        coEvery {
+            categoryRepository.existsByNameAndType("Alimentación", CategoryType.EXPENSE)
+        } returns Outcome.Success(true)
 
         val result = creator.create(
             name = "Alimentación",
@@ -66,8 +70,28 @@ class CategoryCreatorTest {
     }
 
     @Test
-    fun `given existsByName fails, when creating, then propagates the failure`() = runTest {
-        coEvery { categoryRepository.existsByName("Alimentación") } returns Outcome.Failure(
+    fun `given same name but different type, when creating, then persists and returns success`() = runTest {
+        coEvery {
+            categoryRepository.existsByNameAndType("Alquiler", CategoryType.INCOME)
+        } returns Outcome.Success(false)
+        coEvery { categoryRepository.add(any()) } returns Outcome.Success(Unit)
+
+        val result = creator.create(
+            name = "Alquiler",
+            type = CategoryType.INCOME,
+            description = "",
+            color = fixedColor
+        )
+
+        assertTrue(result is Outcome.Success)
+        coVerify { categoryRepository.add(any()) }
+    }
+
+    @Test
+    fun `given existsByNameAndType fails, when creating, then propagates the failure`() = runTest {
+        coEvery {
+            categoryRepository.existsByNameAndType("Alimentación", CategoryType.EXPENSE)
+        } returns Outcome.Failure(
             CategoryCreationError.CryptoFailure(
                 internalMessage = "crypto broke",
                 externalMessage = "Algo salió mal. Intente de nuevo más tarde"
@@ -88,7 +112,9 @@ class CategoryCreatorTest {
 
     @Test
     fun `given add fails, when creating, then propagates the failure`() = runTest {
-        coEvery { categoryRepository.existsByName("Alimentación") } returns Outcome.Success(false)
+        coEvery {
+            categoryRepository.existsByNameAndType("Alimentación", CategoryType.EXPENSE)
+        } returns Outcome.Success(false)
         coEvery { categoryRepository.add(any()) } returns Outcome.Failure(
             CategoryCreationError.StorageFailure(
                 internalMessage = "storage broke",
@@ -109,7 +135,9 @@ class CategoryCreatorTest {
 
     @Test
     fun `given no color provided, when creating, then uses the injected colorPicker`() = runTest {
-        coEvery { categoryRepository.existsByName("Alimentación") } returns Outcome.Success(false)
+        coEvery {
+            categoryRepository.existsByNameAndType("Alimentación", CategoryType.EXPENSE)
+        } returns Outcome.Success(false)
         coEvery { categoryRepository.add(any()) } returns Outcome.Success(Unit)
 
         val result = creator.create(

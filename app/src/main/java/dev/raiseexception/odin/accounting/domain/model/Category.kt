@@ -17,14 +17,10 @@ class Category private constructor(
 
     companion object {
         val DEFAULT_PALETTE: List<String> = listOf(
-            "#E57373",
-            "#F06292",
-            "#BA68C8",
-            "#7986CB",
-            "#64B5F6",
-            "#4DD0E1",
-            "#81C784",
-            "#FFD54F"
+            "#F44336", "#E91E63", "#9C27B0", "#673AB7", "#3F51B5",
+            "#2196F3", "#00BCD4", "#009688", "#4CAF50", "#8BC34A",
+            "#CDDC39", "#FFC107", "#FF9800", "#FF5722", "#795548",
+            "#9E9E9E", "#607D8B", "#FF80AB", "#B39DDB", "#80DEEA"
         )
 
         private const val MAX_NAME_LENGTH = 200
