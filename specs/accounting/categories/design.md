@@ -9,7 +9,7 @@ color) to later tag income and expense transactions. Invalid input is rejected
 with per-field errors shown together. The category is encrypted before storage.
 The feature reuses the shared encrypted-storage shape introduced by account
 creation and extends the same `EncryptedRecordStore` with a second entity type.
-Navigation entry is a "Categorías" action on Home; a stub categories list screen
+Navigation entry is a "Categorías" action on Home; the categories list screen
 is the landing destination; the create form is reached from there.
 
 ## Design Decisions & Rationale
@@ -54,8 +54,9 @@ is the landing destination; the create form is reached from there.
   record can't deserialized into `CategoryRecord` anyway, and `SerializationException`
   is caught and dropped). This keeps storage opaque: the server, if enabled, sees
   one undifferentiated blob store with no plaintext type metadata.
-- **`CategoriesListScreen` is a stub.** It holds an entry point to the create
-  form but performs no listing logic. Actual listing is a separate feature.
+- **`CategoriesListScreen` is the landing screen for categories.** It holds an
+  entry point to the create form. Listing, filter, and search logic live in the
+  list-categories feature (`specs/accounting/list-categories/`).
 - **Navigation: Home → Categories stub → Create → back to Categories.**
   Two new routes (`CATEGORIES`, `CATEGORY_CREATE`) are added to `Routes`.
   `HomeScreen` receives an `onOpenCategories` lambda. On success, the create
@@ -77,7 +78,7 @@ app/src/main/java/dev/raiseexception/odin/
 │   │   └── repository/         # VaultCategoryRepository (EncryptedRecordStore adapter)
 │   └── presentation/
 │       ├── categorycreation/   # CreateCategoryViewModel, UiState, NavigationTarget, Screen
-│       └── categorieslist/     # CategoriesListScreen (stub)
+│       └── categorieslist/     # CategoriesListScreen (landing; full listing in list-categories feature)
 ├── home/presentation/home/     # HomeScreen (extended with onOpenCategories)
 ├── shared/presentation/        # Routes (extended with CATEGORIES, CATEGORY_CREATE)
 └── di/                         # AppContainer (wires CategoryRepository, CategoryCreator, ViewModel)
@@ -115,10 +116,10 @@ specs/accounting/categories/
 
 ## Screen & States / Backend Interaction
 
-- **Screens:** `CategoriesListScreen` (stub; holds "create category" action)
-  and `CreateCategoryScreen` (name field, type chips, description field, color
-  palette of 20 tappable circles). Entry from Home via "Categorías". Routes
-  `CATEGORIES` and `CATEGORY_CREATE`.
+- **Screens:** `CategoriesListScreen` (holds "create category" action; listing,
+  filter, and search are in the list-categories feature) and `CreateCategoryScreen`
+  (name field, type chips, description field, color palette of 20 tappable circles).
+  Entry from Home via "Categorías". Routes `CATEGORIES` and `CATEGORY_CREATE`.
 - **UiState:** `Idle` / `Loading` / `ValidationError` (per field: name, type,
   description, color) / `Error` (general message). Navigation is a one-shot
   event, separate from state.
@@ -128,8 +129,6 @@ specs/accounting/categories/
 
 - **In-memory storage** — categories do not survive app restart until Room
   replaces the store.
-- **Stub categories list** — the list screen shows no categories; actual listing
-  is a separate feature.
 - **Silent record drop on deserialization failure** — a `SerializationException`
   during decryption of a stored record causes that record to be silently
   skipped. The data is not lost (still in the encrypted store) but is
