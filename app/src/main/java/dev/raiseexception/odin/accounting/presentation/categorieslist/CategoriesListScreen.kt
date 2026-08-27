@@ -19,6 +19,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -64,13 +68,14 @@ fun CategoriesListScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
             )
-            is CategoriesListUiState.Empty -> EmptyContent(
-                activeFilter = uiState.activeFilter,
+            is CategoriesListUiState.Error -> ErrorContent(
+                message = uiState.message,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
             )
-            is CategoriesListUiState.Content -> CategoriesContent(
+            is CategoriesListUiState.Empty,
+            is CategoriesListUiState.Content -> SearchableContent(
                 uiState = uiState,
                 onFilterChanged = onFilterChanged,
                 onSearchQueryChanged = onSearchQueryChanged,
@@ -79,12 +84,55 @@ fun CategoriesListScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
             )
-            is CategoriesListUiState.Error -> ErrorContent(
-                message = uiState.message,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
+        }
+    }
+}
+
+@Composable
+private fun SearchableContent(
+    uiState: CategoriesListUiState,
+    onFilterChanged: (CategoryType?) -> Unit,
+    onSearchQueryChanged: (String) -> Unit,
+    onCategorySelected: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val activeFilter = when (uiState) {
+        is CategoriesListUiState.Content -> uiState.activeFilter
+        is CategoriesListUiState.Empty -> uiState.activeFilter
+        else -> null
+    }
+    var localSearchQuery by remember { mutableStateOf("") }
+    Column(modifier = modifier) {
+        FilterRow(
+            activeFilter = activeFilter,
+            onFilterChanged = onFilterChanged,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+        OutlinedTextField(
+            value = localSearchQuery,
+            onValueChange = { newValue ->
+                localSearchQuery = newValue
+                onSearchQueryChanged(newValue)
+            },
+            placeholder = { Text("Buscar categoría") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .testTag("search_field")
+        )
+        when (uiState) {
+            is CategoriesListUiState.Empty -> EmptyMessage(
+                activeFilter = uiState.activeFilter,
+                modifier = Modifier.fillMaxSize()
             )
+            is CategoriesListUiState.Content -> CategoryList(
+                categories = uiState.categories,
+                onCategorySelected = onCategorySelected,
+                modifier = Modifier.fillMaxSize()
+            )
+            else -> Unit
         }
     }
 }
@@ -97,7 +145,7 @@ private fun LoadingContent(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun EmptyContent(activeFilter: CategoryType?, modifier: Modifier = Modifier) {
+private fun EmptyMessage(activeFilter: CategoryType?, modifier: Modifier = Modifier) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Text(
             text = if (activeFilter != null) "No hay categorías de ese tipo" else "No hay categorías registradas",
@@ -108,35 +156,15 @@ private fun EmptyContent(activeFilter: CategoryType?, modifier: Modifier = Modif
 }
 
 @Composable
-private fun CategoriesContent(
-    uiState: CategoriesListUiState.Content,
-    onFilterChanged: (CategoryType?) -> Unit,
-    onSearchQueryChanged: (String) -> Unit,
+private fun CategoryList(
+    categories: List<Category>,
     onCategorySelected: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier) {
-        FilterRow(
-            activeFilter = uiState.activeFilter,
-            onFilterChanged = onFilterChanged,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-        OutlinedTextField(
-            value = uiState.searchQuery,
-            onValueChange = onSearchQueryChanged,
-            placeholder = { Text("Buscar categoría") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .testTag("search_field")
-        )
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(uiState.categories, key = { it.id }) { category ->
-                CategoryRow(category = category, onClick = { onCategorySelected(category.id) })
-                HorizontalDivider()
-            }
+    LazyColumn(modifier = modifier) {
+        items(categories, key = { it.id }) { category ->
+            CategoryRow(category = category, onClick = { onCategorySelected(category.id) })
+            HorizontalDivider()
         }
     }
 }
