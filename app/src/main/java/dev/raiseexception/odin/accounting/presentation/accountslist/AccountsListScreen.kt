@@ -23,11 +23,13 @@ import androidx.compose.ui.unit.dp
 import dev.raiseexception.odin.accounting.domain.model.Account
 import kotlinx.coroutines.flow.Flow
 
+@Suppress("LongParameterList")
 @Composable
 fun AccountsListScreen(
     uiState: AccountsListUiState,
     navigationEvent: Flow<AccountsListNavigationTarget>,
     onCreateAccount: () -> Unit,
+    onAccountSelected: (String) -> Unit,
     onNavigateToAccountDetail: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -62,7 +64,7 @@ fun AccountsListScreen(
             )
             is AccountsListUiState.Content -> AccountsContent(
                 accounts = uiState.accounts,
-                onAccountSelected = onNavigateToAccountDetail,
+                onAccountSelected = onAccountSelected,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)

@@ -142,6 +142,7 @@ private fun AccountsListDestination(navController: NavHostController) {
         uiState = uiState,
         navigationEvent = accountsListViewModel.navigationEvent,
         onCreateAccount = { navController.navigate(Routes.ACCOUNT_CREATE) },
+        onAccountSelected = accountsListViewModel::onAccountSelected,
         onNavigateToAccountDetail = { accountId ->
             navController.navigate(Routes.accountDetail(accountId))
         }
