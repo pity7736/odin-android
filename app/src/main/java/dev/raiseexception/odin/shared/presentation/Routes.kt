@@ -9,6 +9,9 @@ object Routes {
     const val ACCOUNT_DETAIL = "account_detail/{accountId}"
     const val CATEGORIES = "categories"
     const val CATEGORY_CREATE = "category_create"
+    const val CATEGORY_DETAIL = "category_detail/{categoryId}"
 
     fun accountDetail(accountId: String) = "account_detail/$accountId"
+
+    fun categoryDetail(categoryId: String) = "category_detail/$categoryId"
 }

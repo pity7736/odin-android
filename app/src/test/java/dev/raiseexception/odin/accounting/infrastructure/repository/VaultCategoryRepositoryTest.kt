@@ -3,7 +3,6 @@ package dev.raiseexception.odin.accounting.infrastructure.repository
 import dev.raiseexception.odin.accounting.domain.CategoryCreationError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
-import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.infrastructure.serialization.CategoryRecord
@@ -11,6 +10,8 @@ import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.crypto.infrastructure.BouncyCastleVaultCrypto
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.infrastructure.vault.InMemoryEncryptedRecordStore
+import dev.raiseexception.odin.testutil.CategoryBuilder
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -34,15 +35,6 @@ class VaultCategoryRepositoryTest {
         cpuDispatcher = UnconfinedTestDispatcher()
     )
 
-    private fun category(name: String) = (
-        Category.create(
-            name = name,
-            type = CategoryType.EXPENSE,
-            description = "Categoría de prueba",
-            color = "#E57373"
-        ) as Outcome.Success
-        ).value
-
     private fun account(name: String) = (
         Account.create(
             name = name,
@@ -57,7 +49,7 @@ class VaultCategoryRepositoryTest {
     fun `given a saved category, when reading all, then all fields are intact`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultCategoryRepository(store, json)
-        val food = category("Alimentación")
+        val food = CategoryBuilder().build()
 
         repository.add(food)
 
@@ -65,10 +57,10 @@ class VaultCategoryRepositoryTest {
         val record = json.decodeFromString(CategoryRecord.serializer(), plaintext)
         assertEquals(CategoryRecord.CATEGORY_RECORD_TYPE, record.recordType)
         assertEquals(food.id, record.id)
-        assertEquals("Alimentación", record.name)
+        assertEquals(food.name, record.name)
         assertEquals("EXPENSE", record.categoryType)
-        assertEquals("Categoría de prueba", record.description)
-        assertEquals("#E57373", record.color)
+        assertEquals(food.description, record.description)
+        assertEquals(food.color, record.color)
         assertEquals(food.createdAt.toString(), record.createdAt)
     }
 
@@ -76,7 +68,7 @@ class VaultCategoryRepositoryTest {
     fun `given a category saved, when checking same name and type case-insensitively, then returns true`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultCategoryRepository(store, json)
-        repository.add(category("Alimentación"))
+        repository.add(CategoryBuilder().build())
 
         val result = repository.existsByNameAndType("alimentación", CategoryType.EXPENSE)
 
@@ -88,7 +80,7 @@ class VaultCategoryRepositoryTest {
     fun `given a saved expense category, when checking the same name with income type, then returns false`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultCategoryRepository(store, json)
-        repository.add(category("Alquiler"))
+        repository.add(CategoryBuilder().name("Alquiler").build())
 
         val result = repository.existsByNameAndType("Alquiler", CategoryType.INCOME)
 
@@ -101,7 +93,7 @@ class VaultCategoryRepositoryTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val categoryRepository = VaultCategoryRepository(store, json)
         val accountRepository = VaultAccountRepository(store, json)
-        categoryRepository.add(category("Alimentación"))
+        categoryRepository.add(CategoryBuilder().build())
         accountRepository.add(account("Ahorros"))
 
         val result = categoryRepository.existsByNameAndType("Ahorros", CategoryType.EXPENSE)
@@ -115,7 +107,7 @@ class VaultCategoryRepositoryTest {
         val store = storeWith(FakeMasterKeyRepository(null))
         val repository = VaultCategoryRepository(store, json)
 
-        val result = repository.add(category("Alimentación"))
+        val result = repository.add(CategoryBuilder().build())
 
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is CategoryCreationError.CryptoFailure)
@@ -131,5 +123,44 @@ class VaultCategoryRepositoryTest {
 
         assertTrue(result is Outcome.Success)
         assertFalse((result as Outcome.Success).value)
+    }
+
+    @Test
+    fun `given no categories stored, when getAll, then emits empty list`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultCategoryRepository(store, json)
+
+        val result = repository.getAll().first()
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `given one income category stored, when getAll, then emits list with that category`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultCategoryRepository(store, json)
+        val salary = CategoryBuilder().name("Salario").type(CategoryType.INCOME).build()
+        repository.add(salary)
+
+        val result = repository.getAll().first()
+
+        assertEquals(1, result.size)
+        assertEquals(salary.id, result.first().id)
+        assertEquals("Salario", result.first().name)
+        assertEquals(CategoryType.INCOME, result.first().type)
+    }
+
+    @Test
+    fun `given income and expense categories stored, when getAll, then emits all categories`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultCategoryRepository(store, json)
+        val food = CategoryBuilder().build()
+        val salary = CategoryBuilder().name("Salario").type(CategoryType.INCOME).build()
+        repository.add(food)
+        repository.add(salary)
+
+        val result = repository.getAll().first()
+
+        assertEquals(2, result.size)
     }
 }
