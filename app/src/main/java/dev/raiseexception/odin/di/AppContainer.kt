@@ -3,10 +3,14 @@ package dev.raiseexception.odin.di
 import android.content.Context
 import androidx.room.Room
 import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
+import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
+import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.VaultAccountRepository
+import dev.raiseexception.odin.accounting.infrastructure.repository.VaultCategoryRepository
 import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAccountViewModel
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListViewModel
+import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryViewModel
 import dev.raiseexception.odin.accounts.application.usecase.UserAuthenticator
 import dev.raiseexception.odin.accounts.application.usecase.UserRegistrar
 import dev.raiseexception.odin.accounts.domain.repository.UserRepository
@@ -42,6 +46,8 @@ class AppContainer(context: Context) {
         InMemoryEncryptedRecordStore(vaultCrypto, masterKeyRepository)
     private val accountRepository: AccountRepository = VaultAccountRepository(encryptedRecordStore)
     private val accountCreator: AccountCreator = AccountCreator(accountRepository)
+    private val categoryRepository: CategoryRepository = VaultCategoryRepository(encryptedRecordStore)
+    private val categoryCreator: CategoryCreator = CategoryCreator(categoryRepository)
 
     fun registrationViewModel(): RegistrationViewModel = RegistrationViewModel(userRegistrar)
 
@@ -53,4 +59,6 @@ class AppContainer(context: Context) {
 
     fun accountsListViewModel(): AccountsListViewModel =
         AccountsListViewModel(accountRepository, Dispatchers.IO)
+
+    fun createCategoryViewModel(): CreateCategoryViewModel = CreateCategoryViewModel(categoryCreator)
 }

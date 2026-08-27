@@ -26,6 +26,9 @@ import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAcc
 import dev.raiseexception.odin.accounting.presentation.accountdetail.AccountDetailScreen
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListScreen
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListViewModel
+import dev.raiseexception.odin.accounting.presentation.categorieslist.CategoriesListScreen
+import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryScreen
+import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryViewModel
 import dev.raiseexception.odin.accounts.presentation.login.LoginScreen
 import dev.raiseexception.odin.accounts.presentation.login.LoginViewModel
 import dev.raiseexception.odin.accounts.presentation.registration.RegistrationScreen
@@ -77,7 +80,10 @@ private fun AppNavHost(startRoute: String) {
                 LoginDestination(navController)
             }
             composable(Routes.HOME) {
-                HomeScreen(onOpenAccounts = { navController.navigate(Routes.ACCOUNTS) })
+                HomeScreen(
+                    onOpenAccounts = { navController.navigate(Routes.ACCOUNTS) },
+                    onOpenCategories = { navController.navigate(Routes.CATEGORIES) }
+                )
             }
             composable(Routes.ACCOUNTS) {
                 AccountsListDestination(navController)
@@ -88,6 +94,14 @@ private fun AppNavHost(startRoute: String) {
             composable(Routes.ACCOUNT_DETAIL) { backStackEntry ->
                 val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
                 AccountDetailScreen(accountId = accountId)
+            }
+            composable(Routes.CATEGORIES) {
+                CategoriesListScreen(
+                    onCreateCategory = { navController.navigate(Routes.CATEGORY_CREATE) }
+                )
+            }
+            composable(Routes.CATEGORY_CREATE) {
+                CreateCategoryDestination(navController)
             }
         }
     }
@@ -163,6 +177,25 @@ private fun CreateAccountDestination(navController: NavHostController) {
         onCreateSuccess = {
             navController.navigate(Routes.ACCOUNTS) {
                 popUpTo(Routes.ACCOUNTS) { inclusive = true }
+            }
+        }
+    )
+}
+
+@Composable
+private fun CreateCategoryDestination(navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val createCategoryViewModel: CreateCategoryViewModel = viewModel {
+        application.appContainer.createCategoryViewModel()
+    }
+    val uiState by createCategoryViewModel.uiState.collectAsStateWithLifecycle()
+    CreateCategoryScreen(
+        uiState = uiState,
+        onCreate = createCategoryViewModel::create,
+        navigationEvent = createCategoryViewModel.navigationEvent,
+        onCreateSuccess = {
+            navController.navigate(Routes.CATEGORIES) {
+                popUpTo(Routes.CATEGORIES) { inclusive = true }
             }
         }
     )
