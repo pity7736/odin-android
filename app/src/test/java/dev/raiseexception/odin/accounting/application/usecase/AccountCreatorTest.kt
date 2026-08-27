@@ -38,6 +38,7 @@ class AccountCreatorTest {
     fun `given a unique valid account, when creating, then adds it and returns success`() = runTest {
         coEvery { accountRepository.existsByName("Ahorros") } returns Outcome.Success(false)
         coEvery { accountRepository.add(any()) } returns Outcome.Success(Unit)
+        val before = Clock.System.now()
 
         val result = creator.create(
             name = "Ahorros",
@@ -47,7 +48,11 @@ class AccountCreatorTest {
             description = "Fondo de emergencia"
         )
 
+        val after = Clock.System.now()
         assertTrue(result is Outcome.Success)
+        val account = (result as Outcome.Success).value
+        assertTrue(account.createdAt >= before)
+        assertTrue(account.createdAt <= after)
         coVerify { accountRepository.add(any()) }
     }
 
@@ -88,27 +93,6 @@ class AccountCreatorTest {
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is AccountCreationError.CryptoFailure)
         coVerify(exactly = 0) { accountRepository.add(any()) }
-    }
-
-    @Test
-    fun `given valid input when create succeeds then returned account has createdAt set`() = runTest {
-        coEvery { accountRepository.existsByName("Ahorros") } returns Outcome.Success(false)
-        coEvery { accountRepository.add(any()) } returns Outcome.Success(Unit)
-        val before = Clock.System.now()
-
-        val result = creator.create(
-            name = "Ahorros",
-            initialBalance = "1500.00",
-            currency = Currency.COP,
-            type = AccountType.SAVINGS,
-            description = ""
-        )
-
-        val after = Clock.System.now()
-        assertTrue(result is Outcome.Success)
-        val account = (result as Outcome.Success).value
-        assertTrue(account.createdAt >= before)
-        assertTrue(account.createdAt <= after)
     }
 
     @Test
