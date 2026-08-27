@@ -23,7 +23,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAccountScreen
 import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAccountViewModel
+import dev.raiseexception.odin.accounting.presentation.accountdetail.AccountDetailScreen
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListScreen
+import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListViewModel
 import dev.raiseexception.odin.accounts.presentation.login.LoginScreen
 import dev.raiseexception.odin.accounts.presentation.login.LoginViewModel
 import dev.raiseexception.odin.accounts.presentation.registration.RegistrationScreen
@@ -78,10 +80,14 @@ private fun AppNavHost(startRoute: String) {
                 HomeScreen(onOpenAccounts = { navController.navigate(Routes.ACCOUNTS) })
             }
             composable(Routes.ACCOUNTS) {
-                AccountsListScreen(onCreateAccount = { navController.navigate(Routes.ACCOUNT_CREATE) })
+                AccountsListDestination(navController)
             }
             composable(Routes.ACCOUNT_CREATE) {
                 CreateAccountDestination(navController)
+            }
+            composable(Routes.ACCOUNT_DETAIL) { backStackEntry ->
+                val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
+                AccountDetailScreen(accountId = accountId)
             }
         }
     }
@@ -121,6 +127,23 @@ private fun LoginDestination(navController: NavHostController) {
             navController.navigate(Routes.HOME) {
                 popUpTo(Routes.LOGIN) { inclusive = true }
             }
+        }
+    )
+}
+
+@Composable
+private fun AccountsListDestination(navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val accountsListViewModel: AccountsListViewModel = viewModel {
+        application.appContainer.accountsListViewModel()
+    }
+    val uiState by accountsListViewModel.uiState.collectAsStateWithLifecycle()
+    AccountsListScreen(
+        uiState = uiState,
+        navigationEvent = accountsListViewModel.navigationEvent,
+        onCreateAccount = { navController.navigate(Routes.ACCOUNT_CREATE) },
+        onNavigateToAccountDetail = { accountId ->
+            navController.navigate(Routes.accountDetail(accountId))
         }
     )
 }

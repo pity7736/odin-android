@@ -6,4 +6,7 @@ object Routes {
     const val HOME = "home"
     const val ACCOUNTS = "accounts"
     const val ACCOUNT_CREATE = "account_create"
+    const val ACCOUNT_DETAIL = "account_detail/{accountId}"
+
+    fun accountDetail(accountId: String) = "account_detail/$accountId"
 }

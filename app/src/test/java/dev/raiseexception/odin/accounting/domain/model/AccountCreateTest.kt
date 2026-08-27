@@ -230,3 +230,28 @@ class AccountCreateTest {
         return error as AccountCreationError.InvalidInput
     }
 }
+
+class AccountRestoreTest {
+
+    @Test
+    fun `given a stored account record, when restoring, then all fields match exactly`() {
+        val knownInstant = Instant.parse("2026-01-15T12:00:00Z")
+        val initialBalance = Money.of(BigDecimal("2500.50"), Currency.USD)
+
+        val account = Account.restore(
+            id = "test-id-123",
+            name = "Cuenta de Ahorros",
+            initialBalance = initialBalance,
+            type = AccountType.SAVINGS,
+            description = "Mi cuenta principal",
+            createdAt = knownInstant
+        )
+
+        assertEquals("test-id-123", account.id)
+        assertEquals("Cuenta de Ahorros", account.name)
+        assertEquals(initialBalance, account.initialBalance)
+        assertEquals(AccountType.SAVINGS, account.type)
+        assertEquals("Mi cuenta principal", account.description)
+        assertEquals(knownInstant, account.createdAt)
+    }
+}
