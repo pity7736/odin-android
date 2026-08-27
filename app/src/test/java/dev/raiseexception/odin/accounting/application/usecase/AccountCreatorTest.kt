@@ -9,6 +9,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.Clock
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -37,6 +38,7 @@ class AccountCreatorTest {
     fun `given a unique valid account, when creating, then adds it and returns success`() = runTest {
         coEvery { accountRepository.existsByName("Ahorros") } returns Outcome.Success(false)
         coEvery { accountRepository.add(any()) } returns Outcome.Success(Unit)
+        val before = Clock.System.now()
 
         val result = creator.create(
             name = "Ahorros",
@@ -46,7 +48,11 @@ class AccountCreatorTest {
             description = "Fondo de emergencia"
         )
 
+        val after = Clock.System.now()
         assertTrue(result is Outcome.Success)
+        val account = (result as Outcome.Success).value
+        assertTrue(account.createdAt >= before)
+        assertTrue(account.createdAt <= after)
         coVerify { accountRepository.add(any()) }
     }
 

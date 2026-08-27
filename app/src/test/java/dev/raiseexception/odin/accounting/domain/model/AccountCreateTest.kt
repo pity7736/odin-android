@@ -2,6 +2,8 @@ package dev.raiseexception.odin.accounting.domain.model
 
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
 import dev.raiseexception.odin.shared.domain.Outcome
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -15,12 +17,18 @@ class AccountCreateTest {
 
     @Test
     fun `given all valid fields, when creating an account, then returns success`() {
+        val fixedInstant = Instant.parse("2026-01-01T00:00:00Z")
+        val fakeClock = object : Clock {
+            override fun now(): Instant = fixedInstant
+        }
+
         val result = Account.create(
             name = "Ahorros",
             initialBalance = "1500.00",
             currency = Currency.COP,
             type = AccountType.SAVINGS,
-            description = "Fondo de emergencia"
+            description = "Fondo de emergencia",
+            clock = fakeClock
         )
 
         assertTrue(result is Outcome.Success)
@@ -31,6 +39,7 @@ class AccountCreateTest {
         assertEquals(AccountType.SAVINGS, account.type)
         assertEquals("Fondo de emergencia", account.description)
         assertTrue(account.id.isNotEmpty())
+        assertEquals(fixedInstant, account.createdAt)
     }
 
     @Test

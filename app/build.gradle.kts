@@ -81,6 +81,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.uuid.creator)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.datetime)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)

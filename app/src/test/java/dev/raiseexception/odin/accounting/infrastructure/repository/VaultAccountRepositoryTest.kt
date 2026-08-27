@@ -86,6 +86,7 @@ class VaultAccountRepositoryTest {
         assertEquals("COP", record.currency)
         assertEquals("SAVINGS", record.accountType)
         assertEquals("Fondo de emergencia", record.description)
+        assertEquals(savings.createdAt.toString(), record.createdAt)
     }
 
     @Test
