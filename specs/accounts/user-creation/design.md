@@ -61,10 +61,35 @@ inline validation feedback.
   user is already registered, the use case returns `AlreadyRegistered`
   immediately without touching crypto.
 
-- **Storage is behind a `UserRepository` port.** The current adapter is
-  in-memory (data lost on process death). Persistence (Room) is a separate
-  feature with its own spec/plan — swapping the adapter does not touch the
-  domain, use case, or presentation layers.
+- **Storage is behind a `UserRepository` port.** The domain, use case, and
+  presentation layers depend only on the interface. Swapping adapters requires
+  no changes outside the infrastructure layer and the DI root.
+
+- **`RoomUserRepository` is the persistence adapter.** It implements
+  `UserRepository` using a `UserDao` backed by SQLite via Room. User data
+  survives process death and device reboots. `add()` checks `exists()` before
+  inserting and returns `StorageFailure` if a user is already present,
+  maintaining the one-user-per-device invariant at the storage boundary.
+
+- **`UserEntity` lives in the infrastructure layer; the domain model carries no
+  Room annotations.** Mapping extensions (`toDomain()`, `toEntity()`) are
+  defined in `UserEntity.kt` so the dependency flows infrastructure → domain,
+  never the other way. `ByteArray` columns (`salt`, `wrappedMasterKey`) are
+  stored as BLOB natively — no type converters needed.
+
+- **`OdinDatabase` is a cross-cutting schema registry at
+  `dev.raiseexception.odin.persistence`.** It lives outside any feature package
+  because it must register entities from every feature. Future feature entities
+  are added here. `AppContainer` builds it once via `Room.databaseBuilder` and
+  distributes DAOs to each feature's repository. `AppContainer` receives the
+  application `Context` for this purpose.
+
+- **Repository integration tests use Robolectric with an in-memory Room
+  database in `src/test/.../integrationtests/`.** Robolectric provides a real
+  SQLite engine on the JVM — queries execute against real SQLite, not a mock.
+  In-memory databases give each test a clean slate without file I/O or teardown
+  complexity. This is the established pattern for all future repository tests.
+  `src/androidTest/` remains reserved for UI end-to-end tests.
 
 - **`RegistrationUiState` is a sealed interface with four subtypes.** `Idle` and
   `Loading` carry no data. `ValidationError` carries optional field-level
@@ -125,7 +150,10 @@ app/src/main/java/dev/raiseexception/odin/accounts/
 │       └── UserRegistrar.kt
 ├── infrastructure/
 │   └── repository/
-│       └── InMemoryUserRepository.kt
+│       ├── InMemoryUserRepository.kt
+│       ├── UserEntity.kt
+│       ├── UserDao.kt
+│       └── RoomUserRepository.kt
 └── presentation/
     └── registration/
         ├── NavigationTarget.kt
@@ -138,6 +166,8 @@ app/src/main/java/dev/raiseexception/odin/
 ├── OdinApplication.kt
 ├── di/
 │   └── AppContainer.kt
+├── persistence/
+│   └── OdinDatabase.kt
 ├── home/
 │   └── presentation/
 │       └── home/
@@ -150,6 +180,7 @@ app/src/test/java/dev/raiseexception/odin/accounts/
 ├── domain/model/PasswordTest.kt
 ├── application/usecase/UserRegistrarTest.kt
 ├── infrastructure/repository/InMemoryUserRepositoryTest.kt
+├── integrationtests/RoomUserRepositoryTest.kt
 └── presentation/registration/RegistrationViewModelTest.kt
 
 app/src/androidTest/java/dev/raiseexception/odin/accounts/
@@ -200,9 +231,6 @@ specs/accounts/user-creation/
 
 ## Known Limitations
 
-- **In-memory storage:** user data is lost on process death. Registering again
-  after killing the app creates a new user with new keys. Room persistence is
-  planned as a separate feature.
 - **No login flow:** a registered user who reopens the app sees the registration
   screen again (with an "already registered" guard). Login is a separate feature.
 
@@ -211,7 +239,11 @@ specs/accounts/user-creation/
 - **Security:** the raw password never leaves `UserRegistrar` — it is consumed
   by `Password.create()` and passed to `VaultCrypto.deriveKeys()`, then
   discarded. Keys are not logged. `User.toString()` redacts salt and wrapped
-  master key. The master key is held in memory only (via `MasterKeyRepository`).
+  master key. The plaintext master key `ByteArray` is zeroed with `fill(0)`
+  immediately after `MasterKeyRepository.store()` in both `UserRegistrar` and
+  `UserAuthenticator` — `store()` copies the bytes internally, so the stored
+  key is unaffected. The master key is held in memory only (via
+  `MasterKeyRepository`).
 - **Reliability:** every failure path is modeled as a typed `RegistrationError`
   mapped to a specific `UiState`. The UI is always in exactly one valid state
   (sealed interface). No silent error swallowing. `register` ignores a second

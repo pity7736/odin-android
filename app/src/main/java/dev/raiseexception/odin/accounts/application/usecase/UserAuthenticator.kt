@@ -52,6 +52,7 @@ class UserAuthenticator(
 
     private fun storeMasterKey(masterKey: ByteArray, user: User): Outcome<User> {
         this.masterKeyRepository.store(masterKey)
+        masterKey.fill(0)
         return Outcome.Success(user)
     }
 

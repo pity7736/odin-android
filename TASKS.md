@@ -15,7 +15,7 @@ locally.
 ### Persistence
 
 - [ ] Room database for user data (replace in-memory repositories)
-  - [ ] Near-term: persist ONLY the user (survive process death) to unblock login end-to-end — login is logic-complete but currently unreachable because the in-memory user is wiped on cold start, so `StartupViewModel` never routes to login. Planned after the account-creation feature
+  - [x] Near-term: persist ONLY the user (survive process death) to unblock login end-to-end — login is logic-complete but currently unreachable because the in-memory user is wiped on cold start, so `StartupViewModel` never routes to login. Planned after the account-creation feature
 - [ ] Android Keystore integration for master key at rest. Make the storage contract honest about failure: `MasterKeyRepository.store()` currently returns `Unit` and cannot report an error, but a Keystore-backed write can fail — change it to `Outcome<Unit>`, add a `StorageFailure` variant to both `LoginError` and `RegistrationError`, and handle the outcome in `UserAuthenticator` and `UserRegistrar` (otherwise a failed store returns Success while the session has no master key — the user appears logged in / registered but the app is in a broken half-state)
 
 ### Accounting
@@ -32,6 +32,10 @@ locally.
 - [ ] Navigation (login vs registration vs home screen routing)
 - [ ] MainActivity will accumulate navigation wiring as screen count grows
 - [ ] Global exception handler in ViewModels (catch uncaught library exceptions, map to UiState.Error instead of crashing)
+
+### Security
+
+- [ ] `RegistrationScreen` is missing `FLAG_SECURE`. `LoginScreen` sets it to prevent screenshots and Recent Apps thumbnails from capturing plaintext passwords when the reveal toggle is active. `RegistrationScreen` has the same reveal toggle and the same exposure risk but no `FLAG_SECURE`.
 
 ### Quality
 

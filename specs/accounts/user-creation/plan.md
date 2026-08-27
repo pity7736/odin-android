@@ -1,154 +1,184 @@
-# Work Order: User Creation — Redirect to Home After Success
+# Work Order: User Creation — Room persistence for user data
 
 **Feature design:** `specs/accounts/user-creation/design.md` (the living source of truth)
 **Corresponds to Spec:** `specs/accounts/user-creation/spec.md`
 
-> Work order for: **redirect to the home screen after successful registration**.
+> Work order for: **swap the in-memory user store for a Room-backed SQLite repository**.
 > Disposable — overwritten by the next change (git keeps the history). The living
-> design is in design.md; hydrate it before this change merges, then freeze this
-> file.
+> design is in design.md; hydrate it before this change merges, then freeze this file.
 
 ## Change
 
-After a successful registration the user currently sees a static success message
-and stays on the registration form. This change makes the app navigate the user
-to the home screen instead. This requires introducing Jetpack Navigation Compose
-for screen routing, adding a one-shot navigation event from the ViewModel via a
-`Channel`, and wiring the `NavHost` in `MainActivity`.
+User data (id, salt, wrappedMasterKey) is currently lost every time the app
+process dies because it is held in memory. This change introduces a Room SQLite
+adapter that persists the user record to disk. The `UserRepository` port, the
+domain model, the application layer, and all presentation code are unchanged —
+only the infrastructure adapter and the DI wiring change.
 
-The dummy `HomeScreen` composable already exists at
-`home/presentation/home/HomeScreen.kt`.
-
-**Spec scenario satisfied:** Successful registration (updated: "redirected to
-the home area" instead of "see a confirmation message").
+**Spec scenarios satisfied:**
+- Successful registration — vault data is now durable across restarts
+- Local storage fails — maps real Room write failures to `RegistrationError.StorageFailure`
 
 ## Architecture & Files (this change)
 
 ```
 app/src/main/java/dev/raiseexception/odin/accounts/
-└── presentation/
-    └── registration/
-        ├── RegistrationViewModel.kt             # MODIFY — add Channel for navigation event
-        └── RegistrationScreen.kt                # MODIFY — add onRegistrationSuccess callback, consume Channel
+└── infrastructure/
+    └── repository/
+        ├── UserEntity.kt                                         # CREATE
+        ├── UserDao.kt                                            # CREATE
+        └── RoomUserRepository.kt                                 # CREATE
 
 app/src/main/java/dev/raiseexception/odin/
-└── MainActivity.kt                              # MODIFY — NavHost with registration + home routes
+├── persistence/
+│   └── OdinDatabase.kt                                          # CREATE
+└── di/
+    └── AppContainer.kt                                           # MODIFY
 
-gradle/libs.versions.toml                        # MODIFY — add navigation-compose version + library
-app/build.gradle.kts                             # MODIFY — add navigation-compose dependency
+gradle/libs.versions.toml                                         # MODIFY
+app/build.gradle.kts                                              # MODIFY
 
 app/src/test/java/dev/raiseexception/odin/accounts/
-└── presentation/
-    └── registration/
-        └── RegistrationViewModelTest.kt         # MODIFY — add navigation event test
-
-app/src/androidTest/java/dev/raiseexception/odin/accounts/
-└── presentation/
-    └── registration/
-        └── RegistrationScreenTest.kt            # MODIFY — update success test, add navigation callback test
+└── integrationtests/
+    └── RoomUserRepositoryTest.kt                                 # CREATE
 ```
 
 ## Key Types & Signatures
 
-### RegistrationViewModel (modified)
+### UserEntity
 
 ```kotlin
-class RegistrationViewModel(
-    private val userRegistrar: UserRegistrar
-) : ViewModel() {
-
-    val uiState: StateFlow<RegistrationUiState>
-
-    private val navigationChannel: Channel<NavigationTarget>
-    val navigationEvent: Flow<NavigationTarget>
-
-    fun register(rawPassword: String, rawPasswordConfirmation: String)
-}
-
-enum class NavigationTarget {
-    Home
-}
-```
-
-On `Outcome.Success`, the ViewModel sends `NavigationTarget.Home` into the
-channel. The `UiState` still transitions to `Success` (the screen may briefly
-render it before navigation fires — this is fine).
-
-### RegistrationScreen (modified)
-
-```kotlin
-@Composable
-fun RegistrationScreen(
-    uiState: RegistrationUiState,
-    onRegister: (String, String) -> Unit,
-    navigationEvent: Flow<NavigationTarget>,
-    onRegistrationSuccess: () -> Unit,
-    modifier: Modifier = Modifier
+@Entity(tableName = "users")
+data class UserEntity(
+    @PrimaryKey val id: String,
+    val salt: ByteArray,
+    val wrappedMasterKey: ByteArray,
 )
 ```
 
-The screen collects `navigationEvent` in a `LaunchedEffect` and calls
-`onRegistrationSuccess` when `NavigationTarget.Home` arrives.
+With extension functions in the same file:
+- `UserEntity.toDomain(): User`
+- `User.toEntity(): UserEntity`
 
-### MainActivity (modified)
+### UserDao
 
 ```kotlin
-NavHost(navController, startDestination = "registration") {
-    composable("registration") { /* RegistrationScreen wired with navigation */ }
-    composable("home") { /* HomeScreen */ }
+@Dao
+interface UserDao {
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(entity: UserEntity)
+
+    @Query("SELECT EXISTS(SELECT 1 FROM users LIMIT 1)")
+    suspend fun exists(): Boolean
+
+    @Query("SELECT * FROM users LIMIT 1")
+    suspend fun get(): UserEntity?
 }
 ```
 
-Navigation to `"home"` uses `popUpTo("registration") { inclusive = true }` so
-pressing back from home does not return to registration.
+### OdinDatabase
+
+```kotlin
+@Database(entities = [UserEntity::class], version = 1, exportSchema = false)
+abstract class OdinDatabase : RoomDatabase() {
+    abstract fun userDao(): UserDao
+}
+```
+
+Lives at `dev.raiseexception.odin.persistence` — outside any feature package — because it is a cross-cutting concern that will register entities from every feature. Built once in `AppContainer` via `Room.databaseBuilder(context, OdinDatabase::class.java, "odin_db").build()`.
+`AppContainer` must receive `Context` (application context) to build the database — add it as a constructor parameter if not already present.
+
+### RoomUserRepository
+
+```kotlin
+class RoomUserRepository(
+    private val userDao: UserDao,
+) : UserRepository {
+    override suspend fun add(user: User): Outcome<Unit>
+    override suspend fun exists(): Boolean
+    override suspend fun get(): Outcome<User>
+}
+```
+
+- `add`: check `exists()` first; if true return `Outcome.Failure(RegistrationError.StorageFailure(...))`; otherwise insert via DAO, catching any exception and mapping to `StorageFailure`.
+- `exists`: return `userDao.exists()`.
+- `get`: call `userDao.get()`; if null return `Outcome.Failure(LoginError.UserNotFound)`; otherwise map entity to domain and return `Outcome.Success`.
+
+### RoomUserRepositoryTest setup
+
+```kotlin
+@RunWith(RobolectricTestRunner::class)
+class RoomUserRepositoryTest {
+    private lateinit var database: OdinDatabase
+    private lateinit var repository: RoomUserRepository
+
+    @Before
+    fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        database = Room.inMemoryDatabaseBuilder(context, OdinDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        repository = RoomUserRepository(database.userDao())
+    }
+
+    @After
+    fun tearDown() {
+        database.close()
+    }
+}
+```
 
 ## Implementation Phases (TDD)
 
-### Phase 1: Presentation — ViewModel navigation event
+### Phase 1: Build setup — Room + KSP
 
-**Red:** Modify `RegistrationViewModelTest`:
-- `given valid password, when registering, then emits navigation event to Home`
-  (receive from the channel and assert `NavigationTarget.Home`)
-- Existing `given valid password, when registering, then emits Loading then Success`
-  stays — `UiState` behavior is unchanged.
+**Red:** No tests — build configuration only.
 
-**Green:** Add `NavigationTarget` enum, `Channel<NavigationTarget>` to
-`RegistrationViewModel`, expose as `Flow` via `channel.receiveAsFlow()`. In
-`register()`, after setting `UiState.Success`, send `NavigationTarget.Home`
-into the channel.
+**Green:**
+1. Add to `gradle/libs.versions.toml`:
+   - `[versions]`: `ksp`, `room`
+   - `[libraries]`: `androidx-room-runtime`, `androidx-room-ktx`, `androidx-room-compiler`
+   - `[plugins]`: `ksp`
+2. Apply KSP plugin and add Room dependencies in `app/build.gradle.kts`.
+3. Verify `./gradlew assembleDebug` compiles clean.
 
-### Phase 2: Presentation — RegistrationScreen callback
+### Phase 2: Infrastructure — Entity, DAO, Database, Repository
 
-**Red:** Modify `RegistrationScreenTest`:
-- `given success state, when displayed, then calls onRegistrationSuccess` (pass
-  a `Channel` that emits `NavigationTarget.Home`, capture the callback
-  invocation).
-- Existing success message test is removed — the success message is no longer
-  shown since navigation fires immediately.
+**Red:** Write `RoomUserRepositoryTest` in `src/test/.../accounts/integrationtests/`:
 
-**Green:** Add `navigationEvent: Flow<NavigationTarget>` and
-`onRegistrationSuccess: () -> Unit` parameters to `RegistrationScreen`. Collect
-`navigationEvent` in a `LaunchedEffect` and call `onRegistrationSuccess` when
-received. Remove the success message from `GeneralMessage`.
+- `given empty database, when exists called, then returns false`
+- `given empty database, when get called, then returns UserNotFound`
+- `given empty database, when add called with user, then returns success`
+- `given user in database, when exists called, then returns true`
+- `given user in database, when get called, then returns the same user`
+- `given user in database, when add called again, then returns StorageFailure`
 
-### Phase 3: Wiring — Navigation + MainActivity
+**Green:**
+1. Create `UserEntity` with mapping extensions.
+2. Create `UserDao`.
+3. Create `OdinDatabase`.
+4. Create `RoomUserRepository` implementing `UserRepository`.
 
-**Green:** (no new tests — wiring is exercised by manual testing)
-1. Add `navigation-compose` to `gradle/libs.versions.toml` and
-   `app/build.gradle.kts`.
-2. Update `MainActivity`: create `NavHost` with `rememberNavController()`, two
-   `composable` routes (`"registration"` and `"home"`). Wire `RegistrationScreen`
-   with `onRegistrationSuccess` that navigates to `"home"` with
-   `popUpTo("registration") { inclusive = true }`. Wire `HomeScreen` for the
-   `"home"` route.
+Run `./gradlew test` — integration tests green.
+
+### Phase 3: DI — Wire RoomUserRepository in AppContainer
+
+**Red:** No new tests — the existing `UserRegistrarTest` already mocks `UserRepository`; wiring is verified by the integration tests in Phase 2 and by manual test.
+
+**Green:**
+1. Add `Context` parameter to `AppContainer` if not already present; update the call site in `OdinApplication`.
+2. Build `OdinDatabase` as a property in `AppContainer`.
+3. Replace `InMemoryUserRepository()` binding with `RoomUserRepository(database.userDao())`.
 
 Run `./gradlew check` — all tests green, detekt clean, coverage passing.
 
 ## Design decisions to hydrate into design.md
 
-- [ ] Navigation event via `Channel` (not `UiState`) for one-shot actions — `UiState` is persistent screen state, `Channel` is for one-time side effects
-- [ ] `NavigationTarget` enum as the event type
-- [ ] `MainActivity` now uses `NavHost` with two routes instead of rendering a single screen directly
-- [ ] `popUpTo("registration") { inclusive = true }` prevents back-navigating to registration after success
-- [ ] Success message removed from registration screen — replaced by immediate navigation
-- [ ] Remove "No navigation after success" from Known Limitations
+- [ ] Room as the persistence adapter — the `UserRepository` port/adapter split enables this swap with no domain or application changes
+- [ ] `OdinDatabase` as the central schema registry — all future entities are registered here; this is the pattern for every incoming persistence feature
+- [ ] `UserEntity` in the infrastructure layer — domain model stays annotation-free; mapping extensions live with the entity
+- [ ] `ByteArray` columns stored as BLOB — Room handles this natively; no type converters needed
+- [ ] Integration tests go in `src/test/.../integrationtests/` using Robolectric with an in-memory Room database — this is the established pattern for all future repository tests
+- [ ] Remove "In-memory storage" Known Limitation from design.md
+- [ ] `OdinDatabase` lives at `dev.raiseexception.odin.persistence` (cross-cutting, not inside any feature) — all future feature entities are registered here
+- [ ] `AppContainer` receives `Context` to build Room — update architecture file tree in design.md if the constructor changes
