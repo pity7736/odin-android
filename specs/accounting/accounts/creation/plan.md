@@ -97,11 +97,10 @@ alias) and apply the dependency in `app/build.gradle.kts`.
 
 ### Phase 1: Domain — `Account.createdAt`
 
-**Red:** add to `AccountTest` (using a fake `Clock` that returns a fixed `Instant`):
-- `given valid input when create then account has createdAt equal to clock instant` — the
-  returned `Account.createdAt` matches the instant the injected clock returns.
-- `given valid input when create then createdAt is not null` — baseline presence check.
-- Existing all-errors test still passes (timestamp does not appear in `InvalidInput`).
+**Red:** extend the existing `given all valid fields, when creating an account, then returns
+success` test in `AccountCreateTest` with a fixed-clock assertion: inject a `Clock` that
+returns a known `Instant` and assert `account.createdAt == fixedInstant`. The all-errors
+test still passes (timestamp does not appear in `InvalidInput`).
 
 **Green:** add `createdAt: Instant` to `Account`'s private constructor; in `Account.create`
 call `clock.now()` and assign it to the successfully built `Account`. Add `clock: Clock =
@@ -109,22 +108,20 @@ Clock.System` parameter to `create`.
 
 ### Phase 2: Infrastructure — `AccountRecord` stores `createdAt`
 
-**Red:** add to `VaultAccountRepositoryTest`:
-- `given account with createdAt when add then stored record contains createdAt as ISO-8601 string` —
-  deserialize the stored `AccountRecord` and assert `createdAt == account.createdAt.toString()`.
-- `given stored record with createdAt when read for uniqueness then no error` — `existsByName`
-  succeeds on a record that has the `createdAt` field (round-trip does not break deserialization).
+**Red:** extend the existing `given an added account, when reading the stored record, then
+all fields are intact` test in `VaultAccountRepositoryTest` with one additional assertion:
+`assertEquals(savings.createdAt.toString(), record.createdAt)`.
 
 **Green:** add `createdAt: String` to `AccountRecord`; update `VaultAccountRepository.toRecord`
 to set `createdAt = account.createdAt.toString()`.
 
 ### Phase 3: Application — `AccountCreator` passes through timestamp
 
-**Red:** add to `AccountCreatorTest`:
-- `given valid input when create succeeds then returned account has createdAt set` — the
-  `Account` returned by the use case carries a non-null `createdAt` (inject a fixed clock
-  into `Account.create` via the test's stub or by using `Account.create` directly in the
-  assertion setup; the use case itself needs no clock — it delegates entirely to the domain).
+**Red:** extend the existing `given a unique valid account, when creating, then adds it and
+returns success` test in `AccountCreatorTest`: capture `Clock.System.now()` before and after
+the call and assert `account.createdAt >= before && account.createdAt <= after` (a fixed clock
+cannot be injected at this level without changing `AccountCreator`; the time-window assertion
+proves the field is a real "now", not merely non-null).
 
 **Green:** no change to `AccountCreator` — it calls `Account.create` with its default
 `Clock.System`; the test verifies the field survives the orchestration flow.
