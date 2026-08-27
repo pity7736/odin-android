@@ -7,6 +7,9 @@ import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
 import dev.raiseexception.odin.accounting.infrastructure.serialization.CategoryRecord
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.infrastructure.vault.EncryptedRecordStore
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.datetime.Instant
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
@@ -25,6 +28,10 @@ class VaultCategoryRepository(
         )
     }
 
+    override fun getAll(): Flow<List<Category>> = flow {
+        emit(this@VaultCategoryRepository.allCategories())
+    }
+
     override suspend fun add(category: Category): Outcome<Unit> {
         val plaintext = this.json.encodeToString(CategoryRecord.serializer(), this.toRecord(category))
             .encodeToByteArray()
@@ -33,6 +40,26 @@ class VaultCategoryRepository(
             is Outcome.Failure -> this.cryptoFailure(saveOutcome.error.internalMessage)
         }
     }
+
+    @Suppress("TooGenericExceptionThrown")
+    private suspend fun allCategories(): List<Category> {
+        val categoryRecords = when (val decryptOutcome = this.decryptedCategoryRecords()) {
+            is Outcome.Success -> decryptOutcome.value
+            is Outcome.Failure -> throw RuntimeException(decryptOutcome.error.internalMessage)
+        }
+        return categoryRecords
+            .sortedBy { it.id }
+            .map { this.toCategory(it) }
+    }
+
+    private fun toCategory(record: CategoryRecord): Category = Category.restore(
+        id = record.id,
+        name = record.name,
+        type = CategoryType.valueOf(record.categoryType),
+        description = record.description,
+        color = record.color,
+        createdAt = Instant.parse(record.createdAt)
+    )
 
     private suspend fun decryptedCategoryRecords(): Outcome<List<CategoryRecord>> {
         val records = when (val readOutcome = this.encryptedRecordStore.readAll()) {

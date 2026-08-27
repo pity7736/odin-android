@@ -11,6 +11,7 @@ import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.crypto.infrastructure.BouncyCastleVaultCrypto
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.infrastructure.vault.InMemoryEncryptedRecordStore
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -40,6 +41,15 @@ class VaultCategoryRepositoryTest {
             type = CategoryType.EXPENSE,
             description = "Categoría de prueba",
             color = "#E57373"
+        ) as Outcome.Success
+        ).value
+
+    private fun incomeCategory(name: String) = (
+        Category.create(
+            name = name,
+            type = CategoryType.INCOME,
+            description = "Categoría de prueba",
+            color = "#4CAF50"
         ) as Outcome.Success
         ).value
 
@@ -131,5 +141,44 @@ class VaultCategoryRepositoryTest {
 
         assertTrue(result is Outcome.Success)
         assertFalse((result as Outcome.Success).value)
+    }
+
+    @Test
+    fun `given no categories stored, when getAll, then emits empty list`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultCategoryRepository(store, json)
+
+        val result = repository.getAll().first()
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `given one income category stored, when getAll, then emits list with that category`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultCategoryRepository(store, json)
+        val salary = incomeCategory("Salario")
+        repository.add(salary)
+
+        val result = repository.getAll().first()
+
+        assertEquals(1, result.size)
+        assertEquals(salary.id, result.first().id)
+        assertEquals("Salario", result.first().name)
+        assertEquals(CategoryType.INCOME, result.first().type)
+    }
+
+    @Test
+    fun `given income and expense categories stored, when getAll, then emits all categories`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultCategoryRepository(store, json)
+        val food = category("Alimentación")
+        val salary = incomeCategory("Salario")
+        repository.add(food)
+        repository.add(salary)
+
+        val result = repository.getAll().first()
+
+        assertEquals(2, result.size)
     }
 }

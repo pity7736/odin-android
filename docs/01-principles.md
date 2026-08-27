@@ -1,8 +1,8 @@
 # odin-android: Development Principles
 
 odin-android is a zero-knowledge, end-to-end encrypted personal finance app for
-Android. It lets users track accounts, income, expenses, transfers, and
-categories entirely on their device: all financial logic, all
+Android. It supports a **single user** who tracks accounts, income, expenses,
+transfers, and categories entirely on their device: all financial logic, all
 encryption/decryption, and all data storage happen locally. The app is
 **standalone-first** — it works fully without a server. An optional server layer
 provides backup and multi-device sync, but never gates access to the user's own

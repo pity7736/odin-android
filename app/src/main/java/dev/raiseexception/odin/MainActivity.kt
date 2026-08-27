@@ -27,8 +27,10 @@ import dev.raiseexception.odin.accounting.presentation.accountdetail.AccountDeta
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListScreen
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListViewModel
 import dev.raiseexception.odin.accounting.presentation.categorieslist.CategoriesListScreen
+import dev.raiseexception.odin.accounting.presentation.categorieslist.CategoriesListViewModel
 import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryScreen
 import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryViewModel
+import dev.raiseexception.odin.accounting.presentation.categorydetail.CategoryDetailScreen
 import dev.raiseexception.odin.accounts.presentation.login.LoginScreen
 import dev.raiseexception.odin.accounts.presentation.login.LoginViewModel
 import dev.raiseexception.odin.accounts.presentation.registration.RegistrationScreen
@@ -96,12 +98,14 @@ private fun AppNavHost(startRoute: String) {
                 AccountDetailScreen(accountId = accountId)
             }
             composable(Routes.CATEGORIES) {
-                CategoriesListScreen(
-                    onCreateCategory = { navController.navigate(Routes.CATEGORY_CREATE) }
-                )
+                CategoriesListDestination(navController)
             }
             composable(Routes.CATEGORY_CREATE) {
                 CreateCategoryDestination(navController)
+            }
+            composable(Routes.CATEGORY_DETAIL) { backStackEntry ->
+                val categoryId = backStackEntry.arguments?.getString("categoryId") ?: ""
+                CategoryDetailScreen(categoryId = categoryId)
             }
         }
     }
@@ -197,6 +201,26 @@ private fun CreateCategoryDestination(navController: NavHostController) {
             navController.navigate(Routes.CATEGORIES) {
                 popUpTo(Routes.CATEGORIES) { inclusive = true }
             }
+        }
+    )
+}
+
+@Composable
+private fun CategoriesListDestination(navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val categoriesListViewModel: CategoriesListViewModel = viewModel {
+        application.appContainer.categoriesListViewModel()
+    }
+    val uiState by categoriesListViewModel.uiState.collectAsStateWithLifecycle()
+    CategoriesListScreen(
+        uiState = uiState,
+        navigationEvent = categoriesListViewModel.navigationEvent,
+        onCreateCategory = { navController.navigate(Routes.CATEGORY_CREATE) },
+        onFilterChanged = categoriesListViewModel::onFilterChanged,
+        onSearchQueryChanged = categoriesListViewModel::onSearchQueryChanged,
+        onCategorySelected = categoriesListViewModel::onCategorySelected,
+        onNavigateToCategoryDetail = { categoryId ->
+            navController.navigate(Routes.categoryDetail(categoryId))
         }
     )
 }
