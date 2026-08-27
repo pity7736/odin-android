@@ -2,8 +2,8 @@ package dev.raiseexception.odin.accounting.presentation.categorieslist
 
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
-import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
+import dev.raiseexception.odin.testutil.CategoryBuilder
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -14,7 +14,6 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.datetime.Instant
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -39,24 +38,6 @@ class CategoriesListViewModelTest {
 
     private fun buildViewModel() = CategoriesListViewModel(categoryLister, testDispatcher)
 
-    private fun expenseCategory(id: String, name: String): Category = Category.restore(
-        id = id,
-        name = name,
-        type = CategoryType.EXPENSE,
-        description = "",
-        color = "#E57373",
-        createdAt = Instant.parse("2026-01-01T00:00:00Z")
-    )
-
-    private fun incomeCategory(id: String, name: String): Category = Category.restore(
-        id = id,
-        name = name,
-        type = CategoryType.INCOME,
-        description = "",
-        color = "#4CAF50",
-        createdAt = Instant.parse("2026-01-01T00:00:00Z")
-    )
-
     @Test
     fun `given CategoryLister returns empty list, when observed, then uiState is Empty`() = runTest {
         every { categoryLister.list(any(), any()) } returns flowOf(emptyList())
@@ -72,8 +53,8 @@ class CategoriesListViewModelTest {
 
     @Test
     fun `given CategoryLister returns categories, when observed, then uiState is Content`() = runTest {
-        val food = expenseCategory("aaa", "Alimentación")
-        val salary = incomeCategory("bbb", "Salario")
+        val food = CategoryBuilder().build()
+        val salary = CategoryBuilder().name("Salario").type(CategoryType.INCOME).build()
         every { categoryLister.list(null, "") } returns flowOf(listOf(food, salary))
         val viewModel = buildViewModel()
 
@@ -90,8 +71,8 @@ class CategoriesListViewModelTest {
 
     @Test
     fun `given Content, when filter changed, then CategoryLister is called with new filter`() = runTest {
-        val food = expenseCategory("aaa", "Alimentación")
-        val salary = incomeCategory("bbb", "Salario")
+        val food = CategoryBuilder().build()
+        val salary = CategoryBuilder().name("Salario").type(CategoryType.INCOME).build()
         every { categoryLister.list(null, "") } returns flowOf(listOf(food, salary))
         every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(listOf(salary))
         val viewModel = buildViewModel()
@@ -110,8 +91,8 @@ class CategoriesListViewModelTest {
 
     @Test
     fun `given Content, when search name changed, then CategoryLister is called with new name`() = runTest {
-        val food = expenseCategory("aaa", "Alimentación")
-        val salary = incomeCategory("bbb", "Salario")
+        val food = CategoryBuilder().build()
+        val salary = CategoryBuilder().name("Salario").type(CategoryType.INCOME).build()
         every { categoryLister.list(null, "") } returns flowOf(listOf(food, salary))
         every { categoryLister.list(null, "ali") } returns flowOf(listOf(food))
         val viewModel = buildViewModel()
@@ -130,7 +111,7 @@ class CategoriesListViewModelTest {
 
     @Test
     fun `given CategoryLister returns empty list after filter change, then uiState is Empty`() = runTest {
-        val food = expenseCategory("aaa", "Alimentación")
+        val food = CategoryBuilder().build()
         every { categoryLister.list(null, "") } returns flowOf(listOf(food))
         every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(emptyList())
         val viewModel = buildViewModel()
@@ -147,16 +128,16 @@ class CategoriesListViewModelTest {
 
     @Test
     fun `given categories, when category selected, then navigation event is CategoryDetail`() = runTest {
-        val food = expenseCategory("aaa", "Alimentación")
+        val food = CategoryBuilder().build()
         every { categoryLister.list(any(), any()) } returns flowOf(listOf(food))
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.navigationEvent.test {
-            viewModel.onCategorySelected("aaa")
+            viewModel.onCategorySelected(food.id)
             val event = awaitItem()
             assertTrue(event is CategoriesListNavigationTarget.CategoryDetail)
-            assertEquals("aaa", (event as CategoriesListNavigationTarget.CategoryDetail).categoryId)
+            assertEquals(food.id, (event as CategoriesListNavigationTarget.CategoryDetail).categoryId)
             cancelAndIgnoreRemainingEvents()
         }
     }
