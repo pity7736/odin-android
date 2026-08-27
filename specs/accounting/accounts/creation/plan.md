@@ -130,11 +130,11 @@ Finish with `./gradlew check` GREEN.
 
 ## Design decisions to hydrate into design.md
 
-- [ ] `Account.createdAt: Instant` — captured at creation via an injected `clock: Clock =
+- [x] `Account.createdAt: Instant` — captured at creation via an injected `clock: Clock =
   Clock.System` in `Account.create`; defaults to `Clock.System` so no caller changes;
   immutability enforced by `val` on an immutable `data class`.
-- [ ] `AccountRecord.createdAt` stored as an ISO-8601 string (`Instant.toString()`) — same
+- [x] `AccountRecord.createdAt` stored as an ISO-8601 string (`Instant.toString()`) — same
   rationale as `amount` (exact representation at the infra boundary).
-- [ ] No new error subclass — "timestamp cannot be recorded" is the existing
+- [x] No new error subclass — "timestamp cannot be recorded" is the existing
   `StorageFailure`/`CryptoFailure` path; maps to `Error` UiState as before.
-- [ ] `kotlinx-datetime` added to the version catalog and `app/build.gradle.kts`.
+- [x] `kotlinx-datetime` added to the version catalog and `app/build.gradle.kts`.

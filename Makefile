@@ -8,7 +8,7 @@ EMULATOR  := emulator
 
 run:
 	@if ! $(ADB) devices | grep -q emulator; then \
-		$(EMULATOR) -avd $(AVD) -no-snapshot-load &\
+		$(EMULATOR) -avd $(AVD) -no-snapshot-load -gpu swiftshader_indirect &\
 		echo "Waiting for emulator to boot..."; \
 		$(ADB) wait-for-device; \
 		until [ "$$($(ADB) shell getprop sys.boot_completed 2>/dev/null)" = "1" ]; do sleep 2; done; \

@@ -74,6 +74,18 @@ introduces the shared encrypted-storage shape that later accounting entities
   encryption.
 - **Money serialized as a String at the infra boundary** to keep the `BigDecimal`
   amount exact across encrypt/decrypt.
+- **`Account.createdAt` is captured in `Account.create` via an injected clock.** The factory
+  accepts a `clock: Clock = Clock.System` parameter (from `kotlinx-datetime`). The default
+  means no caller needs to change; tests inject a fixed `Clock` to assert the exact instant.
+  `createdAt` is a `val` on an immutable `data class`, so immutability is enforced by
+  construction — no explicit guard is needed. `AccountRecord` stores the timestamp as an
+  ISO-8601 string (`Instant.toString()`) for the same reason `amount` is stored as a plain
+  string: exact round-trip at the infra boundary without loss. There is no new error subclass
+  for timestamp failure; if storage fails (and therefore the timestamp cannot be persisted),
+  the existing `StorageFailure`/`CryptoFailure` path applies and the ViewModel maps it to
+  `Error` as before. `Account.create` carries a `@Suppress("LongParameterList")` annotation
+  because the factory legitimately requires all its inputs; the suppress is scoped to that
+  function alone.
 - **`CreateAccountViewModel` is destination-scoped.** The `ACCOUNT_CREATE`
   destination obtains it via `androidx.lifecycle.viewmodel.compose.viewModel { … }`
   (backed by the `NavBackStackEntry`'s `ViewModelStore`; instance from the
@@ -93,12 +105,12 @@ introduces the shared encrypted-storage shape that later accounting entities
 app/src/main/java/dev/raiseexception/odin/
 ├── accounting/
 │   ├── domain/
-│   │   ├── model/            # Account (+ create factory: the validation authority), Money, Currency, AccountType
+│   │   ├── model/            # Account (+ create factory: the validation authority; createdAt: Instant captured via injected clock), Money, Currency, AccountType
 │   │   ├── AccountCreationError (sealed DomainError)
 │   │   └── repository/       # AccountRepository (port)
 │   ├── application/usecase/   # AccountCreator (orchestration only)
 │   ├── infrastructure/
-│   │   ├── serialization/    # AccountRecord (storage DTO, type tag inside ciphertext)
+│   │   ├── serialization/    # AccountRecord (storage DTO, type tag inside ciphertext; createdAt as ISO-8601 string)
 │   │   └── repository/       # store-backed AccountRepository adapter
 │   └── presentation/
 │       ├── accountcreation/  # CreateAccountViewModel (dumb), UiState, NavigationTarget, Screen
@@ -122,8 +134,9 @@ specs/accounting/accounts/creation/
 3. **Use case (orchestration):** calls `Account.create`; on success checks name
    uniqueness via the repository, then persists.
 4. **Domain (`Account.create`) — the single validation authority:** validates
-   everything (presence, balance parse, value rules) and returns either the built
-   `Account` or one `InvalidInput` carrying **all** offending field messages.
+   everything (presence, balance parse, value rules), captures `createdAt` via
+   `clock.now()`, and returns either the built `Account` or one `InvalidInput`
+   carrying **all** offending field messages.
 5. **Infrastructure (`AccountRepository` → `EncryptedRecordStore`):** the account
    is mapped to a storage DTO (with its type tag), serialized, **encrypted**, and
    stored; uniqueness decrypts existing records and compares by name.
