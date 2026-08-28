@@ -1,6 +1,7 @@
 package dev.raiseexception.odin.accounting.infrastructure.repository
 
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
+import dev.raiseexception.odin.accounting.domain.AccountLookupError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Money
@@ -184,6 +185,41 @@ class VaultAccountRepositoryTest {
         val accounts = result.first()
         assertEquals(2, accounts.size)
         assertTrue(accounts[0].id <= accounts[1].id)
+    }
+
+    @Test
+    fun `given an account exists, when findById is called with its id, then returns the account`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultAccountRepository(store, json)
+        val savings = account("Ahorros")
+        repository.add(savings)
+
+        val result = repository.findById(savings.id)
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(savings.id, (result as Outcome.Success).value.id)
+    }
+
+    @Test
+    fun `given no account matches the id, when findById is called, then returns NotFound`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultAccountRepository(store, json)
+
+        val result = repository.findById("non-existent-id")
+
+        assertTrue(result is Outcome.Failure)
+        assertTrue((result as Outcome.Failure).error is AccountLookupError.NotFound)
+    }
+
+    @Test
+    fun `given the store returns a failure, when findById is called, then returns StorageFailure`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(null))
+        val repository = VaultAccountRepository(store, json)
+
+        val result = repository.findById("any-id")
+
+        assertTrue(result is Outcome.Failure)
+        assertTrue((result as Outcome.Failure).error is AccountLookupError.StorageFailure)
     }
 
     @Test

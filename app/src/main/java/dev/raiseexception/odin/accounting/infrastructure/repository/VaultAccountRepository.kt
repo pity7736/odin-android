@@ -1,6 +1,7 @@
 package dev.raiseexception.odin.accounting.infrastructure.repository
 
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
+import dev.raiseexception.odin.accounting.domain.AccountLookupError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
@@ -36,6 +37,26 @@ class VaultAccountRepository(
             is Outcome.Success -> Outcome.Success(Unit)
             is Outcome.Failure -> this.cryptoFailure(saveOutcome.error.internalMessage)
         }
+    }
+
+    override suspend fun findById(id: String): Outcome<Account> {
+        val accountRecords = when (val decryptOutcome = this.decryptedAccountRecords()) {
+            is Outcome.Success -> decryptOutcome.value
+            is Outcome.Failure -> return Outcome.Failure(
+                AccountLookupError.StorageFailure(
+                    internalMessage = decryptOutcome.error.internalMessage,
+                    externalMessage = "Error al cargar la cuenta"
+                )
+            )
+        }
+        val matchingRecord = accountRecords.firstOrNull { it.id == id }
+            ?: return Outcome.Failure(
+                AccountLookupError.NotFound(
+                    internalMessage = "Account with id $id not found",
+                    externalMessage = "Cuenta no encontrada"
+                )
+            )
+        return Outcome.Success(this.toAccount(matchingRecord))
     }
 
     override fun getAll(): Flow<List<Account>> = flow {

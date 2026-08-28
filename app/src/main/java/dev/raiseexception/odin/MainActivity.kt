@@ -24,6 +24,7 @@ import androidx.navigation.compose.rememberNavController
 import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAccountScreen
 import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAccountViewModel
 import dev.raiseexception.odin.accounting.presentation.accountdetail.AccountDetailScreen
+import dev.raiseexception.odin.accounting.presentation.accountdetail.AccountDetailViewModel
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListScreen
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListViewModel
 import dev.raiseexception.odin.accounting.presentation.categorieslist.CategoriesListScreen
@@ -95,7 +96,7 @@ private fun AppNavHost(startRoute: String) {
             }
             composable(Routes.ACCOUNT_DETAIL) { backStackEntry ->
                 val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
-                AccountDetailScreen(accountId = accountId)
+                AccountDetailDestination(accountId)
             }
             composable(Routes.CATEGORIES) {
                 CategoriesListDestination(navController)
@@ -184,6 +185,16 @@ private fun CreateAccountDestination(navController: NavHostController) {
             }
         }
     )
+}
+
+@Composable
+private fun AccountDetailDestination(accountId: String) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val accountDetailViewModel: AccountDetailViewModel = viewModel(
+        factory = application.appContainer.accountDetailViewModelFactory(accountId)
+    )
+    val uiState by accountDetailViewModel.uiState.collectAsStateWithLifecycle()
+    AccountDetailScreen(uiState = uiState)
 }
 
 @Composable
