@@ -13,6 +13,13 @@ is always visible and navigates directly without going through the ViewModel.
 
 ## Design Decisions & Rationale
 
+- **`AccountLister` is the application-layer use case for listing** — `AccountsListViewModel`
+  depends on `AccountLister`, not on `AccountRepository` directly. `AccountLister.list()`
+  delegates to `accountRepository.getAll()` with no filtering or transformation.
+  Alternative rejected: ViewModel calling the repository directly — bypasses the
+  clean-architecture boundary between presentation and domain, inconsistent with
+  `AccountCreator` and `CategoryLister`.
+
 - **`AccountRepository.getAll()` returns `Flow<List<Account>>`** — the signature is
   set for Room compatibility: when Room replaces the in-memory store, the ViewModel
   stays unchanged. The current implementation emits once and completes (`flow {
@@ -60,6 +67,8 @@ app/src/main/java/dev/raiseexception/odin/
     │   │   └── Account.kt                        (restore() factory added)
     │   └── repository/
     │       └── AccountRepository.kt              (getAll(): Flow<List<Account>>)
+    ├── application/usecase/
+    │   └── AccountLister.kt                      (list(): Flow<List<Account>>)
     ├── infrastructure/
     │   └── repository/
     │       └── VaultAccountRepository.kt         (getAll(); shared decrypt helper)
@@ -75,6 +84,7 @@ app/src/main/java/dev/raiseexception/odin/
 app/src/test/java/dev/raiseexception/odin/
 └── accounting/
     ├── domain/model/AccountTest.kt               (AccountRestoreTest class)
+    ├── application/usecase/AccountListerTest.kt
     ├── infrastructure/repository/VaultAccountRepositoryTest.kt
     └── presentation/accountslist/AccountsListViewModelTest.kt
 
@@ -88,7 +98,7 @@ specs/accounting/accounts/list/
 
 **Loading accounts:**
 1. `AccountsListViewModel.init` launches a coroutine on `ioDispatcher`
-2. Collects `AccountRepository.getAll()` — a cold `Flow<List<Account>>`
+2. Collects `AccountLister.list()` — delegates to `AccountRepository.getAll()`, a cold `Flow<List<Account>>`
 3. `VaultAccountRepository.getAll()` calls `encryptedRecordStore.readAll()`, decrypts
    each blob, deserializes to `AccountRecord` (skipping failures), filters by
    `recordType`, maps via `Account.restore()`, sorts by id ascending, and emits
