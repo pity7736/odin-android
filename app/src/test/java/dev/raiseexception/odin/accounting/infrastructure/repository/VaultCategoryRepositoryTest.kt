@@ -1,15 +1,13 @@
 package dev.raiseexception.odin.accounting.infrastructure.repository
 
 import dev.raiseexception.odin.accounting.domain.CategoryCreationError
-import dev.raiseexception.odin.accounting.domain.model.Account
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
-import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.infrastructure.serialization.CategoryRecord
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.crypto.infrastructure.BouncyCastleVaultCrypto
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.infrastructure.vault.InMemoryEncryptedRecordStore
+import dev.raiseexception.odin.testutil.AccountBuilder
 import dev.raiseexception.odin.testutil.CategoryBuilder
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -34,16 +32,6 @@ class VaultCategoryRepositoryTest {
         masterKeyRepository = masterKeyRepository,
         cpuDispatcher = UnconfinedTestDispatcher()
     )
-
-    private fun account(name: String) = (
-        Account.create(
-            name = name,
-            initialBalance = "1500.00",
-            currency = Currency.COP,
-            type = AccountType.SAVINGS,
-            description = "Cuenta de prueba"
-        ) as Outcome.Success
-        ).value
 
     @Test
     fun `given a saved category, when reading all, then all fields are intact`() = runTest {
@@ -94,7 +82,7 @@ class VaultCategoryRepositoryTest {
         val categoryRepository = VaultCategoryRepository(store, json)
         val accountRepository = VaultAccountRepository(store, json)
         categoryRepository.add(CategoryBuilder().build())
-        accountRepository.add(account("Ahorros"))
+        accountRepository.add(AccountBuilder().build())
 
         val result = categoryRepository.existsByNameAndType("Ahorros", CategoryType.EXPENSE)
 

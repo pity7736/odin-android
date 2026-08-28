@@ -1,11 +1,8 @@
 package dev.raiseexception.odin.accounting.presentation.accountslist
 
 import app.cash.turbine.test
-import dev.raiseexception.odin.accounting.domain.model.Account
-import dev.raiseexception.odin.accounting.domain.model.AccountType
-import dev.raiseexception.odin.accounting.domain.model.Currency
-import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
+import dev.raiseexception.odin.testutil.AccountBuilder
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -16,13 +13,11 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.datetime.Instant
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.math.BigDecimal
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AccountsListViewModelTest {
@@ -42,14 +37,7 @@ class AccountsListViewModelTest {
 
     private fun buildViewModel() = AccountsListViewModel(accountRepository, testDispatcher)
 
-    private fun account(id: String, name: String): Account = Account.restore(
-        id = id,
-        name = name,
-        initialBalance = Money.of(BigDecimal("100.00"), Currency.COP),
-        type = AccountType.SAVINGS,
-        description = "",
-        createdAt = Instant.parse("2026-01-01T00:00:00Z")
-    )
+    private fun account(id: String, name: String) = AccountBuilder().id(id).name(name).build()
 
     @Test
     fun `given repository emits empty list, when initialized, then ui state is Empty`() = runTest {
