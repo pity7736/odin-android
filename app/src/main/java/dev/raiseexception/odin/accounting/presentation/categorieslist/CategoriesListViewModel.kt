@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
+import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -34,30 +35,28 @@ class CategoriesListViewModel(
 
     init {
         this.viewModelScope.launch(this.ioDispatcher) {
-            try {
-                combine(
-                    this@CategoriesListViewModel.activeFilter,
-                    this@CategoriesListViewModel.searchQuery
-                ) { filter, name -> Pair(filter, name) }
-                    .flatMapLatest { (filter, name) ->
-                        this@CategoriesListViewModel.categoryLister.list(filter, name)
-                            .map { categories -> Triple(filter, name, categories) }
-                    }
-                    .collect { (filter, name, categories) ->
-                        this@CategoriesListViewModel.mutableUiState.value = if (categories.isEmpty()) {
+            combine(
+                this@CategoriesListViewModel.activeFilter,
+                this@CategoriesListViewModel.searchQuery
+            ) { filter, name -> Pair(filter, name) }
+                .flatMapLatest { (filter, name) ->
+                    this@CategoriesListViewModel.categoryLister.list(filter, name)
+                        .map { outcome -> Triple(filter, name, outcome) }
+                }
+                .collect { (filter, name, outcome) ->
+                    this@CategoriesListViewModel.mutableUiState.value = when (outcome) {
+                        is Outcome.Success -> if (outcome.value.isEmpty()) {
                             CategoriesListUiState.Empty(filter, name)
                         } else {
                             CategoriesListUiState.Content(
-                                categories = categories,
+                                categories = outcome.value,
                                 activeFilter = filter,
                                 searchQuery = name,
                             )
                         }
+                        is Outcome.Failure -> CategoriesListUiState.Error("Error al cargar las categorías")
                     }
-            } catch (@Suppress("TooGenericExceptionCaught", "SwallowedException") exception: Exception) {
-                this@CategoriesListViewModel.mutableUiState.value =
-                    CategoriesListUiState.Error("Error al cargar las categorías")
-            }
+                }
         }
     }
 

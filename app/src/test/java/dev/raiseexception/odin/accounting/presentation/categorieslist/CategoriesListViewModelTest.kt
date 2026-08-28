@@ -3,12 +3,13 @@ package dev.raiseexception.odin.accounting.presentation.categorieslist
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
+import dev.raiseexception.odin.shared.domain.DomainError
+import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.CategoryBuilder
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -38,9 +39,14 @@ class CategoriesListViewModelTest {
 
     private fun buildViewModel() = CategoriesListViewModel(categoryLister, testDispatcher)
 
+    private val storageError = object : DomainError {
+        override val internalMessage = "Storage error"
+        override val externalMessage = "Error interno"
+    }
+
     @Test
     fun `given CategoryLister returns empty list, when observed, then uiState is Empty`() = runTest {
-        every { categoryLister.list(any(), any()) } returns flowOf(emptyList())
+        every { categoryLister.list(any(), any()) } returns flowOf(Outcome.Success(emptyList()))
         val viewModel = buildViewModel()
 
         viewModel.uiState.test {
@@ -55,7 +61,7 @@ class CategoriesListViewModelTest {
     fun `given CategoryLister returns categories, when observed, then uiState is Content`() = runTest {
         val food = CategoryBuilder().build()
         val salary = CategoryBuilder().name("Salario").type(CategoryType.INCOME).build()
-        every { categoryLister.list(null, "") } returns flowOf(listOf(food, salary))
+        every { categoryLister.list(null, "") } returns flowOf(Outcome.Success(listOf(food, salary)))
         val viewModel = buildViewModel()
 
         viewModel.uiState.test {
@@ -73,8 +79,8 @@ class CategoriesListViewModelTest {
     fun `given Content, when filter changed, then CategoryLister is called with new filter`() = runTest {
         val food = CategoryBuilder().build()
         val salary = CategoryBuilder().name("Salario").type(CategoryType.INCOME).build()
-        every { categoryLister.list(null, "") } returns flowOf(listOf(food, salary))
-        every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(listOf(salary))
+        every { categoryLister.list(null, "") } returns flowOf(Outcome.Success(listOf(food, salary)))
+        every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(Outcome.Success(listOf(salary)))
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -93,8 +99,8 @@ class CategoriesListViewModelTest {
     fun `given Content, when search name changed, then CategoryLister is called with new name`() = runTest {
         val food = CategoryBuilder().build()
         val salary = CategoryBuilder().name("Salario").type(CategoryType.INCOME).build()
-        every { categoryLister.list(null, "") } returns flowOf(listOf(food, salary))
-        every { categoryLister.list(null, "ali") } returns flowOf(listOf(food))
+        every { categoryLister.list(null, "") } returns flowOf(Outcome.Success(listOf(food, salary)))
+        every { categoryLister.list(null, "ali") } returns flowOf(Outcome.Success(listOf(food)))
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -112,8 +118,8 @@ class CategoriesListViewModelTest {
     @Test
     fun `given CategoryLister returns empty list after filter change, then uiState is Empty`() = runTest {
         val food = CategoryBuilder().build()
-        every { categoryLister.list(null, "") } returns flowOf(listOf(food))
-        every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(emptyList())
+        every { categoryLister.list(null, "") } returns flowOf(Outcome.Success(listOf(food)))
+        every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(Outcome.Success(emptyList()))
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -129,7 +135,7 @@ class CategoriesListViewModelTest {
     @Test
     fun `given categories, when category selected, then navigation event is CategoryDetail`() = runTest {
         val food = CategoryBuilder().build()
-        every { categoryLister.list(any(), any()) } returns flowOf(listOf(food))
+        every { categoryLister.list(any(), any()) } returns flowOf(Outcome.Success(listOf(food)))
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -143,9 +149,8 @@ class CategoriesListViewModelTest {
     }
 
     @Test
-    @Suppress("TooGenericExceptionThrown")
-    fun `given CategoryLister throws, when observed, then uiState is Error with Spanish message`() = runTest {
-        every { categoryLister.list(any(), any()) } returns flow { throw RuntimeException("Storage error") }
+    fun `given CategoryLister emits failure, when observed, then uiState is Error with Spanish message`() = runTest {
+        every { categoryLister.list(any(), any()) } returns flowOf(Outcome.Failure(storageError))
         val viewModel = buildViewModel()
 
         viewModel.uiState.test {

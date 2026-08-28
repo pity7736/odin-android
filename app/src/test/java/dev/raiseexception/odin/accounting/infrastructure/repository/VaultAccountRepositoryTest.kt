@@ -143,30 +143,32 @@ class VaultAccountRepositoryTest {
     }
 
     @Test
-    fun `given no accounts, when getting all, then emits empty list`() = runTest {
+    fun `given no accounts, when getting all, then emits success with empty list`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
 
-        val result = mutableListOf<List<Account>>()
+        val result = mutableListOf<Outcome<List<Account>>>()
         repository.getAll().collect { result.add(it) }
 
         assertEquals(1, result.size)
-        assertTrue(result.first().isEmpty())
+        assertTrue(result.first() is Outcome.Success)
+        assertTrue((result.first() as Outcome.Success).value.isEmpty())
     }
 
     @Test
-    fun `given one account added, when getting all, then emits a list with that account`() = runTest {
+    fun `given one account added, when getting all, then emits success with that account`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
         val savings = account("Ahorros")
         repository.add(savings)
 
-        val result = mutableListOf<List<Account>>()
+        val result = mutableListOf<Outcome<List<Account>>>()
         repository.getAll().collect { result.add(it) }
 
         assertEquals(1, result.size)
-        assertEquals(1, result.first().size)
-        assertEquals(savings.id, result.first().first().id)
+        val accounts = (result.first() as Outcome.Success).value
+        assertEquals(1, accounts.size)
+        assertEquals(savings.id, accounts.first().id)
     }
 
     @Test
@@ -178,13 +180,25 @@ class VaultAccountRepositoryTest {
         repository.add(checking)
         repository.add(savings)
 
-        val result = mutableListOf<List<Account>>()
+        val result = mutableListOf<Outcome<List<Account>>>()
         repository.getAll().collect { result.add(it) }
 
         assertEquals(1, result.size)
-        val accounts = result.first()
+        val accounts = (result.first() as Outcome.Success).value
         assertEquals(2, accounts.size)
         assertTrue(accounts[0].id <= accounts[1].id)
+    }
+
+    @Test
+    fun `given a store crypto failure, when getting all, then emits failure`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(null))
+        val repository = VaultAccountRepository(store, json)
+
+        val result = mutableListOf<Outcome<List<Account>>>()
+        repository.getAll().collect { result.add(it) }
+
+        assertEquals(1, result.size)
+        assertTrue(result.first() is Outcome.Failure)
     }
 
     @Test
@@ -229,10 +243,10 @@ class VaultAccountRepositoryTest {
         val savings = account("Ahorros")
         repository.add(savings)
 
-        val result = mutableListOf<List<Account>>()
+        val result = mutableListOf<Outcome<List<Account>>>()
         repository.getAll().collect { result.add(it) }
 
-        val restored = result.first().first()
+        val restored = (result.first() as Outcome.Success).value.first()
         assertEquals(savings.id, restored.id)
         assertEquals(savings.name, restored.name)
         assertEquals(savings.initialBalance, restored.initialBalance)

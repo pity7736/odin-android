@@ -114,13 +114,14 @@ class VaultCategoryRepositoryTest {
     }
 
     @Test
-    fun `given no categories stored, when getAll, then emits empty list`() = runTest {
+    fun `given no categories stored, when getAll, then emits success with empty list`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultCategoryRepository(store, json)
 
         val result = repository.getAll().first()
 
-        assertTrue(result.isEmpty())
+        assertTrue(result is Outcome.Success)
+        assertTrue((result as Outcome.Success).value.isEmpty())
     }
 
     @Test
@@ -132,10 +133,12 @@ class VaultCategoryRepositoryTest {
 
         val result = repository.getAll().first()
 
-        assertEquals(1, result.size)
-        assertEquals(salary.id, result.first().id)
-        assertEquals("Salario", result.first().name)
-        assertEquals(CategoryType.INCOME, result.first().type)
+        assertTrue(result is Outcome.Success)
+        val categories = (result as Outcome.Success).value
+        assertEquals(1, categories.size)
+        assertEquals(salary.id, categories.first().id)
+        assertEquals("Salario", categories.first().name)
+        assertEquals(CategoryType.INCOME, categories.first().type)
     }
 
     @Test
@@ -149,6 +152,17 @@ class VaultCategoryRepositoryTest {
 
         val result = repository.getAll().first()
 
-        assertEquals(2, result.size)
+        assertTrue(result is Outcome.Success)
+        assertEquals(2, (result as Outcome.Success).value.size)
+    }
+
+    @Test
+    fun `given a store crypto failure, when getting all, then emits failure`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(null))
+        val repository = VaultCategoryRepository(store, json)
+
+        val result = repository.getAll().first()
+
+        assertTrue(result is Outcome.Failure)
     }
 }

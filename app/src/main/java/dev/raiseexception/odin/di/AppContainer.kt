@@ -33,11 +33,13 @@ import dev.raiseexception.odin.crypto.infrastructure.InMemoryMasterKeyRepository
 import dev.raiseexception.odin.persistence.OdinDatabase
 import dev.raiseexception.odin.shared.infrastructure.vault.EncryptedRecordStore
 import dev.raiseexception.odin.shared.infrastructure.vault.InMemoryEncryptedRecordStore
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import java.security.SecureRandom
 
 class AppContainer(context: Context) {
 
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
     private val database: OdinDatabase = Room.databaseBuilder(
         context,
         OdinDatabase::class.java,
@@ -69,17 +71,17 @@ class AppContainer(context: Context) {
     fun createAccountViewModel(): CreateAccountViewModel = CreateAccountViewModel(accountCreator)
 
     fun accountsListViewModel(): AccountsListViewModel =
-        AccountsListViewModel(accountLister, Dispatchers.IO)
+        AccountsListViewModel(accountLister, ioDispatcher)
 
     fun accountDetailViewModelFactory(accountId: String): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
-                AccountDetailViewModel(accountId, accountFinder, Dispatchers.IO)
+                AccountDetailViewModel(accountId, accountFinder, ioDispatcher)
             }
         }
 
     fun createCategoryViewModel(): CreateCategoryViewModel = CreateCategoryViewModel(categoryCreator)
 
     fun categoriesListViewModel(): CategoriesListViewModel =
-        CategoriesListViewModel(categoryLister, Dispatchers.IO)
+        CategoriesListViewModel(categoryLister, ioDispatcher)
 }

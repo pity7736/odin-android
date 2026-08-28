@@ -28,8 +28,15 @@ class VaultCategoryRepository(
         )
     }
 
-    override fun getAll(): Flow<List<Category>> = flow {
-        emit(this@VaultCategoryRepository.allCategories())
+    override fun getAll(): Flow<Outcome<List<Category>>> = flow {
+        when (val outcome = this@VaultCategoryRepository.decryptedCategoryRecords()) {
+            is Outcome.Failure -> emit(outcome)
+            is Outcome.Success -> emit(
+                Outcome.Success(
+                    outcome.value.sortedBy { it.id }.map { this@VaultCategoryRepository.toCategory(it) }
+                )
+            )
+        }
     }
 
     override suspend fun add(category: Category): Outcome<Unit> {
@@ -39,17 +46,6 @@ class VaultCategoryRepository(
             is Outcome.Success -> Outcome.Success(Unit)
             is Outcome.Failure -> this.cryptoFailure(saveOutcome.error.internalMessage)
         }
-    }
-
-    @Suppress("TooGenericExceptionThrown")
-    private suspend fun allCategories(): List<Category> {
-        val categoryRecords = when (val decryptOutcome = this.decryptedCategoryRecords()) {
-            is Outcome.Success -> decryptOutcome.value
-            is Outcome.Failure -> throw RuntimeException(decryptOutcome.error.internalMessage)
-        }
-        return categoryRecords
-            .sortedBy { it.id }
-            .map { this.toCategory(it) }
     }
 
     private fun toCategory(record: CategoryRecord): Category = Category.restore(

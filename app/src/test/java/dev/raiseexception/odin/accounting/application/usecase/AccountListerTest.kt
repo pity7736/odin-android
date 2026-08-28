@@ -1,6 +1,7 @@
 package dev.raiseexception.odin.accounting.application.usecase
 
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
+import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
 import io.mockk.every
 import io.mockk.mockk
@@ -20,19 +21,21 @@ class AccountListerTest {
     fun `given repository emits accounts, when list, then returns those accounts`() = runTest {
         val savings = AccountBuilder().id("aaa").name("Ahorros").build()
         val checking = AccountBuilder().id("bbb").name("Corriente").build()
-        every { accountRepository.getAll() } returns flowOf(listOf(savings, checking))
+        every { accountRepository.getAll() } returns flowOf(Outcome.Success(listOf(savings, checking)))
 
         val result = accountLister.list().first()
 
-        assertEquals(2, result.size)
+        assertTrue(result is Outcome.Success)
+        assertEquals(2, (result as Outcome.Success).value.size)
     }
 
     @Test
     fun `given repository emits empty list, when list, then returns empty list`() = runTest {
-        every { accountRepository.getAll() } returns flowOf(emptyList())
+        every { accountRepository.getAll() } returns flowOf(Outcome.Success(emptyList()))
 
         val result = accountLister.list().first()
 
-        assertTrue(result.isEmpty())
+        assertTrue(result is Outcome.Success)
+        assertTrue((result as Outcome.Success).value.isEmpty())
     }
 }
