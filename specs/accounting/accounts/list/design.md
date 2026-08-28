@@ -20,12 +20,16 @@ is always visible and navigates directly without going through the ViewModel.
   clean-architecture boundary between presentation and domain, inconsistent with
   `AccountCreator` and `CategoryLister`.
 
-- **`AccountRepository.getAll()` returns `Flow<List<Account>>`** — the signature is
-  set for Room compatibility: when Room replaces the in-memory store, the ViewModel
-  stays unchanged. The current implementation emits once and completes (`flow {
-  emit(...) }`); true reactivity comes with Room. Alternative rejected: `suspend fun
-  getAll()` — correct for now but would require a signature change at every call site
-  when Room arrives.
+- **`AccountRepository.getAll()` returns `Flow<Outcome<List<Account>>>`** — errors
+  from the encrypted store (crypto failures) are wrapped in `Outcome.Failure` and
+  emitted by the flow instead of thrown as exceptions. This lets `AccountLister` and
+  `AccountsListViewModel` handle errors via explicit pattern matching on `Outcome`,
+  keeping the same contract used by every other repository operation. Alternative
+  rejected: `Flow<List<Account>>` with a `catch(Exception)` in the ViewModel — a
+  generic `catch` intercepts `CancellationException`, breaking coroutine cancellation;
+  the `Outcome` contract removes the need for any `catch(Exception)` in the ViewModel
+  at all. The current implementation emits once and completes; true reactivity comes
+  with Room.
 
 - **`Account.restore()` for storage reconstitution** — a separate companion factory
   that constructs directly from trusted storage fields, bypassing all domain
@@ -66,9 +70,9 @@ app/src/main/java/dev/raiseexception/odin/
     │   ├── model/
     │   │   └── Account.kt                        (restore() factory added)
     │   └── repository/
-    │       └── AccountRepository.kt              (getAll(): Flow<List<Account>>)
+    │       └── AccountRepository.kt              (getAll(): Flow<Outcome<List<Account>>>)
     ├── application/usecase/
-    │   └── AccountLister.kt                      (list(): Flow<List<Account>>)
+    │   └── AccountLister.kt                      (list(): Flow<Outcome<List<Account>>>)
     ├── infrastructure/
     │   └── repository/
     │       └── VaultAccountRepository.kt         (getAll(); shared decrypt helper)
@@ -98,12 +102,13 @@ specs/accounting/accounts/list/
 
 **Loading accounts:**
 1. `AccountsListViewModel.init` launches a coroutine on `ioDispatcher`
-2. Collects `AccountLister.list()` — delegates to `AccountRepository.getAll()`, a cold `Flow<List<Account>>`
+2. Collects `AccountLister.list()` — delegates to `AccountRepository.getAll()`, a cold `Flow<Outcome<List<Account>>>`
 3. `VaultAccountRepository.getAll()` calls `encryptedRecordStore.readAll()`, decrypts
    each blob, deserializes to `AccountRecord` (skipping failures), filters by
    `recordType`, maps via `Account.restore()`, sorts by id ascending, and emits
-4. ViewModel maps empty list → `Empty`, non-empty → `Content(accounts)`; exceptions
-   → `Error("Error al cargar las cuentas")`
+   `Outcome.Success(accounts)`; on crypto failure emits `Outcome.Failure`
+4. ViewModel pattern-matches on `Outcome`: `Success` with empty list → `Empty`,
+   `Success` with accounts → `Content(accounts)`, `Failure` → `Error("Error al cargar las cuentas")`
 5. Screen collects `uiState` via `collectAsStateWithLifecycle()` and redraws
 
 **Navigating to account detail:**
@@ -142,11 +147,12 @@ creation.
   the infrastructure layer. No plaintext account data is logged. The user-facing
   error message contains no internal detail.
 - **Reliability:** per-record deserialization failure is isolated — a corrupt or
-  foreign-type record is skipped rather than crashing the entire read. The ViewModel
-  catches all exceptions from the repository and maps them to `Error` state.
+  foreign-type record is skipped rather than crashing the entire read. Storage
+  failures are surfaced as `Outcome.Failure` and mapped to `Error` state in the
+  ViewModel via pattern matching; there is no `catch(Exception)` block.
 - **Performance:** sorting and filtering happen in memory on the result of a single
   store read. Acceptable for the current in-memory store; will be replaced by an
   indexed Room query when Room is introduced.
-- **Observability:** internal errors from the crypto/storage layer are captured as
-  exceptions in the ViewModel catch block; the message is available for future
-  logging without being surfaced to the user.
+- **Observability:** internal errors from the crypto/storage layer are propagated as
+  `Outcome.Failure`; the internal message is available for future logging without
+  being surfaced to the user.

@@ -3,6 +3,7 @@ package dev.raiseexception.odin.accounting.presentation.accountslist
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
+import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -25,17 +26,15 @@ class AccountsListViewModel(
 
     init {
         this.viewModelScope.launch(this.ioDispatcher) {
-            try {
-                this@AccountsListViewModel.accountLister.list().collect { accounts ->
-                    this@AccountsListViewModel.mutableUiState.value = if (accounts.isEmpty()) {
+            this@AccountsListViewModel.accountLister.list().collect { outcome ->
+                this@AccountsListViewModel.mutableUiState.value = when (outcome) {
+                    is Outcome.Success -> if (outcome.value.isEmpty()) {
                         AccountsListUiState.Empty
                     } else {
-                        AccountsListUiState.Content(accounts)
+                        AccountsListUiState.Content(outcome.value)
                     }
+                    is Outcome.Failure -> AccountsListUiState.Error("Error al cargar las cuentas")
                 }
-            } catch (@Suppress("TooGenericExceptionCaught", "SwallowedException") exception: Exception) {
-                this@AccountsListViewModel.mutableUiState.value =
-                    AccountsListUiState.Error("Error al cargar las cuentas")
             }
         }
     }

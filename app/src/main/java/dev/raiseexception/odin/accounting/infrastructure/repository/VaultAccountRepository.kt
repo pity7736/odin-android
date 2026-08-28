@@ -59,19 +59,15 @@ class VaultAccountRepository(
         return Outcome.Success(this.toAccount(matchingRecord))
     }
 
-    override fun getAll(): Flow<List<Account>> = flow {
-        emit(this@VaultAccountRepository.allAccounts())
-    }
-
-    @Suppress("TooGenericExceptionThrown")
-    private suspend fun allAccounts(): List<Account> {
-        val accountRecords = when (val decryptOutcome = this.decryptedAccountRecords()) {
-            is Outcome.Success -> decryptOutcome.value
-            is Outcome.Failure -> throw RuntimeException(decryptOutcome.error.internalMessage)
+    override fun getAll(): Flow<Outcome<List<Account>>> = flow {
+        when (val outcome = this@VaultAccountRepository.decryptedAccountRecords()) {
+            is Outcome.Failure -> emit(outcome)
+            is Outcome.Success -> emit(
+                Outcome.Success(
+                    outcome.value.sortedBy { it.id }.map { this@VaultAccountRepository.toAccount(it) }
+                )
+            )
         }
-        return accountRecords
-            .sortedBy { it.id }
-            .map { this.toAccount(it) }
     }
 
     private suspend fun decryptedAccountRecords(): Outcome<List<AccountRecord>> {
