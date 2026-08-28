@@ -1,7 +1,7 @@
 package dev.raiseexception.odin.accounting.presentation.accountslist
 
 import app.cash.turbine.test
-import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
+import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.testutil.AccountBuilder
 import io.mockk.every
 import io.mockk.mockk
@@ -22,7 +22,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class AccountsListViewModelTest {
 
-    private val accountRepository = mockk<AccountRepository>()
+    private val accountLister = mockk<AccountLister>()
     private val testDispatcher = StandardTestDispatcher()
 
     @Before
@@ -35,13 +35,13 @@ class AccountsListViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun buildViewModel() = AccountsListViewModel(accountRepository, testDispatcher)
+    private fun buildViewModel() = AccountsListViewModel(accountLister, testDispatcher)
 
     private fun account(id: String, name: String) = AccountBuilder().id(id).name(name).build()
 
     @Test
-    fun `given repository emits empty list, when initialized, then ui state is Empty`() = runTest {
-        every { accountRepository.getAll() } returns flowOf(emptyList())
+    fun `given lister emits empty list, when initialized, then ui state is Empty`() = runTest {
+        every { accountLister.list() } returns flowOf(emptyList())
         val viewModel = buildViewModel()
 
         viewModel.uiState.test {
@@ -53,10 +53,10 @@ class AccountsListViewModelTest {
     }
 
     @Test
-    fun `given repository emits accounts, when initialized, then ui state is Content with accounts`() = runTest {
+    fun `given lister emits accounts, when initialized, then ui state is Content with accounts`() = runTest {
         val savings = account("aaa", "Ahorros")
         val checking = account("bbb", "Corriente")
-        every { accountRepository.getAll() } returns flowOf(listOf(savings, checking))
+        every { accountLister.list() } returns flowOf(listOf(savings, checking))
         val viewModel = buildViewModel()
 
         viewModel.uiState.test {
@@ -71,7 +71,7 @@ class AccountsListViewModelTest {
     @Test
     fun `given Content state, when an account is selected, then navigation event is AccountDetail`() = runTest {
         val savings = account("aaa", "Ahorros")
-        every { accountRepository.getAll() } returns flowOf(listOf(savings))
+        every { accountLister.list() } returns flowOf(listOf(savings))
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -86,8 +86,8 @@ class AccountsListViewModelTest {
 
     @Test
     @Suppress("TooGenericExceptionThrown")
-    fun `given repository throws, when initialized, then ui state is Error`() = runTest {
-        every { accountRepository.getAll() } returns flow { throw RuntimeException("Storage error") }
+    fun `given lister throws, when initialized, then ui state is Error`() = runTest {
+        every { accountLister.list() } returns flow { throw RuntimeException("Storage error") }
         val viewModel = buildViewModel()
 
         viewModel.uiState.test {
