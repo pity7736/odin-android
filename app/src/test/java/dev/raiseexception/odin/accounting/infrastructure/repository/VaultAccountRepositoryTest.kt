@@ -2,13 +2,14 @@ package dev.raiseexception.odin.accounting.infrastructure.repository
 
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
 import dev.raiseexception.odin.accounting.domain.model.Account
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.infrastructure.serialization.AccountRecord
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.crypto.infrastructure.BouncyCastleVaultCrypto
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.infrastructure.vault.InMemoryEncryptedRecordStore
+import dev.raiseexception.odin.testutil.AccountBuilder
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -16,6 +17,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.math.BigDecimal
 
 private const val MASTER_KEY_SIZE = 32
 
@@ -31,15 +33,11 @@ class VaultAccountRepositoryTest {
         cpuDispatcher = UnconfinedTestDispatcher()
     )
 
-    private fun account(name: String) = (
-        Account.create(
-            name = name,
-            initialBalance = "1500.00",
-            currency = Currency.COP,
-            type = AccountType.SAVINGS,
-            description = "Fondo de emergencia"
-        ) as Outcome.Success
-        ).value
+    private fun account(name: String) = AccountBuilder()
+        .name(name)
+        .initialBalance(Money.of(BigDecimal("1500.00"), Currency.COP))
+        .description("Fondo de emergencia")
+        .build()
 
     @Test
     fun `given an added account, when inspecting the stored blob, then it is encrypted`() = runTest {

@@ -3,10 +3,10 @@ package dev.raiseexception.odin.accounting.presentation.accountcreation
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
-import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.testutil.AccountBuilder
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -30,15 +30,7 @@ class CreateAccountViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: CreateAccountViewModel
 
-    private val savingsAccount = (
-        Account.create(
-            name = "Ahorros",
-            initialBalance = "1500.00",
-            currency = Currency.COP,
-            type = AccountType.SAVINGS,
-            description = "Fondo de emergencia"
-        ) as Outcome.Success
-        ).value
+    private val savingsAccount = AccountBuilder().build()
 
     @Before
     fun setUp() {
