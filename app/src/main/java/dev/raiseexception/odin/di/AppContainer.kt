@@ -3,6 +3,7 @@ package dev.raiseexception.odin.di
 import android.content.Context
 import androidx.room.Room
 import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
+import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
@@ -48,6 +49,7 @@ class AppContainer(context: Context) {
         InMemoryEncryptedRecordStore(vaultCrypto, masterKeyRepository)
     private val accountRepository: AccountRepository = VaultAccountRepository(encryptedRecordStore)
     private val accountCreator: AccountCreator = AccountCreator(accountRepository)
+    private val accountLister: AccountLister = AccountLister(accountRepository)
     private val categoryRepository: CategoryRepository = VaultCategoryRepository(encryptedRecordStore)
     private val categoryCreator: CategoryCreator = CategoryCreator(categoryRepository)
     private val categoryLister: CategoryLister = CategoryLister(categoryRepository)
@@ -61,7 +63,7 @@ class AppContainer(context: Context) {
     fun createAccountViewModel(): CreateAccountViewModel = CreateAccountViewModel(accountCreator)
 
     fun accountsListViewModel(): AccountsListViewModel =
-        AccountsListViewModel(accountRepository, Dispatchers.IO)
+        AccountsListViewModel(accountLister, Dispatchers.IO)
 
     fun createCategoryViewModel(): CreateCategoryViewModel = CreateCategoryViewModel(categoryCreator)
 
