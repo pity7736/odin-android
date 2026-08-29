@@ -39,38 +39,38 @@ class IncomeCreator(
                 )
             )
         }
-        val resolvedCategoryId = when (categoryInput) {
-            is CategoryInput.Existing -> {
-                val result = this.resolveExistingCategory(categoryInput.categoryId)
-                if (result is Outcome.Failure) return result
-                (result as Outcome.Success).value
-            }
-            is CategoryInput.New -> {
-                val result = this.categoryCreator.create(categoryInput.categoryName, CategoryType.INCOME, "", null)
-                when (result) {
-                    is Outcome.Success -> result.value.id
-                    is Outcome.Failure -> return Outcome.Failure(
-                        IncomeCreationError.StorageFailure(
-                            internalMessage = result.error.internalMessage,
-                            externalMessage = result.error.externalMessage
+        return this.transactionRunner.run {
+            val categoryId = when (categoryInput) {
+                is CategoryInput.Existing -> {
+                    val result = this.resolveExistingCategory(categoryInput.categoryId)
+                    if (result is Outcome.Failure) return@run result
+                    (result as Outcome.Success).value
+                }
+                is CategoryInput.New -> {
+                    val result = this.categoryCreator.create(categoryInput.categoryName, CategoryType.INCOME, "", null)
+                    when (result) {
+                        is Outcome.Success -> result.value.id
+                        is Outcome.Failure -> return@run Outcome.Failure(
+                            IncomeCreationError.StorageFailure(
+                                internalMessage = result.error.internalMessage,
+                                externalMessage = result.error.externalMessage
+                            )
                         )
-                    )
+                    }
                 }
             }
-        }
-        val income = when (
-            val creationOutcome = account.createIncome(
-                amount = amount,
-                date = date,
-                categoryId = resolvedCategoryId,
-                description = description,
-                clock = this.clock
-            )
-        ) {
-            is Outcome.Success -> creationOutcome.value
-            is Outcome.Failure -> return creationOutcome
-        }
-        return this.transactionRunner.run {
+            val income = when (
+                val creationOutcome = account.createIncome(
+                    amount = amount,
+                    date = date,
+                    categoryId = categoryId,
+                    description = description,
+                    clock = this.clock
+                )
+            ) {
+                is Outcome.Success -> creationOutcome.value
+                is Outcome.Failure -> return@run creationOutcome
+            }
             when (val saveOutcome = this.incomeRepository.add(income)) {
                 is Outcome.Success -> Outcome.Success(income)
                 is Outcome.Failure -> Outcome.Failure(
