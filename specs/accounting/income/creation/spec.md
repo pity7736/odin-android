@@ -14,7 +14,7 @@ As a user, I want to record an income amount against an account I am viewing, so
 - The account the income belongs to is the one the user is currently viewing — it is not chosen in the form.
 - The amount must be a positive value greater than zero.
 - The date must be today or in the past.
-- The category must be selected from the existing income categories.
+- The category field has autocomplete: as the user types, matching existing income categories are suggested. The user can pick one from the suggestions or finish typing a new name to create a new income category.
 - If any required field is invalid or missing, an error is shown next to that field.
 - Once saved, the income is recorded and the account's balance increases by the recorded amount.
 

@@ -174,6 +174,7 @@ class CreateIncomeViewModel(
     private val categoryLister: CategoryLister,
     private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel()
+// save(amount, date, categoryInput: CategoryInput, description) — screen resolves Existing vs New
 
 // accounting/presentation/accountdetail/AccountDetailUiState.kt — no change needed
 // account.balance is a computed property; Content(account) already exposes it
@@ -251,7 +252,8 @@ fun incomeCreate(accountId: String) = "income_create/$accountId"
 **Red:**
 - `CreateIncomeViewModelTest`:
   - `given account id, when initialized, then loads income categories and transitions to idle`
-  - `given valid input, when saving, then navigates back to account detail`
+  - `given valid input with existing category, when saving, then navigates back to account detail`
+  - `given valid input with new category name, when saving, then navigates back to account detail`
   - `given zero amount, when saving, then shows amount error`
   - `given future date, when saving, then shows date error`
   - `given missing required field, when saving, then shows field error`

@@ -71,7 +71,7 @@ class CreateIncomeViewModelTest {
     }
 
     @Test
-    fun `given valid input, when saving, then navigates back to account detail`() = runTest {
+    fun `given valid input with existing category, when saving, then navigates back to account detail`() = runTest {
         every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(
             Outcome.Success(listOf(incomeCategory))
         )
@@ -100,7 +100,46 @@ class CreateIncomeViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("500.00", LocalDate(2026, 8, 29), incomeCategory.id, "")
+        viewModel.save("500.00", LocalDate(2026, 8, 29), CategoryInput.Existing(incomeCategory.id), "")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.navigationEvent.test {
+            assertEquals(NavigationTarget.AccountDetail(accountId), awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given valid input with new category name, when saving, then navigates back to account detail`() = runTest {
+        every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(
+            Outcome.Success(emptyList())
+        )
+        coEvery {
+            incomeCreator.create(
+                accountId = accountId,
+                amount = "500.00",
+                date = LocalDate(2026, 8, 29),
+                categoryInput = CategoryInput.New("Freelance"),
+                description = ""
+            )
+        } returns Outcome.Success(
+            dev.raiseexception.odin.accounting.domain.model.Income.restore(
+                id = "inc-1",
+                accountId = accountId,
+                amount = dev.raiseexception.odin.accounting.domain.model.Money.of(
+                    java.math.BigDecimal("500.00"),
+                    dev.raiseexception.odin.accounting.domain.model.Currency.COP
+                ),
+                date = LocalDate(2026, 8, 29),
+                categoryId = "new-cat-id",
+                description = "",
+                createdAt = kotlinx.datetime.Instant.parse("2026-08-29T10:00:00Z")
+            )
+        )
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.save("500.00", LocalDate(2026, 8, 29), CategoryInput.New("Freelance"), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.navigationEvent.test {
@@ -126,7 +165,7 @@ class CreateIncomeViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("0", LocalDate(2026, 8, 29), incomeCategory.id, "")
+        viewModel.save("0", LocalDate(2026, 8, 29), CategoryInput.Existing(incomeCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.uiState.test {
@@ -153,7 +192,7 @@ class CreateIncomeViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("500.00", LocalDate(2099, 1, 1), incomeCategory.id, "")
+        viewModel.save("500.00", LocalDate(2099, 1, 1), CategoryInput.Existing(incomeCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.uiState.test {
@@ -180,7 +219,7 @@ class CreateIncomeViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("", null, "", "")
+        viewModel.save("", null, CategoryInput.New(""), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.uiState.test {
@@ -216,8 +255,8 @@ class CreateIncomeViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("500.00", LocalDate(2026, 8, 29), incomeCategory.id, "")
-        viewModel.save("500.00", LocalDate(2026, 8, 29), incomeCategory.id, "")
+        viewModel.save("500.00", LocalDate(2026, 8, 29), CategoryInput.Existing(incomeCategory.id), "")
+        viewModel.save("500.00", LocalDate(2026, 8, 29), CategoryInput.Existing(incomeCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         io.mockk.coVerify(exactly = 1) { incomeCreator.create(any(), any(), any(), any(), any()) }

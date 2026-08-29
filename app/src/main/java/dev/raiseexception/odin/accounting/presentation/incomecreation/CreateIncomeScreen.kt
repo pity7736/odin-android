@@ -14,7 +14,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -30,13 +29,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.raiseexception.odin.accounting.domain.model.Category
+import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.LocalDate
 
 @Composable
 fun CreateIncomeScreen(
     uiState: CreateIncomeUiState,
-    onSave: (String, LocalDate?, String, String) -> Unit,
+    onSave: (String, LocalDate?, CategoryInput, String) -> Unit,
     navigationEvent: Flow<NavigationTarget>,
     onNavigateBack: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -97,14 +97,16 @@ private fun ErrorContent(message: String, modifier: Modifier = Modifier) {
 private fun IncomeForm(
     categories: List<Category>,
     validation: CreateIncomeUiState.ValidationError?,
-    onSave: (String, LocalDate?, String, String) -> Unit,
+    onSave: (String, LocalDate?, CategoryInput, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var amount by rememberSaveable { mutableStateOf("") }
     var rawDate by rememberSaveable { mutableStateOf("") }
+    var categoryText by rememberSaveable { mutableStateOf("") }
     var selectedCategoryId by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
     val parsedDate = parseDate(rawDate)
+    val categoryInput = resolveCategoryInput(categoryText, selectedCategoryId, categories)
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -120,10 +122,17 @@ private fun IncomeForm(
         )
         AmountField(amount, { amount = it }, validation?.amountError)
         DateField(rawDate, { rawDate = it }, validation?.dateError)
-        CategoryDropdown(
+        CategoryAutocomplete(
             categories = categories,
-            selectedCategoryId = selectedCategoryId,
-            onSelect = { selectedCategoryId = it },
+            categoryText = categoryText,
+            onCategoryTextChange = { text ->
+                categoryText = text
+                selectedCategoryId = ""
+            },
+            onSuggestionSelected = { category ->
+                categoryText = category.name
+                selectedCategoryId = category.id
+            },
             errorMessage = validation?.categoryError
         )
         TextField(
@@ -136,7 +145,7 @@ private fun IncomeForm(
                 .testTag("description_field")
         )
         Button(
-            onClick = { onSave(amount, parsedDate, selectedCategoryId, description) },
+            onClick = { onSave(amount, parsedDate, categoryInput, description) },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("save_button")
@@ -148,43 +157,40 @@ private fun IncomeForm(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CategoryDropdown(
+private fun CategoryAutocomplete(
     categories: List<Category>,
-    selectedCategoryId: String,
-    onSelect: (String) -> Unit,
+    categoryText: String,
+    onCategoryTextChange: (String) -> Unit,
+    onSuggestionSelected: (Category) -> Unit,
     errorMessage: String?
 ) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
-    val selectedCategory = categories.firstOrNull { it.id == selectedCategoryId }
+    val suggestions = categories.filter { it.name.contains(categoryText.trim(), ignoreCase = true) }
+    val expanded = categoryText.isNotBlank() && suggestions.isNotEmpty()
     Column(modifier = Modifier.fillMaxWidth()) {
         ExposedDropdownMenuBox(
             expanded = expanded,
-            onExpandedChange = { expanded = it },
+            onExpandedChange = {},
             modifier = Modifier.fillMaxWidth()
         ) {
             TextField(
-                value = selectedCategory?.name ?: "",
-                onValueChange = {},
-                readOnly = true,
+                value = categoryText,
+                onValueChange = onCategoryTextChange,
                 label = { Text("Categoría") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                singleLine = true,
                 isError = errorMessage != null,
                 modifier = Modifier
-                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
                     .fillMaxWidth()
                     .testTag("category_field")
             )
             ExposedDropdownMenu(
                 expanded = expanded,
-                onDismissRequest = { expanded = false }
+                onDismissRequest = {}
             ) {
-                categories.forEach { category ->
+                suggestions.forEach { category ->
                     DropdownMenuItem(
                         text = { Text(category.name) },
-                        onClick = {
-                            onSelect(category.id)
-                            expanded = false
-                        },
+                        onClick = { onSuggestionSelected(category) },
                         modifier = Modifier.testTag("category_option_${category.id}")
                     )
                 }
@@ -199,6 +205,18 @@ private fun CategoryDropdown(
             )
         }
     }
+}
+
+private fun resolveCategoryInput(
+    categoryText: String,
+    selectedCategoryId: String,
+    categories: List<Category>
+): CategoryInput {
+    if (selectedCategoryId.isNotBlank()) {
+        val match = categories.firstOrNull { it.id == selectedCategoryId }
+        if (match != null) return CategoryInput.Existing(match.id)
+    }
+    return CategoryInput.New(categoryText.trim())
 }
 
 @Composable

@@ -43,7 +43,7 @@ class CreateIncomeViewModel(
         }
     }
 
-    fun save(amount: String, date: LocalDate?, categoryId: String, description: String) {
+    fun save(amount: String, date: LocalDate?, categoryInput: CategoryInput, description: String) {
         if (this.mutableUiState.value is CreateIncomeUiState.Saving) return
         this.mutableUiState.value = CreateIncomeUiState.Saving
         this.viewModelScope.launch(this.ioDispatcher) {
@@ -51,7 +51,7 @@ class CreateIncomeViewModel(
                 accountId = this@CreateIncomeViewModel.accountId,
                 amount = amount,
                 date = date,
-                categoryInput = CategoryInput.Existing(categoryId),
+                categoryInput = categoryInput,
                 description = description
             )
             when (outcome) {
