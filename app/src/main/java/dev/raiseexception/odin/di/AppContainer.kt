@@ -10,15 +10,20 @@ import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
+import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
+import dev.raiseexception.odin.accounting.domain.repository.IncomeRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.VaultAccountRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.VaultCategoryRepository
+import dev.raiseexception.odin.accounting.infrastructure.repository.VaultIncomeRepository
+import dev.raiseexception.odin.accounting.infrastructure.repository.VaultTransactionRunner
 import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAccountViewModel
 import dev.raiseexception.odin.accounting.presentation.accountdetail.AccountDetailViewModel
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListViewModel
 import dev.raiseexception.odin.accounting.presentation.categorieslist.CategoriesListViewModel
 import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryViewModel
+import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeViewModel
 import dev.raiseexception.odin.accounts.application.usecase.UserAuthenticator
 import dev.raiseexception.odin.accounts.application.usecase.UserRegistrar
 import dev.raiseexception.odin.accounts.domain.repository.UserRepository
@@ -31,6 +36,7 @@ import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.crypto.infrastructure.BouncyCastleVaultCrypto
 import dev.raiseexception.odin.crypto.infrastructure.InMemoryMasterKeyRepository
 import dev.raiseexception.odin.persistence.OdinDatabase
+import dev.raiseexception.odin.shared.domain.TransactionRunner
 import dev.raiseexception.odin.shared.infrastructure.vault.EncryptedRecordStore
 import dev.raiseexception.odin.shared.infrastructure.vault.InMemoryEncryptedRecordStore
 import kotlinx.coroutines.CoroutineDispatcher
@@ -61,6 +67,15 @@ class AppContainer(context: Context) {
     private val categoryRepository: CategoryRepository = VaultCategoryRepository(encryptedRecordStore)
     private val categoryCreator: CategoryCreator = CategoryCreator(categoryRepository)
     private val categoryLister: CategoryLister = CategoryLister(categoryRepository)
+    private val incomeRepository: IncomeRepository = VaultIncomeRepository(encryptedRecordStore)
+    private val transactionRunner: TransactionRunner = VaultTransactionRunner()
+    private val incomeCreator: IncomeCreator = IncomeCreator(
+        accountRepository = accountRepository,
+        incomeRepository = incomeRepository,
+        categoryRepository = categoryRepository,
+        categoryCreator = categoryCreator,
+        transactionRunner = transactionRunner
+    )
 
     fun registrationViewModel(): RegistrationViewModel = RegistrationViewModel(userRegistrar)
 
@@ -84,4 +99,11 @@ class AppContainer(context: Context) {
 
     fun categoriesListViewModel(): CategoriesListViewModel =
         CategoriesListViewModel(categoryLister, ioDispatcher)
+
+    fun createIncomeViewModelFactory(accountId: String): ViewModelProvider.Factory =
+        viewModelFactory {
+            initializer {
+                CreateIncomeViewModel(accountId, incomeCreator, categoryLister, ioDispatcher)
+            }
+        }
 }

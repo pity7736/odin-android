@@ -37,6 +37,9 @@ canonical file formats live in the three templates beside this file.
 
 ## Discovery (ALWAYS do this first)
 
+Before asking any question, read `docs/01-principles.md` to load project-wide
+context (single user, standalone-first, zero-knowledge). Do not skip this read.
+
 Do not write, copy, or fill any file until discovery is complete. Ask **one
 question at a time** and wait for the answer before the next. **Never assume** —
 if something is unclear, ask.
@@ -45,8 +48,6 @@ if something is unclear, ask.
    or a **bug fix** in an existing one? The answer decides the path (see below).
 2. **Q2:** What is the feature about, in your own words?
 3. Then keep asking follow-ups until ALL of these are covered:
-   - purpose / the benefit to the user
-   - who uses it
    - the business rules
    - rejection & edge cases
    - what's out of scope

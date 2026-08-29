@@ -2,21 +2,88 @@ package dev.raiseexception.odin.accounting.domain.model
 
 import com.github.f4b6a3.uuid.UuidCreator
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
+import dev.raiseexception.odin.accounting.domain.IncomeCreationError
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import java.math.BigDecimal
 
+@Suppress("LongParameterList")
 class Account private constructor(
     val id: String,
     val name: String,
     val initialBalance: Money,
     val type: AccountType,
     val description: String,
-    val createdAt: Instant
+    val createdAt: Instant,
+    val incomes: List<Income> = emptyList()
 ) {
 
     val currency: Currency get() = this.initialBalance.currency
+
+    val balance: Money get() = Money.of(
+        this.incomes.fold(this.initialBalance.amount) { acc, income -> acc.add(income.amount.amount) },
+        this.initialBalance.currency
+    )
+
+    fun createIncome(
+        amount: String,
+        date: LocalDate?,
+        categoryId: String,
+        description: String,
+        clock: Clock = Clock.System
+    ): Outcome<Income> {
+        val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val parsedAmount = parseIncomeAmount(amount)
+        val amountError = validateIncomeAmount(amount, parsedAmount)
+        val dateError = validateIncomeDate(date, today)
+        val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
+        if (anyError(amountError, dateError, categoryError)) {
+            return Outcome.Failure(
+                IncomeCreationError.InvalidInput(
+                    amountError = amountError,
+                    dateError = dateError,
+                    categoryError = categoryError
+                )
+            )
+        }
+        return Outcome.Success(
+            Income(
+                id = UuidCreator.getTimeOrderedEpoch().toString(),
+                accountId = this.id,
+                amount = Money.of(parsedAmount!!, this.currency),
+                date = date!!,
+                categoryId = categoryId,
+                description = description.trim(),
+                createdAt = clock.now()
+            )
+        )
+    }
+
+    private fun parseIncomeAmount(rawAmount: String): BigDecimal? = try {
+        val parsed = BigDecimal(rawAmount.trim())
+        if (parsed.scale() > MAX_DECIMAL_PLACES) null else parsed
+    } catch (@Suppress("SwallowedException") exception: NumberFormatException) {
+        null
+    }
+
+    private fun validateIncomeAmount(rawAmount: String, parsed: BigDecimal?): String? = when {
+        rawAmount.isBlank() -> "El monto es obligatorio."
+        parsed == null -> "El monto no es un número válido."
+        parsed.signum() <= 0 -> "El monto debe ser mayor que cero."
+        else -> null
+    }
+
+    private fun validateIncomeDate(date: LocalDate?, today: LocalDate): String? = when {
+        date == null -> "La fecha es obligatoria."
+        date > today -> "La fecha debe ser hoy o en el pasado."
+        else -> null
+    }
+
+    private fun anyError(vararg errors: String?): Boolean = errors.any { it != null }
 
     companion object {
         private const val MAX_NAME_LENGTH = 200
@@ -30,14 +97,16 @@ class Account private constructor(
             initialBalance: Money,
             type: AccountType,
             description: String,
-            createdAt: Instant
+            createdAt: Instant,
+            incomes: List<Income> = emptyList()
         ): Account = Account(
             id = id,
             name = name,
             initialBalance = initialBalance,
             type = type,
             description = description,
-            createdAt = createdAt
+            createdAt = createdAt,
+            incomes = incomes
         )
 
         @Suppress("LongParameterList")

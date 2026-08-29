@@ -6,15 +6,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
+import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.Instant
 import kotlinx.datetime.toJavaInstant
 import java.time.ZoneId
@@ -30,9 +33,30 @@ private val accountTypeLabels = mapOf(
 @Composable
 fun AccountDetailScreen(
     uiState: AccountDetailUiState,
+    navigationEvent: Flow<AccountDetailNavigationTarget>,
+    onCreateIncome: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Scaffold(modifier = modifier.fillMaxSize()) { innerPadding ->
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        navigationEvent.collect { target ->
+            when (target) {
+                is AccountDetailNavigationTarget.CreateIncome -> onCreateIncome()
+            }
+        }
+    }
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        floatingActionButton = {
+            if (uiState is AccountDetailUiState.Content) {
+                FloatingActionButton(
+                    onClick = onCreateIncome,
+                    modifier = Modifier.testTag("create_income_fab")
+                ) {
+                    Text("+")
+                }
+            }
+        }
+    ) { innerPadding ->
         when (uiState) {
             is AccountDetailUiState.Loading -> AccountDetailLoading(
                 modifier = Modifier
@@ -76,7 +100,10 @@ private fun AccountDetailContent(account: Account, modifier: Modifier = Modifier
     ) {
         Text(text = account.name, style = MaterialTheme.typography.headlineMedium)
         Text(text = accountTypeLabels[account.type] ?: account.type.name)
-        Text(text = "${account.initialBalance.amount.toPlainString()} ${account.currency.name}")
+        Text(
+            text = "${account.balance.amount.toPlainString()} ${account.currency.name}",
+            modifier = Modifier.testTag("account_balance")
+        )
         Text(text = account.description)
         Text(text = formatCreationDate(account.createdAt))
     }

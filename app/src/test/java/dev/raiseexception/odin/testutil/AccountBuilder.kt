@@ -3,6 +3,7 @@ package dev.raiseexception.odin.testutil
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import kotlinx.datetime.Instant
 import java.math.BigDecimal
@@ -15,6 +16,7 @@ class AccountBuilder {
     private var type = AccountType.SAVINGS
     private var description = ""
     private var createdAt = Instant.parse("2026-01-01T00:00:00Z")
+    private var incomes: List<Income> = emptyList()
 
     fun id(id: String): AccountBuilder {
         this.id = id
@@ -46,6 +48,11 @@ class AccountBuilder {
         return this
     }
 
+    fun incomes(incomes: List<Income>): AccountBuilder {
+        this.incomes = incomes
+        return this
+    }
+
     fun build(): Account = Account.restore(
         id = id,
         name = name,
@@ -53,5 +60,6 @@ class AccountBuilder {
         type = type,
         description = description,
         createdAt = createdAt,
+        incomes = incomes
     )
 }

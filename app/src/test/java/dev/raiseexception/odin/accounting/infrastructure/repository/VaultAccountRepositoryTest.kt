@@ -4,7 +4,9 @@ import dev.raiseexception.odin.accounting.domain.AccountCreationError
 import dev.raiseexception.odin.accounting.domain.AccountLookupError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.infrastructure.serialization.AccountRecord
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.crypto.infrastructure.BouncyCastleVaultCrypto
@@ -13,6 +15,8 @@ import dev.raiseexception.odin.shared.infrastructure.vault.InMemoryEncryptedReco
 import dev.raiseexception.odin.testutil.AccountBuilder
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -253,5 +257,56 @@ class VaultAccountRepositoryTest {
         assertEquals(savings.type, restored.type)
         assertEquals(savings.description, restored.description)
         assertEquals(savings.createdAt, restored.createdAt)
+    }
+
+    @Test
+    fun `given include incomes false, when finding by id, then returns account with empty incomes`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultAccountRepository(store, json)
+        val incomeRepository = VaultIncomeRepository(store, json)
+        val savings = account("Ahorros")
+        repository.add(savings)
+        val income = Income.restore(
+            id = "inc-1",
+            accountId = savings.id,
+            amount = Money.of(BigDecimal("300.00"), Currency.COP),
+            date = LocalDate.parse("2026-08-28"),
+            categoryId = "cat-1",
+            description = "",
+            createdAt = Instant.parse("2026-08-28T10:00:00Z")
+        )
+        incomeRepository.add(income)
+
+        val result = repository.findById(savings.id, AccountCriteria(includeIncomes = false))
+
+        assertTrue(result is Outcome.Success)
+        assertTrue((result as Outcome.Success).value.incomes.isEmpty())
+    }
+
+    @Test
+    fun `given account with incomes, when finding by id with criteria, then returns account with incomes`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultAccountRepository(store, json)
+        val incomeRepository = VaultIncomeRepository(store, json)
+        val savings = account("Ahorros")
+        repository.add(savings)
+        val income = Income.restore(
+            id = "inc-1",
+            accountId = savings.id,
+            amount = Money.of(BigDecimal("300.00"), Currency.COP),
+            date = LocalDate.parse("2026-08-28"),
+            categoryId = "cat-1",
+            description = "",
+            createdAt = Instant.parse("2026-08-28T10:00:00Z")
+        )
+        incomeRepository.add(income)
+
+        val result = repository.findById(savings.id, AccountCriteria(includeIncomes = true))
+
+        assertTrue(result is Outcome.Success)
+        val loadedAccount = (result as Outcome.Success).value
+        assertEquals(1, loadedAccount.incomes.size)
+        assertEquals("inc-1", loadedAccount.incomes.first().id)
+        assertEquals(0, loadedAccount.incomes.first().amount.amount.compareTo(BigDecimal("300.00")))
     }
 }
