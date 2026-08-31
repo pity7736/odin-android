@@ -221,11 +221,7 @@ private fun CreateIncomeDestination(accountId: String, navController: NavHostCon
         uiState = uiState,
         onSave = createIncomeViewModel::save,
         navigationEvent = createIncomeViewModel.navigationEvent,
-        onNavigateBack = { navigatedAccountId ->
-            navController.navigate(Routes.accountDetail(navigatedAccountId)) {
-                popUpTo(Routes.INCOME_CREATE) { inclusive = true }
-            }
-        }
+        onNavigateBack = { navController.popBackStack() }
     )
 }
 

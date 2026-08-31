@@ -1,5 +1,7 @@
 package dev.raiseexception.odin.accounting.presentation.incomecreation
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,11 +13,17 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,6 +41,10 @@ import androidx.compose.ui.window.PopupProperties
 import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import kotlinx.coroutines.flow.Flow
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 @Composable
 fun CreateIncomeScreen(
@@ -101,7 +113,9 @@ private fun IncomeForm(
     modifier: Modifier = Modifier
 ) {
     var amount by rememberSaveable { mutableStateOf("") }
-    var rawDate by rememberSaveable { mutableStateOf("") }
+    var rawDate by rememberSaveable {
+        mutableStateOf(Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString())
+    }
     var categoryText by rememberSaveable { mutableStateOf("") }
     var selectedCategoryId by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
@@ -120,7 +134,7 @@ private fun IncomeForm(
             modifier = Modifier.testTag("create_income_title")
         )
         AmountField(amount, { amount = it }, validation?.amountError)
-        DateField(rawDate, { rawDate = it }, validation?.dateError)
+        DatePickerField(rawDate, { rawDate = it }, validation?.dateError)
         CategoryAutocomplete(
             categories = categories,
             categoryText = categoryText,
@@ -258,19 +272,57 @@ private fun AmountField(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DateField(
-    value: String,
-    onValueChange: (String) -> Unit,
+private fun DatePickerField(
+    selectedDate: String,
+    onDateSelected: (String) -> Unit,
     errorMessage: String?
 ) {
+    var showPicker by remember { mutableStateOf(false) }
+    val todayMillis = remember {
+        Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+            .toEpochDays().toLong() * MILLIS_PER_DAY
+    }
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = todayMillis,
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis <= todayMillis
+        }
+    )
+    val interactionSource = remember { MutableInteractionSource() }
+    LaunchedEffect(interactionSource) {
+        interactionSource.interactions.collect {
+            if (it is PressInteraction.Release) showPicker = true
+        }
+    }
+    if (showPicker) {
+        DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let {
+                        onDateSelected(Instant.fromEpochMilliseconds(it).toLocalDateTime(TimeZone.UTC).date.toString())
+                    }
+                    showPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) { Text("Cancelar") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
     Column(modifier = Modifier.fillMaxWidth()) {
         TextField(
-            value = value,
-            onValueChange = onValueChange,
-            label = { Text("Fecha (AAAA-MM-DD)") },
+            value = selectedDate,
+            onValueChange = {},
+            label = { Text("Fecha") },
             singleLine = true,
+            readOnly = true,
             isError = errorMessage != null,
+            interactionSource = interactionSource,
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("date_field")
@@ -285,3 +337,5 @@ private fun DateField(
         }
     }
 }
+
+private const val MILLIS_PER_DAY = 86_400_000L
