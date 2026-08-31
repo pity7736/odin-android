@@ -34,7 +34,7 @@ class Account private constructor(
 
     fun createIncome(
         amount: String,
-        date: LocalDate?,
+        date: String,
         categoryId: String,
         description: String,
         clock: Clock = Clock.System
@@ -42,7 +42,7 @@ class Account private constructor(
         val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         val parsedAmount = parseIncomeAmount(amount)
         val amountError = validateIncomeAmount(amount, parsedAmount)
-        val dateError = validateIncomeDate(date, today)
+        val (parsedDate, dateError) = parseAndValidateIncomeDate(date, today)
         val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
         if (anyError(amountError, dateError, categoryError)) {
             return Outcome.Failure(
@@ -57,7 +57,7 @@ class Account private constructor(
             id = UuidCreator.getTimeOrderedEpoch().toString(),
             accountId = this.id,
             amount = Money.of(parsedAmount!!, this.currency),
-            date = date!!,
+            date = parsedDate!!,
             categoryId = categoryId,
             description = description.trim(),
             createdAt = clock.now()
@@ -80,10 +80,18 @@ class Account private constructor(
         else -> null
     }
 
-    private fun validateIncomeDate(date: LocalDate?, today: LocalDate): String? = when {
-        date == null -> "La fecha es obligatoria."
-        date > today -> "La fecha debe ser hoy o en el pasado."
-        else -> null
+    private fun parseAndValidateIncomeDate(rawDate: String, today: LocalDate): Pair<LocalDate?, String?> {
+        if (rawDate.isBlank()) return Pair(null, "La fecha es obligatoria.")
+        val trimmed = rawDate.trim()
+        val matchesFormat = trimmed.matches(Regex("""\d{4}-\d{2}-\d{2}"""))
+        val parsed = try {
+            LocalDate.parse(trimmed)
+        } catch (@Suppress("SwallowedException") exception: IllegalArgumentException) {
+            val message = if (matchesFormat) "La fecha no es válida." else "Formato de fecha inválido. Usa AAAA-MM-DD."
+            return Pair(null, message)
+        }
+        if (parsed > today) return Pair(null, "La fecha debe ser hoy o en el pasado.")
+        return Pair(parsed, null)
     }
 
     private fun anyError(vararg errors: String?): Boolean = errors.any { it != null }

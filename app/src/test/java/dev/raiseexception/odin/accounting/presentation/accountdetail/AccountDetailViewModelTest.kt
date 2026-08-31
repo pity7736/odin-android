@@ -16,7 +16,6 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.datetime.LocalDate
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -100,7 +99,7 @@ class AccountDetailViewModelTest {
         val accountWithIncomes = AccountBuilder()
             .id(accountId)
             .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
-            .withIncome(amount = "500.00", date = LocalDate.parse("2026-08-28"))
+            .withIncome(amount = "500.00", date = "2026-08-28")
             .build()
         coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(accountWithIncomes)
         val viewModel = buildViewModel()

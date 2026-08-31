@@ -122,7 +122,7 @@ class Account private constructor(...) {
 
     fun createIncome(
         amount: String,
-        date: LocalDate?,
+        date: String,          // raw string; domain parses and validates (blank / bad format / future)
         categoryId: String,
         description: String,
         clock: Clock = Clock.System
@@ -140,7 +140,7 @@ class IncomeCreator(
     suspend fun create(
         accountId: String,
         amount: String,
-        date: LocalDate?,
+        date: String,          // passed through as-is; domain owns all validation
         categoryInput: CategoryInput,
         description: String
     ): Outcome<Income>
@@ -269,7 +269,7 @@ fun incomeCreate(accountId: String) = "income_create/$accountId"
 **Green:**
 - `CreateIncomeViewModel` — loads INCOME categories on init via `CategoryLister`, exposes `uiState` and `navigationEvent`, calls `IncomeCreator` on save
 - `CreateIncomeUiState` sealed interface
-- `CreateIncomeScreen` — form with amount field, date picker, `CategoryAutocomplete` (editable text field with filtered suggestions; resolves to `CategoryInput.Existing(id)` when a suggestion is selected, `CategoryInput.New(name)` when the user types freely), optional description, save button
+- `CreateIncomeScreen` — form with amount field, date field, `CategoryAutocomplete` (plain `TextField` + `DropdownMenu` with `PopupProperties(focusable = false)`; shows all categories on focus, filters as the user types; `justSelected` flag closes it after selection, `LaunchedEffect(errorMessage)` resets that flag when a new validation result arrives so the dropdown reopens; resolves to `CategoryInput.Existing(id)` when a suggestion is selected or the text matches a category case-insensitively, `CategoryInput.New(name)` when the user types freely), optional description, save button; `IncomeForm` uses `else ->` branch in `when(uiState)` so `rememberSaveable` state survives the `Saving` transition
 - `NavigationTarget` — `AccountDetail(accountId)`
 - `AccountDetailViewModel` — calls `accountFinder.find(accountId, AccountCriteria(includeIncomes = true))` in `init`; exposes `reload()` for on-resume refresh
 - `AccountDetailScreen` — displays `account.balance`, adds FAB that emits navigation to income creation; calls `onResume` via `repeatOnLifecycle(Lifecycle.State.RESUMED)` so balance refreshes when returning from income creation
@@ -289,4 +289,7 @@ fun incomeCreate(accountId: String) = "income_create/$accountId"
 - [ ] Known limitation: `VaultAccountRepository` with `includeIncomes = true` performs two full vault decryption scans; resolved when Room provides indexed queries
 - [ ] `Account._incomes` is a private `MutableList`; `createIncome()` mutates it immediately so `account.balance` is consistent without requiring a repository reload after income creation
 - [ ] `AccountDetailScreen` calls `onResume → AccountDetailViewModel.reload()` via `repeatOnLifecycle(RESUMED)` to keep balance fresh when returning from income creation
-- [ ] `CategoryAutocomplete` resolves to `CategoryInput.Existing(id)` when the user selects a suggestion, or `CategoryInput.New(name)` when they type freely; resolution happens in the screen before reaching the ViewModel
+- [ ] `date` travels as a raw `String` through the full call chain (screen → ViewModel → `IncomeCreator` → `Account.createIncome`); the domain is the sole owner of all date parsing and error messages, distinguishing blank / invalid format / impossible date / future date — this lets any future caller (AI agent, voice input) reuse the same validation without duplicating it in presentation
+- [ ] `CategoryCreationError.DuplicateName` inside `IncomeCreator.resolveNewCategory` maps to `IncomeCreationError.InvalidInput(categoryError = ...)`, not `StorageFailure`; this keeps duplicate-name feedback as an inline field error rather than a full-screen error
+- [ ] `CreateIncomeViewModel.save()` captures `currentCategories()` before setting state to `Saving`; `mapError()` receives those categories as a parameter so `ValidationError` always carries the full list even though state is `Saving` when the result arrives
+- [ ] `CategoryAutocomplete` uses a plain `TextField` + `DropdownMenu` with `PopupProperties(focusable = false)` instead of `ExposedDropdownMenuBox`, which has an internal state machine that conflicts with manual expand control; the `justSelected` flag hides the menu after selection; `LaunchedEffect(errorMessage)` resets that flag when a new validation result arrives so the dropdown is always accessible after a failed submit; resolution to `CategoryInput.Existing` also handles the case where the user types a name that exactly matches an existing category (case-insensitive)

@@ -1,6 +1,7 @@
 package dev.raiseexception.odin.accounting.presentation.incomecreation
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,10 +11,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -21,22 +20,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import kotlinx.coroutines.flow.Flow
-import kotlinx.datetime.LocalDate
 
 @Composable
 fun CreateIncomeScreen(
     uiState: CreateIncomeUiState,
-    onSave: (String, LocalDate?, CategoryInput, String) -> Unit,
+    onSave: (String, String, CategoryInput, String) -> Unit,
     navigationEvent: Flow<NavigationTarget>,
     onNavigateBack: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -50,20 +51,18 @@ fun CreateIncomeScreen(
     }
     when (uiState) {
         is CreateIncomeUiState.Loading -> LoadingContent(modifier)
-        is CreateIncomeUiState.Saving -> LoadingContent(modifier)
-        is CreateIncomeUiState.Idle -> IncomeForm(
-            categories = uiState.categories,
-            validation = null,
-            onSave = onSave,
-            modifier = modifier
-        )
-        is CreateIncomeUiState.ValidationError -> IncomeForm(
-            categories = uiState.categories,
-            validation = uiState,
-            onSave = onSave,
-            modifier = modifier
-        )
         is CreateIncomeUiState.Error -> ErrorContent(message = uiState.message, modifier = modifier)
+        else -> IncomeForm(
+            categories = when (uiState) {
+                is CreateIncomeUiState.Idle -> uiState.categories
+                is CreateIncomeUiState.ValidationError -> uiState.categories
+                else -> emptyList()
+            },
+            validation = uiState as? CreateIncomeUiState.ValidationError,
+            isSaving = uiState is CreateIncomeUiState.Saving,
+            onSave = onSave,
+            modifier = modifier
+        )
     }
 }
 
@@ -97,7 +96,8 @@ private fun ErrorContent(message: String, modifier: Modifier = Modifier) {
 private fun IncomeForm(
     categories: List<Category>,
     validation: CreateIncomeUiState.ValidationError?,
-    onSave: (String, LocalDate?, CategoryInput, String) -> Unit,
+    isSaving: Boolean,
+    onSave: (String, String, CategoryInput, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var amount by rememberSaveable { mutableStateOf("") }
@@ -105,7 +105,6 @@ private fun IncomeForm(
     var categoryText by rememberSaveable { mutableStateOf("") }
     var selectedCategoryId by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
-    val parsedDate = parseDate(rawDate)
     val categoryInput = resolveCategoryInput(categoryText, selectedCategoryId, categories)
     Column(
         modifier = modifier
@@ -145,7 +144,8 @@ private fun IncomeForm(
                 .testTag("description_field")
         )
         Button(
-            onClick = { onSave(amount, parsedDate, categoryInput, description) },
+            onClick = { onSave(amount, rawDate, categoryInput, description) },
+            enabled = !isSaving,
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("save_button")
@@ -155,7 +155,6 @@ private fun IncomeForm(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CategoryAutocomplete(
     categories: List<Category>,
@@ -165,32 +164,41 @@ private fun CategoryAutocomplete(
     errorMessage: String?
 ) {
     val suggestions = categories.filter { it.name.contains(categoryText.trim(), ignoreCase = true) }
-    val expanded = categoryText.isNotBlank() && suggestions.isNotEmpty()
+    var isFocused by remember { mutableStateOf(false) }
+    var justSelected by remember { mutableStateOf(false) }
+    val showMenu = isFocused && !justSelected && suggestions.isNotEmpty()
+    LaunchedEffect(errorMessage) { justSelected = false }
     Column(modifier = Modifier.fillMaxWidth()) {
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = {},
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
             TextField(
                 value = categoryText,
-                onValueChange = onCategoryTextChange,
+                onValueChange = { text ->
+                    onCategoryTextChange(text)
+                    justSelected = false
+                },
                 label = { Text("Categoría") },
                 singleLine = true,
                 isError = errorMessage != null,
                 modifier = Modifier
-                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
                     .fillMaxWidth()
                     .testTag("category_field")
+                    .onFocusChanged { state ->
+                        isFocused = state.isFocused
+                        if (state.isFocused) justSelected = false
+                    }
             )
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = {}
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { justSelected = true },
+                properties = PopupProperties(focusable = false)
             ) {
                 suggestions.forEach { category ->
                     DropdownMenuItem(
                         text = { Text(category.name) },
-                        onClick = { onSuggestionSelected(category) },
+                        onClick = {
+                            onSuggestionSelected(category)
+                            justSelected = true
+                        },
                         modifier = Modifier.testTag("category_option_${category.id}")
                     )
                 }
@@ -216,6 +224,8 @@ private fun resolveCategoryInput(
         val match = categories.firstOrNull { it.id == selectedCategoryId }
         if (match != null) return CategoryInput.Existing(match.id)
     }
+    val exactMatch = categories.firstOrNull { it.name.equals(categoryText.trim(), ignoreCase = true) }
+    if (exactMatch != null) return CategoryInput.Existing(exactMatch.id)
     return CategoryInput.New(categoryText.trim())
 }
 
@@ -274,10 +284,4 @@ private fun DateField(
             )
         }
     }
-}
-
-private fun parseDate(rawDate: String): LocalDate? = try {
-    LocalDate.parse(rawDate.trim())
-} catch (@Suppress("SwallowedException") exception: IllegalArgumentException) {
-    null
 }

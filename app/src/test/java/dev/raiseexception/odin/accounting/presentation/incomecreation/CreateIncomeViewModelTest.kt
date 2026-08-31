@@ -79,7 +79,7 @@ class CreateIncomeViewModelTest {
             incomeCreator.create(
                 accountId = accountId,
                 amount = "500.00",
-                date = LocalDate(2026, 8, 29),
+                date = "2026-08-29",
                 categoryInput = CategoryInput.Existing(incomeCategory.id),
                 description = ""
             )
@@ -100,7 +100,7 @@ class CreateIncomeViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("500.00", LocalDate(2026, 8, 29), CategoryInput.Existing(incomeCategory.id), "")
+        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(incomeCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.navigationEvent.test {
@@ -118,7 +118,7 @@ class CreateIncomeViewModelTest {
             incomeCreator.create(
                 accountId = accountId,
                 amount = "500.00",
-                date = LocalDate(2026, 8, 29),
+                date = "2026-08-29",
                 categoryInput = CategoryInput.New("Freelance"),
                 description = ""
             )
@@ -139,7 +139,7 @@ class CreateIncomeViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("500.00", LocalDate(2026, 8, 29), CategoryInput.New("Freelance"), "")
+        viewModel.save("500.00", "2026-08-29", CategoryInput.New("Freelance"), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.navigationEvent.test {
@@ -165,7 +165,7 @@ class CreateIncomeViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("0", LocalDate(2026, 8, 29), CategoryInput.Existing(incomeCategory.id), "")
+        viewModel.save("0", "2026-08-29", CategoryInput.Existing(incomeCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.uiState.test {
@@ -192,7 +192,7 @@ class CreateIncomeViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("500.00", LocalDate(2099, 1, 1), CategoryInput.Existing(incomeCategory.id), "")
+        viewModel.save("500.00", "2099-01-01", CategoryInput.Existing(incomeCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.uiState.test {
@@ -219,7 +219,7 @@ class CreateIncomeViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("", null, CategoryInput.New(""), "")
+        viewModel.save("", "", CategoryInput.New(""), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.uiState.test {
@@ -255,8 +255,8 @@ class CreateIncomeViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("500.00", LocalDate(2026, 8, 29), CategoryInput.Existing(incomeCategory.id), "")
-        viewModel.save("500.00", LocalDate(2026, 8, 29), CategoryInput.Existing(incomeCategory.id), "")
+        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(incomeCategory.id), "")
+        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(incomeCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         io.mockk.coVerify(exactly = 1) { incomeCreator.create(any(), any(), any(), any(), any()) }

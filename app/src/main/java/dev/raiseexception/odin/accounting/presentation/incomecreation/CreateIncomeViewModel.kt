@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
+import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.shared.domain.DomainError
@@ -18,7 +19,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import kotlinx.datetime.LocalDate
 
 class CreateIncomeViewModel(
     private val accountId: String,
@@ -43,8 +43,9 @@ class CreateIncomeViewModel(
         }
     }
 
-    fun save(amount: String, date: LocalDate?, categoryInput: CategoryInput, description: String) {
+    fun save(amount: String, date: String, categoryInput: CategoryInput, description: String) {
         if (this.mutableUiState.value is CreateIncomeUiState.Saving) return
+        val categories = currentCategories()
         this.mutableUiState.value = CreateIncomeUiState.Saving
         this.viewModelScope.launch(this.ioDispatcher) {
             val outcome = this@CreateIncomeViewModel.incomeCreator.create(
@@ -58,16 +59,15 @@ class CreateIncomeViewModel(
                 is Outcome.Success -> navigationChannel.send(
                     NavigationTarget.AccountDetail(this@CreateIncomeViewModel.accountId)
                 )
-                is Outcome.Failure -> mutableUiState.value = mapError(outcome.error)
+                is Outcome.Failure -> mutableUiState.value = mapError(outcome.error, categories)
             }
         }
     }
 
-    private fun mapError(error: DomainError): CreateIncomeUiState {
-        val currentCategories = currentCategories()
+    private fun mapError(error: DomainError, categories: List<Category>): CreateIncomeUiState {
         return when (error) {
             is IncomeCreationError.InvalidInput -> CreateIncomeUiState.ValidationError(
-                categories = currentCategories,
+                categories = categories,
                 amountError = error.amountError,
                 dateError = error.dateError,
                 categoryError = error.categoryError,

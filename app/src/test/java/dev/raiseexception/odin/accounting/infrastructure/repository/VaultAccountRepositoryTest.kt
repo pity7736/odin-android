@@ -14,7 +14,6 @@ import dev.raiseexception.odin.shared.infrastructure.vault.InMemoryEncryptedReco
 import dev.raiseexception.odin.testutil.AccountBuilder
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -266,7 +265,7 @@ class VaultAccountRepositoryTest {
         val repository = VaultAccountRepository(store, json)
         val incomeRepository = VaultIncomeRepository(store, json)
         val savings = AccountBuilder()
-            .withIncome(amount = "300.00", date = LocalDate.parse("2026-08-28"))
+            .withIncome(amount = "300.00", date = "2026-08-28")
             .build()
         repository.add(savings)
         incomeRepository.add(savings.incomes.first())
@@ -283,7 +282,7 @@ class VaultAccountRepositoryTest {
         val repository = VaultAccountRepository(store, json)
         val incomeRepository = VaultIncomeRepository(store, json)
         val savings = AccountBuilder()
-            .withIncome(amount = "300.00", date = LocalDate.parse("2026-08-28"))
+            .withIncome(amount = "300.00", date = "2026-08-28")
             .build()
         repository.add(savings)
         val income = savings.incomes.first()

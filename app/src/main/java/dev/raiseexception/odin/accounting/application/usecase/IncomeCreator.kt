@@ -1,5 +1,6 @@
 package dev.raiseexception.odin.accounting.application.usecase
 
+import dev.raiseexception.odin.accounting.domain.CategoryCreationError
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
@@ -12,7 +13,6 @@ import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.TransactionRunner
 import kotlinx.coroutines.flow.first
 import kotlinx.datetime.Clock
-import kotlinx.datetime.LocalDate
 
 class IncomeCreator(
     private val accountRepository: AccountRepository,
@@ -26,7 +26,7 @@ class IncomeCreator(
     suspend fun create(
         accountId: String,
         amount: String,
-        date: LocalDate?,
+        date: String,
         categoryInput: CategoryInput,
         description: String
     ): Outcome<Income> {
@@ -47,16 +47,9 @@ class IncomeCreator(
                     (result as Outcome.Success).value
                 }
                 is CategoryInput.New -> {
-                    val result = this.categoryCreator.create(categoryInput.categoryName, CategoryType.INCOME, "", null)
-                    when (result) {
-                        is Outcome.Success -> result.value.id
-                        is Outcome.Failure -> return@run Outcome.Failure(
-                            IncomeCreationError.StorageFailure(
-                                internalMessage = result.error.internalMessage,
-                                externalMessage = result.error.externalMessage
-                            )
-                        )
-                    }
+                    val result = this.resolveNewCategory(categoryInput.categoryName)
+                    if (result is Outcome.Failure) return@run result
+                    (result as Outcome.Success).value
                 }
             }
             val income = when (
@@ -80,6 +73,26 @@ class IncomeCreator(
                     )
                 )
             }
+        }
+    }
+
+    private suspend fun resolveNewCategory(categoryName: String): Outcome<String> {
+        val result = this.categoryCreator.create(categoryName, CategoryType.INCOME, "", null)
+        return when (result) {
+            is Outcome.Success -> Outcome.Success(result.value.id)
+            is Outcome.Failure -> Outcome.Failure(
+                when (result.error) {
+                    is CategoryCreationError.DuplicateName -> IncomeCreationError.InvalidInput(
+                        amountError = null,
+                        dateError = null,
+                        categoryError = result.error.externalMessage
+                    )
+                    else -> IncomeCreationError.StorageFailure(
+                        internalMessage = result.error.internalMessage,
+                        externalMessage = result.error.externalMessage
+                    )
+                }
+            )
         }
     }
 

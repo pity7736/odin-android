@@ -11,10 +11,11 @@ As a user, I want to record an income amount against an account I am viewing, so
 ## Acceptance Criteria
 - Income can be recorded from within an account's detail view.
 - The user provides an amount, a date, and a category; an optional description can be added.
+- The date field opens a calendar picker. Today's date is pre-selected so the user can save immediately without changing it.
 - The account the income belongs to is the one the user is currently viewing — it is not chosen in the form.
 - The amount must be a positive value greater than zero.
 - The date must be today or in the past.
-- The category field has autocomplete: as the user types, matching existing income categories are suggested. The user can pick one from the suggestions or finish typing a new name to create a new income category.
+- When the category field is focused, all existing income categories are shown. As the user types, the list filters to matching categories. The user can pick one from the list or finish typing a new name to create a new income category.
 - If any required field is invalid or missing, an error is shown next to that field.
 - Once saved, the income is recorded and the account's balance increases by the recorded amount.
 
@@ -22,7 +23,7 @@ As a user, I want to record an income amount against an account I am viewing, so
 
 ### Happy path — income recorded successfully
 - Given the user is viewing an account's detail
-- When the user opens the record income form, enters a valid positive amount, selects a past or present date, picks an income category, and optionally writes a description, then saves
+- When the user opens the record income form, enters a valid positive amount, selects a past or present date from the calendar picker (today is pre-selected), picks an income category, and optionally writes a description, then saves
 - Then the income is saved and the account's balance increases by the recorded amount
 
 ### Rejection — zero or negative amount

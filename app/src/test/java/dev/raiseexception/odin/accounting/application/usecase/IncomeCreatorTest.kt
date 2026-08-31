@@ -18,7 +18,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
-import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.junit.Assert.assertNotNull
@@ -61,7 +60,7 @@ class IncomeCreatorTest {
         val result = incomeCreator.create(
             accountId = "acc-1",
             amount = "500.00",
-            date = today,
+            date = today.toString(),
             categoryInput = CategoryInput.Existing(incomeCategory.id),
             description = "Salario"
         )
@@ -81,7 +80,7 @@ class IncomeCreatorTest {
             val result = incomeCreator.create(
                 accountId = "acc-1",
                 amount = "500.00",
-                date = today,
+                date = today.toString(),
                 categoryInput = CategoryInput.New("Freelance"),
                 description = ""
             )
@@ -99,7 +98,7 @@ class IncomeCreatorTest {
         val result = incomeCreator.create(
             accountId = "acc-1",
             amount = "0",
-            date = today,
+            date = today.toString(),
             categoryInput = CategoryInput.Existing(incomeCategory.id),
             description = ""
         )
@@ -118,7 +117,7 @@ class IncomeCreatorTest {
         val result = incomeCreator.create(
             accountId = "acc-1",
             amount = "500.00",
-            date = LocalDate.parse("2099-01-01"),
+            date = "2099-01-01",
             categoryInput = CategoryInput.Existing(incomeCategory.id),
             description = ""
         )
@@ -137,7 +136,7 @@ class IncomeCreatorTest {
         val result = incomeCreator.create(
             accountId = "acc-1",
             amount = "",
-            date = null,
+            date = "",
             categoryInput = CategoryInput.Existing(incomeCategory.id),
             description = ""
         )
@@ -158,7 +157,7 @@ class IncomeCreatorTest {
         val result = incomeCreator.create(
             accountId = "acc-1",
             amount = "500.00",
-            date = today,
+            date = today.toString(),
             categoryInput = CategoryInput.Existing("non-existent-id"),
             description = ""
         )
@@ -176,7 +175,7 @@ class IncomeCreatorTest {
         val result = incomeCreator.create(
             accountId = "acc-1",
             amount = "500.00",
-            date = today,
+            date = today.toString(),
             categoryInput = CategoryInput.Existing(expenseCategory.id),
             description = ""
         )

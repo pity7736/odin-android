@@ -8,7 +8,6 @@ import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
-import kotlinx.datetime.LocalDate
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -59,7 +58,7 @@ class AccountBuilder {
 
     fun withIncome(
         amount: String = "500.00",
-        date: LocalDate = LocalDate.parse("2026-01-01"),
+        date: String = "2026-01-01",
         categoryId: String = "cat-1",
         description: String = "",
         clock: Clock = Clock.System
@@ -106,7 +105,7 @@ class AccountBuilder {
 
     private data class IncomeCreationParams(
         val amount: String,
-        val date: LocalDate,
+        val date: String,
         val categoryId: String,
         val description: String,
         val clock: Clock

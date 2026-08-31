@@ -5,7 +5,6 @@ import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
-import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.junit.Assert.assertEquals
@@ -37,7 +36,7 @@ class IncomeTest {
     fun `given a valid income, when created via account, then income has correct fields`() {
         val result = account.createIncome(
             amount = "500.00",
-            date = today,
+            date = today.toString(),
             categoryId = "cat-1",
             description = "Salario",
             clock = fixedClock
@@ -58,7 +57,7 @@ class IncomeTest {
     fun `given a zero amount, when account creates income, then returns amount error`() {
         val result = account.createIncome(
             amount = "0",
-            date = today,
+            date = today.toString(),
             categoryId = "cat-1",
             description = "",
             clock = fixedClock
@@ -74,7 +73,7 @@ class IncomeTest {
     fun `given a negative amount, when account creates income, then returns amount error`() {
         val result = account.createIncome(
             amount = "-100.00",
-            date = today,
+            date = today.toString(),
             categoryId = "cat-1",
             description = "",
             clock = fixedClock
@@ -86,11 +85,41 @@ class IncomeTest {
 
     @Test
     fun `given a future date, when account creates income, then returns date error`() {
-        val futureDate = LocalDate.parse("2099-01-01")
-
         val result = account.createIncome(
             amount = "500.00",
-            date = futureDate,
+            date = "2099-01-01",
+            categoryId = "cat-1",
+            description = "",
+            clock = fixedClock
+        )
+
+        val error = assertInvalidInput(result)
+        assertNotNull(error.dateError)
+        assertNull(error.amountError)
+        assertNull(error.categoryError)
+    }
+
+    @Test
+    fun `given a blank date, when account creates income, then returns date error`() {
+        val result = account.createIncome(
+            amount = "500.00",
+            date = "",
+            categoryId = "cat-1",
+            description = "",
+            clock = fixedClock
+        )
+
+        val error = assertInvalidInput(result)
+        assertNotNull(error.dateError)
+        assertNull(error.amountError)
+        assertNull(error.categoryError)
+    }
+
+    @Test
+    fun `given an invalid date format, when account creates income, then returns date error`() {
+        val result = account.createIncome(
+            amount = "500.00",
+            date = "2026-09-91",
             categoryId = "cat-1",
             description = "",
             clock = fixedClock
@@ -106,7 +135,7 @@ class IncomeTest {
     fun `given a missing amount, when account creates income, then returns amount error`() {
         val result = account.createIncome(
             amount = "",
-            date = today,
+            date = today.toString(),
             categoryId = "cat-1",
             description = "",
             clock = fixedClock
@@ -117,26 +146,10 @@ class IncomeTest {
     }
 
     @Test
-    fun `given a missing date, when account creates income, then returns date error`() {
-        val result = account.createIncome(
-            amount = "500.00",
-            date = null,
-            categoryId = "cat-1",
-            description = "",
-            clock = fixedClock
-        )
-
-        val error = assertInvalidInput(result)
-        assertNotNull(error.dateError)
-        assertNull(error.amountError)
-        assertNull(error.categoryError)
-    }
-
-    @Test
     fun `given a missing category, when account creates income, then returns category error`() {
         val result = account.createIncome(
             amount = "500.00",
-            date = today,
+            date = today.toString(),
             categoryId = "",
             description = "",
             clock = fixedClock
