@@ -5,7 +5,8 @@ import androidx.room.RoomDatabase
 import dev.raiseexception.odin.accounts.infrastructure.repository.UserDao
 import dev.raiseexception.odin.accounts.infrastructure.repository.UserEntity
 
-@Database(entities = [UserEntity::class], version = 1, exportSchema = false)
+@Database(entities = [UserEntity::class, CategoryEntity::class], version = 2, exportSchema = false)
 abstract class OdinDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
+    abstract fun categoryDao(): CategoryDao
 }
