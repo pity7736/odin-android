@@ -32,6 +32,8 @@ import dev.raiseexception.odin.accounting.presentation.categorieslist.Categories
 import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryScreen
 import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryViewModel
 import dev.raiseexception.odin.accounting.presentation.categorydetail.CategoryDetailScreen
+import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeScreen
+import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeViewModel
 import dev.raiseexception.odin.accounts.presentation.login.LoginScreen
 import dev.raiseexception.odin.accounts.presentation.login.LoginViewModel
 import dev.raiseexception.odin.accounts.presentation.registration.RegistrationScreen
@@ -96,7 +98,11 @@ private fun AppNavHost(startRoute: String) {
             }
             composable(Routes.ACCOUNT_DETAIL) { backStackEntry ->
                 val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
-                AccountDetailDestination(accountId)
+                AccountDetailDestination(accountId, navController)
+            }
+            composable(Routes.INCOME_CREATE) { backStackEntry ->
+                val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
+                CreateIncomeDestination(accountId, navController)
             }
             composable(Routes.CATEGORIES) {
                 CategoriesListDestination(navController)
@@ -188,13 +194,35 @@ private fun CreateAccountDestination(navController: NavHostController) {
 }
 
 @Composable
-private fun AccountDetailDestination(accountId: String) {
+private fun AccountDetailDestination(accountId: String, navController: NavHostController) {
     val application = LocalContext.current.applicationContext as OdinApplication
     val accountDetailViewModel: AccountDetailViewModel = viewModel(
         factory = application.appContainer.accountDetailViewModelFactory(accountId)
     )
     val uiState by accountDetailViewModel.uiState.collectAsStateWithLifecycle()
-    AccountDetailScreen(uiState = uiState)
+    AccountDetailScreen(
+        uiState = uiState,
+        navigationEvent = accountDetailViewModel.navigationEvent,
+        onCreateIncome = {
+            navController.navigate(Routes.incomeCreate(accountId))
+        },
+        onResume = accountDetailViewModel::reload
+    )
+}
+
+@Composable
+private fun CreateIncomeDestination(accountId: String, navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val createIncomeViewModel: CreateIncomeViewModel = viewModel(
+        factory = application.appContainer.createIncomeViewModelFactory(accountId)
+    )
+    val uiState by createIncomeViewModel.uiState.collectAsStateWithLifecycle()
+    CreateIncomeScreen(
+        uiState = uiState,
+        onSave = createIncomeViewModel::save,
+        navigationEvent = createIncomeViewModel.navigationEvent,
+        onNavigateBack = { navController.popBackStack() }
+    )
 }
 
 @Composable

@@ -2,21 +2,99 @@ package dev.raiseexception.odin.accounting.domain.model
 
 import com.github.f4b6a3.uuid.UuidCreator
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
+import dev.raiseexception.odin.accounting.domain.IncomeCreationError
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import java.math.BigDecimal
 
+@Suppress("LongParameterList")
 class Account private constructor(
     val id: String,
     val name: String,
     val initialBalance: Money,
     val type: AccountType,
     val description: String,
-    val createdAt: Instant
+    val createdAt: Instant,
+    incomes: List<Income> = emptyList()
 ) {
 
+    private val _incomes: MutableList<Income> = incomes.toMutableList()
+    val incomes: List<Income> get() = this._incomes.toList()
+
     val currency: Currency get() = this.initialBalance.currency
+
+    val balance: Money get() = Money.of(
+        this._incomes.fold(this.initialBalance.amount) { acc, income -> acc.add(income.amount.amount) },
+        this.initialBalance.currency
+    )
+
+    fun createIncome(
+        amount: String,
+        date: String,
+        categoryId: String,
+        description: String,
+        clock: Clock = Clock.System
+    ): Outcome<Income> {
+        val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val parsedAmount = parseIncomeAmount(amount)
+        val amountError = validateIncomeAmount(amount, parsedAmount)
+        val (parsedDate, dateError) = parseAndValidateIncomeDate(date, today)
+        val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
+        if (anyError(amountError, dateError, categoryError)) {
+            return Outcome.Failure(
+                IncomeCreationError.InvalidInput(
+                    amountError = amountError,
+                    dateError = dateError,
+                    categoryError = categoryError
+                )
+            )
+        }
+        val income = Income(
+            id = UuidCreator.getTimeOrderedEpoch().toString(),
+            accountId = this.id,
+            amount = Money.of(parsedAmount!!, this.currency),
+            date = parsedDate!!,
+            categoryId = categoryId,
+            description = description.trim(),
+            createdAt = clock.now()
+        )
+        this._incomes.add(income)
+        return Outcome.Success(income)
+    }
+
+    private fun parseIncomeAmount(rawAmount: String): BigDecimal? = try {
+        val parsed = BigDecimal(rawAmount.trim())
+        if (parsed.scale() > MAX_DECIMAL_PLACES) null else parsed
+    } catch (@Suppress("SwallowedException") exception: NumberFormatException) {
+        null
+    }
+
+    private fun validateIncomeAmount(rawAmount: String, parsed: BigDecimal?): String? = when {
+        rawAmount.isBlank() -> "El monto es obligatorio."
+        parsed == null -> "El monto no es un número válido."
+        parsed.signum() <= 0 -> "El monto debe ser mayor que cero."
+        else -> null
+    }
+
+    private fun parseAndValidateIncomeDate(rawDate: String, today: LocalDate): Pair<LocalDate?, String?> {
+        if (rawDate.isBlank()) return Pair(null, "La fecha es obligatoria.")
+        val trimmed = rawDate.trim()
+        val matchesFormat = trimmed.matches(Regex("""\d{4}-\d{2}-\d{2}"""))
+        val parsed = try {
+            LocalDate.parse(trimmed)
+        } catch (@Suppress("SwallowedException") exception: IllegalArgumentException) {
+            val message = if (matchesFormat) "La fecha no es válida." else "Formato de fecha inválido. Usa AAAA-MM-DD."
+            return Pair(null, message)
+        }
+        if (parsed > today) return Pair(null, "La fecha debe ser hoy o en el pasado.")
+        return Pair(parsed, null)
+    }
+
+    private fun anyError(vararg errors: String?): Boolean = errors.any { it != null }
 
     companion object {
         private const val MAX_NAME_LENGTH = 200
@@ -30,14 +108,16 @@ class Account private constructor(
             initialBalance: Money,
             type: AccountType,
             description: String,
-            createdAt: Instant
+            createdAt: Instant,
+            incomes: List<Income> = emptyList()
         ): Account = Account(
             id = id,
             name = name,
             initialBalance = initialBalance,
             type = type,
             description = description,
-            createdAt = createdAt
+            createdAt = createdAt,
+            incomes = incomes
         )
 
         @Suppress("LongParameterList")

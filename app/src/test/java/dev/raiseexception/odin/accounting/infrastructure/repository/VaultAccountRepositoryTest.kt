@@ -5,6 +5,7 @@ import dev.raiseexception.odin.accounting.domain.AccountLookupError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.infrastructure.serialization.AccountRecord
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.crypto.infrastructure.BouncyCastleVaultCrypto
@@ -34,17 +35,14 @@ class VaultAccountRepositoryTest {
         cpuDispatcher = UnconfinedTestDispatcher()
     )
 
-    private fun account(name: String) = AccountBuilder()
-        .name(name)
-        .initialBalance(Money.of(BigDecimal("1500.00"), Currency.COP))
-        .description("Fondo de emergencia")
-        .build()
-
     @Test
     fun `given an added account, when inspecting the stored blob, then it is encrypted`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
-        val savings = account("Ahorros")
+        val savings = AccountBuilder()
+            .initialBalance(Money.of(BigDecimal("1500.00"), Currency.COP))
+            .description("Fondo de emergencia")
+            .build()
 
         repository.add(savings)
 
@@ -56,7 +54,10 @@ class VaultAccountRepositoryTest {
     fun `given an added account, when reading the stored record, then all fields are intact`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
-        val savings = account("Ahorros")
+        val savings = AccountBuilder()
+            .initialBalance(Money.of(BigDecimal("1500.00"), Currency.COP))
+            .description("Fondo de emergencia")
+            .build()
 
         repository.add(savings)
 
@@ -76,7 +77,7 @@ class VaultAccountRepositoryTest {
     fun `given an existing account, when checking the same name, then returns true`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
-        repository.add(account("Ahorros"))
+        repository.add(AccountBuilder().build())
 
         val result = repository.existsByName("Ahorros")
 
@@ -88,7 +89,7 @@ class VaultAccountRepositoryTest {
     fun `given an existing account, when checking a different case of the name, then returns true`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
-        repository.add(account("Ahorros"))
+        repository.add(AccountBuilder().build())
 
         val result = repository.existsByName("ahorros")
 
@@ -100,7 +101,7 @@ class VaultAccountRepositoryTest {
     fun `given an existing account, when checking a different name, then returns false`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
-        repository.add(account("Ahorros"))
+        repository.add(AccountBuilder().build())
 
         val result = repository.existsByName("Gastos")
 
@@ -113,7 +114,7 @@ class VaultAccountRepositoryTest {
         val store = storeWith(FakeMasterKeyRepository(null))
         val repository = VaultAccountRepository(store, json)
 
-        val result = repository.add(account("Ahorros"))
+        val result = repository.add(AccountBuilder().build())
 
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is AccountCreationError.CryptoFailure)
@@ -159,7 +160,7 @@ class VaultAccountRepositoryTest {
     fun `given one account added, when getting all, then emits success with that account`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
-        val savings = account("Ahorros")
+        val savings = AccountBuilder().build()
         repository.add(savings)
 
         val result = mutableListOf<Outcome<List<Account>>>()
@@ -175,8 +176,8 @@ class VaultAccountRepositoryTest {
     fun `given multiple accounts added, when getting all, then emits all accounts ordered by id ascending`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
-        val checking = account("Corriente")
-        val savings = account("Ahorros")
+        val checking = AccountBuilder().name("Corriente").build()
+        val savings = AccountBuilder().build()
         repository.add(checking)
         repository.add(savings)
 
@@ -205,7 +206,7 @@ class VaultAccountRepositoryTest {
     fun `given an account exists, when findById is called with its id, then returns the account`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
-        val savings = account("Ahorros")
+        val savings = AccountBuilder().build()
         repository.add(savings)
 
         val result = repository.findById(savings.id)
@@ -240,7 +241,10 @@ class VaultAccountRepositoryTest {
     fun `given one account added, when getting all, then all fields round-trip correctly`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
-        val savings = account("Ahorros")
+        val savings = AccountBuilder()
+            .initialBalance(Money.of(BigDecimal("1500.00"), Currency.COP))
+            .description("Fondo de emergencia")
+            .build()
         repository.add(savings)
 
         val result = mutableListOf<Outcome<List<Account>>>()
@@ -253,5 +257,43 @@ class VaultAccountRepositoryTest {
         assertEquals(savings.type, restored.type)
         assertEquals(savings.description, restored.description)
         assertEquals(savings.createdAt, restored.createdAt)
+    }
+
+    @Test
+    fun `given include incomes false, when finding by id, then returns account with empty incomes`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultAccountRepository(store, json)
+        val incomeRepository = VaultIncomeRepository(store, json)
+        val savings = AccountBuilder()
+            .withIncome(amount = "300.00", date = "2026-08-28")
+            .build()
+        repository.add(savings)
+        incomeRepository.add(savings.incomes.first())
+
+        val result = repository.findById(savings.id, AccountCriteria(includeIncomes = false))
+
+        assertTrue(result is Outcome.Success)
+        assertTrue((result as Outcome.Success).value.incomes.isEmpty())
+    }
+
+    @Test
+    fun `given account with incomes, when finding by id with criteria, then returns account with incomes`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultAccountRepository(store, json)
+        val incomeRepository = VaultIncomeRepository(store, json)
+        val savings = AccountBuilder()
+            .withIncome(amount = "300.00", date = "2026-08-28")
+            .build()
+        repository.add(savings)
+        val income = savings.incomes.first()
+        incomeRepository.add(income)
+
+        val result = repository.findById(savings.id, AccountCriteria(includeIncomes = true))
+
+        assertTrue(result is Outcome.Success)
+        val loadedAccount = (result as Outcome.Success).value
+        assertEquals(1, loadedAccount.incomes.size)
+        assertEquals(income.id, loadedAccount.incomes.first().id)
+        assertEquals(0, loadedAccount.incomes.first().amount.amount.compareTo(BigDecimal("300.00")))
     }
 }
