@@ -115,11 +115,10 @@ class Income internal constructor(
 }
 
 // accounting/domain/Account.kt — additions
-class Account private constructor(
-    ...,
-    val incomes: List<Income> = emptyList()
-) {
-    val balance: Money get() = // initialBalance + sum(incomes.amount)
+class Account private constructor(...) {
+    private val _incomes: MutableList<Income>   // initialized from restore() parameter
+    val incomes: List<Income> get() = _incomes.toList()  // defensive copy; callers cannot mutate
+    val balance: Money get() = // initialBalance + sum(_incomes.amount)
 
     fun createIncome(
         amount: String,
@@ -127,7 +126,7 @@ class Account private constructor(
         categoryId: String,
         description: String,
         clock: Clock = Clock.System
-    ): Outcome<Income>  // validates fields, constructs Income with this.id as accountId
+    ): Outcome<Income>  // validates fields, adds Income to _incomes, returns it
 }
 
 // accounting/application/usecase/IncomeCreator.kt
@@ -270,10 +269,10 @@ fun incomeCreate(accountId: String) = "income_create/$accountId"
 **Green:**
 - `CreateIncomeViewModel` — loads INCOME categories on init via `CategoryLister`, exposes `uiState` and `navigationEvent`, calls `IncomeCreator` on save
 - `CreateIncomeUiState` sealed interface
-- `CreateIncomeScreen` — form with amount field, date picker, category selector, optional description, save button
+- `CreateIncomeScreen` — form with amount field, date picker, `CategoryAutocomplete` (editable text field with filtered suggestions; resolves to `CategoryInput.Existing(id)` when a suggestion is selected, `CategoryInput.New(name)` when the user types freely), optional description, save button
 - `NavigationTarget` — `AccountDetail(accountId)`
-- `AccountDetailViewModel` — calls `accountFinder.find(accountId, AccountCriteria(includeIncomes = true))`, maps result to `Content(account)`
-- `AccountDetailScreen` — displays `account.balance`, adds FAB that emits navigation to income creation
+- `AccountDetailViewModel` — calls `accountFinder.find(accountId, AccountCriteria(includeIncomes = true))` in `init`; exposes `reload()` for on-resume refresh
+- `AccountDetailScreen` — displays `account.balance`, adds FAB that emits navigation to income creation; calls `onResume` via `repeatOnLifecycle(Lifecycle.State.RESUMED)` so balance refreshes when returning from income creation
 - `Routes` — add `INCOME_CREATE` and `incomeCreate(accountId)`
 - `AppContainer` — wire `IncomeCreator`, `VaultIncomeRepository`, `VaultTransactionRunner`, `CreateIncomeViewModel` factory
 - `MainActivity` — add `CreateIncomeDestination` composable and `income_create/{accountId}` route; `AccountDetailDestination` emits navigation to income creation
@@ -288,3 +287,6 @@ fun incomeCreate(accountId: String) = "income_create/$accountId"
 - [ ] `VaultTransactionRunner` is a no-op until Room; interface defined now so the migration is mechanical
 - [ ] `TransactionRunner` lives in `shared/domain/` as a cross-cutting port
 - [ ] Known limitation: `VaultAccountRepository` with `includeIncomes = true` performs two full vault decryption scans; resolved when Room provides indexed queries
+- [ ] `Account._incomes` is a private `MutableList`; `createIncome()` mutates it immediately so `account.balance` is consistent without requiring a repository reload after income creation
+- [ ] `AccountDetailScreen` calls `onResume → AccountDetailViewModel.reload()` via `repeatOnLifecycle(RESUMED)` to keep balance fresh when returning from income creation
+- [ ] `CategoryAutocomplete` resolves to `CategoryInput.Existing(id)` when the user selects a suggestion, or `CategoryInput.New(name)` when they type freely; resolution happens in the screen before reaching the ViewModel
