@@ -4,7 +4,6 @@ import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.domain.AccountLookupError
 import dev.raiseexception.odin.accounting.domain.model.Currency
-import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -17,7 +16,6 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -99,19 +97,10 @@ class AccountDetailViewModelTest {
 
     @Test
     fun `given account with incomes, when loaded, then content state carries computed balance`() = runTest {
-        val income = Income.restore(
-            id = "inc-1",
-            accountId = accountId,
-            amount = Money.of(BigDecimal("500.00"), Currency.COP),
-            date = LocalDate.parse("2026-08-28"),
-            categoryId = "cat-1",
-            description = "",
-            createdAt = Instant.parse("2026-08-28T10:00:00Z")
-        )
         val accountWithIncomes = AccountBuilder()
             .id(accountId)
             .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
-            .incomes(listOf(income))
+            .withIncome(amount = "500.00", date = LocalDate.parse("2026-08-28"))
             .build()
         coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(accountWithIncomes)
         val viewModel = buildViewModel()
