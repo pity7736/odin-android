@@ -28,6 +28,14 @@ class AccountDetailViewModel(
     val navigationEvent: Flow<AccountDetailNavigationTarget> = this.navigationChannel.receiveAsFlow()
 
     init {
+        this.load()
+    }
+
+    fun reload() {
+        this.load()
+    }
+
+    private fun load() {
         this.viewModelScope.launch(this.ioDispatcher) {
             this@AccountDetailViewModel.mutableUiState.value = when (
                 val outcome = this@AccountDetailViewModel.accountFinder.find(

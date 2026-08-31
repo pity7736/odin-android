@@ -205,7 +205,8 @@ private fun AccountDetailDestination(accountId: String, navController: NavHostCo
         navigationEvent = accountDetailViewModel.navigationEvent,
         onCreateIncome = {
             navController.navigate(Routes.incomeCreate(accountId))
-        }
+        },
+        onResume = accountDetailViewModel::reload
     )
 }
 

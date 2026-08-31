@@ -11,10 +11,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import kotlinx.coroutines.flow.Flow
@@ -35,9 +39,16 @@ fun AccountDetailScreen(
     uiState: AccountDetailUiState,
     navigationEvent: Flow<AccountDetailNavigationTarget>,
     onCreateIncome: () -> Unit,
+    onResume: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            onResume()
+        }
+    }
+    LaunchedEffect(Unit) {
         navigationEvent.collect { target ->
             when (target) {
                 is AccountDetailNavigationTarget.CreateIncome -> onCreateIncome()
