@@ -41,7 +41,6 @@ class VaultAccountRepositoryTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
         val savings = AccountBuilder()
-            .name("Ahorros")
             .initialBalance(Money.of(BigDecimal("1500.00"), Currency.COP))
             .description("Fondo de emergencia")
             .build()
@@ -57,7 +56,6 @@ class VaultAccountRepositoryTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
         val savings = AccountBuilder()
-            .name("Ahorros")
             .initialBalance(Money.of(BigDecimal("1500.00"), Currency.COP))
             .description("Fondo de emergencia")
             .build()
@@ -80,7 +78,7 @@ class VaultAccountRepositoryTest {
     fun `given an existing account, when checking the same name, then returns true`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
-        repository.add(AccountBuilder().name("Ahorros").build())
+        repository.add(AccountBuilder().build())
 
         val result = repository.existsByName("Ahorros")
 
@@ -92,7 +90,7 @@ class VaultAccountRepositoryTest {
     fun `given an existing account, when checking a different case of the name, then returns true`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
-        repository.add(AccountBuilder().name("Ahorros").build())
+        repository.add(AccountBuilder().build())
 
         val result = repository.existsByName("ahorros")
 
@@ -104,7 +102,7 @@ class VaultAccountRepositoryTest {
     fun `given an existing account, when checking a different name, then returns false`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
-        repository.add(AccountBuilder().name("Ahorros").build())
+        repository.add(AccountBuilder().build())
 
         val result = repository.existsByName("Gastos")
 
@@ -163,7 +161,7 @@ class VaultAccountRepositoryTest {
     fun `given one account added, when getting all, then emits success with that account`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
-        val savings = AccountBuilder().name("Ahorros").build()
+        val savings = AccountBuilder().build()
         repository.add(savings)
 
         val result = mutableListOf<Outcome<List<Account>>>()
@@ -180,7 +178,7 @@ class VaultAccountRepositoryTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
         val checking = AccountBuilder().name("Corriente").build()
-        val savings = AccountBuilder().name("Ahorros").build()
+        val savings = AccountBuilder().build()
         repository.add(checking)
         repository.add(savings)
 
@@ -209,7 +207,7 @@ class VaultAccountRepositoryTest {
     fun `given an account exists, when findById is called with its id, then returns the account`() = runTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
-        val savings = AccountBuilder().name("Ahorros").build()
+        val savings = AccountBuilder().build()
         repository.add(savings)
 
         val result = repository.findById(savings.id)
@@ -245,7 +243,6 @@ class VaultAccountRepositoryTest {
         val store = storeWith(FakeMasterKeyRepository(masterKey))
         val repository = VaultAccountRepository(store, json)
         val savings = AccountBuilder()
-            .name("Ahorros")
             .initialBalance(Money.of(BigDecimal("1500.00"), Currency.COP))
             .description("Fondo de emergencia")
             .build()
@@ -269,7 +266,6 @@ class VaultAccountRepositoryTest {
         val repository = VaultAccountRepository(store, json)
         val incomeRepository = VaultIncomeRepository(store, json)
         val savings = AccountBuilder()
-            .name("Ahorros")
             .withIncome(amount = "300.00", date = LocalDate.parse("2026-08-28"))
             .build()
         repository.add(savings)
@@ -287,7 +283,6 @@ class VaultAccountRepositoryTest {
         val repository = VaultAccountRepository(store, json)
         val incomeRepository = VaultIncomeRepository(store, json)
         val savings = AccountBuilder()
-            .name("Ahorros")
             .withIncome(amount = "300.00", date = LocalDate.parse("2026-08-28"))
             .build()
         repository.add(savings)
