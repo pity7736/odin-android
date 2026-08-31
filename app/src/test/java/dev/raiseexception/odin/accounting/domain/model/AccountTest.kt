@@ -254,6 +254,22 @@ class AccountBalanceTest {
 
         assertEquals(Money.of(BigDecimal("1500.00"), Currency.COP), account.balance)
     }
+
+    @Test
+    fun `given an account, when creating an income, then balance reflects it immediately`() {
+        val account = AccountBuilder()
+            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
+            .build()
+
+        account.createIncome(
+            amount = "500.00",
+            date = LocalDate.parse("2026-08-28"),
+            categoryId = "cat-1",
+            description = ""
+        )
+
+        assertEquals(Money.of(BigDecimal("1500.00"), Currency.COP), account.balance)
+    }
 }
 
 class AccountRestoreTest {

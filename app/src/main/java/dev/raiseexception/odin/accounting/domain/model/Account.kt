@@ -19,13 +19,16 @@ class Account private constructor(
     val type: AccountType,
     val description: String,
     val createdAt: Instant,
-    val incomes: List<Income> = emptyList()
+    incomes: List<Income> = emptyList()
 ) {
+
+    private val _incomes: MutableList<Income> = incomes.toMutableList()
+    val incomes: List<Income> get() = this._incomes.toList()
 
     val currency: Currency get() = this.initialBalance.currency
 
     val balance: Money get() = Money.of(
-        this.incomes.fold(this.initialBalance.amount) { acc, income -> acc.add(income.amount.amount) },
+        this._incomes.fold(this.initialBalance.amount) { acc, income -> acc.add(income.amount.amount) },
         this.initialBalance.currency
     )
 
@@ -50,17 +53,17 @@ class Account private constructor(
                 )
             )
         }
-        return Outcome.Success(
-            Income(
-                id = UuidCreator.getTimeOrderedEpoch().toString(),
-                accountId = this.id,
-                amount = Money.of(parsedAmount!!, this.currency),
-                date = date!!,
-                categoryId = categoryId,
-                description = description.trim(),
-                createdAt = clock.now()
-            )
+        val income = Income(
+            id = UuidCreator.getTimeOrderedEpoch().toString(),
+            accountId = this.id,
+            amount = Money.of(parsedAmount!!, this.currency),
+            date = date!!,
+            categoryId = categoryId,
+            description = description.trim(),
+            createdAt = clock.now()
         )
+        this._incomes.add(income)
+        return Outcome.Success(income)
     }
 
     private fun parseIncomeAmount(rawAmount: String): BigDecimal? = try {

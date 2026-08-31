@@ -12,6 +12,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
 
@@ -22,16 +23,18 @@ class IncomeTest {
         override fun now(): Instant = fixedInstant
     }
     private val today = fixedInstant.toLocalDateTime(TimeZone.currentSystemDefault()).date
+    private lateinit var account: Account
 
-    private fun savingsAccount() = AccountBuilder()
-        .id("acc-1")
-        .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
-        .build()
+    @Before
+    fun setUp() {
+        account = AccountBuilder()
+            .id("acc-1")
+            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
+            .build()
+    }
 
     @Test
     fun `given a valid income, when created via account, then income has correct fields`() {
-        val account = savingsAccount()
-
         val result = account.createIncome(
             amount = "500.00",
             date = today,
@@ -53,8 +56,6 @@ class IncomeTest {
 
     @Test
     fun `given a zero amount, when account creates income, then returns amount error`() {
-        val account = savingsAccount()
-
         val result = account.createIncome(
             amount = "0",
             date = today,
@@ -71,8 +72,6 @@ class IncomeTest {
 
     @Test
     fun `given a negative amount, when account creates income, then returns amount error`() {
-        val account = savingsAccount()
-
         val result = account.createIncome(
             amount = "-100.00",
             date = today,
@@ -87,7 +86,6 @@ class IncomeTest {
 
     @Test
     fun `given a future date, when account creates income, then returns date error`() {
-        val account = savingsAccount()
         val futureDate = LocalDate.parse("2099-01-01")
 
         val result = account.createIncome(
@@ -106,8 +104,6 @@ class IncomeTest {
 
     @Test
     fun `given a missing amount, when account creates income, then returns amount error`() {
-        val account = savingsAccount()
-
         val result = account.createIncome(
             amount = "",
             date = today,
@@ -122,8 +118,6 @@ class IncomeTest {
 
     @Test
     fun `given a missing date, when account creates income, then returns date error`() {
-        val account = savingsAccount()
-
         val result = account.createIncome(
             amount = "500.00",
             date = null,
@@ -140,8 +134,6 @@ class IncomeTest {
 
     @Test
     fun `given a missing category, when account creates income, then returns category error`() {
-        val account = savingsAccount()
-
         val result = account.createIncome(
             amount = "500.00",
             date = today,
