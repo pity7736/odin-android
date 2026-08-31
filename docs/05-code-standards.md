@@ -81,6 +81,10 @@ Decided stack (see `docs/02-architecture.md` for how the pieces fit):
 - **Dispatchers:** never hardcode `Dispatchers.IO`/`Main` inside a class — inject
   the dispatcher (constructor default) so tests can substitute a test dispatcher.
 
+### 2.3.1. Suppression Rules
+
+- **`@Suppress("LongParameterList")` is only allowed on constructors.** If a regular function has too many parameters, extract a parameter object or redesign the function — do not suppress the warning.
+
 ### 2.4. General Idioms
 
 - **Self-documenting code — comments are strictly prohibited in source.** If a

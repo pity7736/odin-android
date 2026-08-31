@@ -246,28 +246,10 @@ class AccountBalanceTest {
 
     @Test
     fun `given an account with incomes, when computing balance, then returns initial balance plus sum of incomes`() {
-        val income1 = Income.restore(
-            id = "inc-1",
-            accountId = "acc-1",
-            amount = Money.of(BigDecimal("300.00"), Currency.COP),
-            date = LocalDate.parse("2026-08-28"),
-            categoryId = "cat-1",
-            description = "",
-            createdAt = Instant.parse("2026-08-28T10:00:00Z")
-        )
-        val income2 = Income.restore(
-            id = "inc-2",
-            accountId = "acc-1",
-            amount = Money.of(BigDecimal("200.00"), Currency.COP),
-            date = LocalDate.parse("2026-08-28"),
-            categoryId = "cat-1",
-            description = "",
-            createdAt = Instant.parse("2026-08-28T11:00:00Z")
-        )
         val account = AccountBuilder()
-            .id("acc-1")
             .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
-            .incomes(listOf(income1, income2))
+            .withIncome(amount = "300.00", date = LocalDate.parse("2026-08-28"))
+            .withIncome(amount = "200.00", date = LocalDate.parse("2026-08-28"))
             .build()
 
         assertEquals(Money.of(BigDecimal("1500.00"), Currency.COP), account.balance)

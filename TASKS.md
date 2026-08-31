@@ -37,6 +37,10 @@ locally.
 
 - [ ] `RegistrationScreen` is missing `FLAG_SECURE`. `LoginScreen` sets it to prevent screenshots and Recent Apps thumbnails from capturing plaintext passwords when the reveal toggle is active. `RegistrationScreen` has the same reveal toggle and the same exposure risk but no `FLAG_SECURE`.
 
+### Refactoring
+
+- [ ] `Account.createIncome()` owns income validation logic. Consider moving validation into `Income.create()` so `Income` validates its own invariants and `Account.createIncome()` just delegates, passing `this.id` and `this.currency`.
+
 ### Quality
 
 - [ ] Structured logging (Timber or similar, respecting zero-knowledge — no keys/plaintext)
