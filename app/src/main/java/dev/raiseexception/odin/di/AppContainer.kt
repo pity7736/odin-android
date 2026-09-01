@@ -51,7 +51,7 @@ class AppContainer(context: Context) {
         context,
         OdinDatabase::class.java,
         "odin_db"
-    ).build()
+    ).fallbackToDestructiveMigration(dropAllTables = true).build()
     private val secureRandom: SecureRandom = SecureRandom()
     private val vaultCrypto: VaultCrypto = BouncyCastleVaultCrypto(secureRandom)
     private val masterKeyRepository: MasterKeyRepository = InMemoryMasterKeyRepository()
@@ -65,7 +65,11 @@ class AppContainer(context: Context) {
     private val accountCreator: AccountCreator = AccountCreator(accountRepository)
     private val accountLister: AccountLister = AccountLister(accountRepository)
     private val accountFinder: AccountFinder = AccountFinder(accountRepository)
-    private val categoryRepository: CategoryRepository = VaultCategoryRepository(encryptedRecordStore)
+    private val categoryRepository: CategoryRepository = VaultCategoryRepository(
+        categoryDao = database.categoryDao(),
+        vaultCrypto = vaultCrypto,
+        masterKeyRepository = masterKeyRepository
+    )
     private val categoryCreator: CategoryCreator = CategoryCreator(categoryRepository)
     private val categoryLister: CategoryLister = CategoryLister(categoryRepository)
     private val incomeRepository: IncomeRepository = VaultIncomeRepository(encryptedRecordStore)

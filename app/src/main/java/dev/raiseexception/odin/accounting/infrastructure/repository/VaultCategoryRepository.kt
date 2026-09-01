@@ -5,26 +5,35 @@ import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
 import dev.raiseexception.odin.accounting.infrastructure.serialization.CategoryRecord
+import dev.raiseexception.odin.crypto.domain.VaultCrypto
+import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
+import dev.raiseexception.odin.persistence.CategoryDao
+import dev.raiseexception.odin.persistence.CategoryEntity
 import dev.raiseexception.odin.shared.domain.Outcome
-import dev.raiseexception.odin.shared.infrastructure.vault.EncryptedRecordStore
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Instant
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
 class VaultCategoryRepository(
-    private val encryptedRecordStore: EncryptedRecordStore,
+    private val categoryDao: CategoryDao,
+    private val vaultCrypto: VaultCrypto,
+    private val masterKeyRepository: MasterKeyRepository,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val json: Json = Json
 ) : CategoryRepository {
 
     override suspend fun existsByNameAndType(name: String, type: CategoryType): Outcome<Boolean> {
-        val categoryRecords = when (val decryptOutcome = this.decryptedCategoryRecords()) {
-            is Outcome.Success -> decryptOutcome.value
-            is Outcome.Failure -> return decryptOutcome
+        val records = when (val outcome = this.decryptedCategoryRecords()) {
+            is Outcome.Success -> outcome.value
+            is Outcome.Failure -> return outcome
         }
         return Outcome.Success(
-            categoryRecords.any { it.name.equals(name, ignoreCase = true) && it.categoryType == type.name }
+            records.any { it.name.equals(name, ignoreCase = true) && it.categoryType == type.name }
         )
     }
 
@@ -39,14 +48,48 @@ class VaultCategoryRepository(
         }
     }
 
-    override suspend fun add(category: Category): Outcome<Unit> {
-        val plaintext = this.json.encodeToString(CategoryRecord.serializer(), this.toRecord(category))
-            .encodeToByteArray()
-        return when (val saveOutcome = this.encryptedRecordStore.save(category.id, plaintext)) {
-            is Outcome.Success -> Outcome.Success(Unit)
-            is Outcome.Failure -> this.cryptoFailure(saveOutcome.error.internalMessage)
+    override suspend fun add(category: Category): Outcome<Unit> = withContext(this.ioDispatcher) {
+        val masterKey = when (val outcome = masterKeyRepository.get()) {
+            is Outcome.Success -> outcome.value
+            is Outcome.Failure -> return@withContext cryptoFailure(outcome.error.internalMessage)
+        }
+        val plaintext = json.encodeToString(CategoryRecord.serializer(), toRecord(category)).encodeToByteArray()
+        val ciphertext = when (val outcome = vaultCrypto.encrypt(plaintext, masterKey)) {
+            is Outcome.Success -> outcome.value
+            is Outcome.Failure -> return@withContext cryptoFailure(outcome.error.internalMessage)
+        }
+        try {
+            categoryDao.insert(CategoryEntity(category.id, ciphertext))
+            Outcome.Success(Unit)
+        } catch (exception: android.database.SQLException) {
+            Outcome.Failure(
+                CategoryCreationError.StorageFailure(
+                    internalMessage = exception.message ?: "Storage failure",
+                    externalMessage = "Algo salió mal. Intente de nuevo más tarde"
+                )
+            )
         }
     }
+
+    private suspend fun decryptedCategoryRecords(): Outcome<List<CategoryRecord>> =
+        withContext(this.ioDispatcher) {
+            val masterKey = when (val outcome = masterKeyRepository.get()) {
+                is Outcome.Success -> outcome.value
+                is Outcome.Failure -> return@withContext cryptoFailure(outcome.error.internalMessage)
+            }
+            val entities = categoryDao.getAll()
+            val records = entities.mapNotNull { entity ->
+                when (val outcome = vaultCrypto.decrypt(entity.data, masterKey)) {
+                    is Outcome.Failure -> return@withContext cryptoFailure(outcome.error.internalMessage)
+                    is Outcome.Success -> try {
+                        json.decodeFromString(CategoryRecord.serializer(), outcome.value.decodeToString())
+                    } catch (@Suppress("SwallowedException") exception: SerializationException) {
+                        null
+                    }
+                }
+            }
+            Outcome.Success(records)
+        }
 
     private fun toCategory(record: CategoryRecord): Category = Category.restore(
         id = record.id,
@@ -56,23 +99,6 @@ class VaultCategoryRepository(
         color = record.color,
         createdAt = Instant.parse(record.createdAt)
     )
-
-    private suspend fun decryptedCategoryRecords(): Outcome<List<CategoryRecord>> {
-        val records = when (val readOutcome = this.encryptedRecordStore.readAll()) {
-            is Outcome.Success -> readOutcome.value
-            is Outcome.Failure -> return this.cryptoFailure(readOutcome.error.internalMessage)
-        }
-        val categoryRecords = records
-            .mapNotNull { record ->
-                try {
-                    this.json.decodeFromString(CategoryRecord.serializer(), record.data.decodeToString())
-                } catch (@Suppress("SwallowedException") exception: SerializationException) {
-                    null
-                }
-            }
-            .filter { it.recordType == CategoryRecord.CATEGORY_RECORD_TYPE }
-        return Outcome.Success(categoryRecords)
-    }
 
     private fun toRecord(category: Category) = CategoryRecord(
         id = category.id,
