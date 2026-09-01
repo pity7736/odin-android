@@ -15,7 +15,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 class LoginViewModel(
-    private val userAuthenticator: UserAuthenticator
+    private val userAuthenticator: UserAuthenticator,
+    private val onLoginSuccess: suspend () -> Unit = {},
 ) : ViewModel() {
 
     private val mutableUiState = MutableStateFlow<LoginUiState>(LoginUiState.Idle)
@@ -30,7 +31,10 @@ class LoginViewModel(
         this.viewModelScope.launch {
             val outcome = userAuthenticator.authenticate(rawPassword)
             when (outcome) {
-                is Outcome.Success -> navigationChannel.send(NavigationTarget.Home)
+                is Outcome.Success -> {
+                    onLoginSuccess()
+                    navigationChannel.send(NavigationTarget.Home)
+                }
                 is Outcome.Failure -> mutableUiState.value = mapError(outcome.error)
             }
         }
