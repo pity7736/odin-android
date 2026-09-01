@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.room.Room
+import dev.raiseexception.odin.BuildConfig
 import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
@@ -79,7 +80,13 @@ class AppContainer(context: Context) {
 
     fun registrationViewModel(): RegistrationViewModel = RegistrationViewModel(userRegistrar)
 
-    fun loginViewModel(): LoginViewModel = LoginViewModel(userAuthenticator)
+    fun loginViewModel(): LoginViewModel {
+        if (BuildConfig.DEBUG) {
+            val seeder = DevDataSeeder(accountCreator, categoryCreator, incomeCreator)
+            return LoginViewModel(userAuthenticator, seeder::seed)
+        }
+        return LoginViewModel(userAuthenticator)
+    }
 
     fun startupViewModel(): StartupViewModel = StartupViewModel(userRepository)
 
