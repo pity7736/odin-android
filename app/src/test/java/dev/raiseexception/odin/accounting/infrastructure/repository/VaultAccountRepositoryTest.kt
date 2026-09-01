@@ -296,4 +296,43 @@ class VaultAccountRepositoryTest {
         assertEquals(income.id, loadedAccount.incomes.first().id)
         assertEquals(0, loadedAccount.incomes.first().amount.amount.compareTo(BigDecimal("300.00")))
     }
+
+    @Test
+    fun `given account with expenses, when finding by id with include expenses, then returns account with expenses`() =
+        runTest {
+            val store = storeWith(FakeMasterKeyRepository(masterKey))
+            val repository = VaultAccountRepository(store, json)
+            val expenseRepository = VaultExpenseRepository(store, json)
+            val savings = AccountBuilder()
+                .withExpense(amount = "200.00", date = "2026-08-28")
+                .build()
+            repository.add(savings)
+            val expense = savings.expenses.first()
+            expenseRepository.add(expense)
+
+            val result = repository.findById(savings.id, AccountCriteria(includeExpenses = true))
+
+            assertTrue(result is Outcome.Success)
+            val loadedAccount = (result as Outcome.Success).value
+            assertEquals(1, loadedAccount.expenses.size)
+            assertEquals(expense.id, loadedAccount.expenses.first().id)
+            assertEquals(0, loadedAccount.expenses.first().amount.amount.compareTo(BigDecimal("200.00")))
+        }
+
+    @Test
+    fun `given include expenses false, when finding by id, then returns account with empty expenses`() = runTest {
+        val store = storeWith(FakeMasterKeyRepository(masterKey))
+        val repository = VaultAccountRepository(store, json)
+        val expenseRepository = VaultExpenseRepository(store, json)
+        val savings = AccountBuilder()
+            .withExpense(amount = "200.00", date = "2026-08-28")
+            .build()
+        repository.add(savings)
+        expenseRepository.add(savings.expenses.first())
+
+        val result = repository.findById(savings.id, AccountCriteria(includeExpenses = false))
+
+        assertTrue(result is Outcome.Success)
+        assertTrue((result as Outcome.Success).value.expenses.isEmpty())
+    }
 }
