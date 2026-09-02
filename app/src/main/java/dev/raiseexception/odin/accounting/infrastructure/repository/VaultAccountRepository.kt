@@ -196,6 +196,7 @@ class VaultAccountRepository(
     )
 
     private fun toRecord(account: Account) = AccountRecord(
+        recordType = AccountRecord.ACCOUNT_RECORD_TYPE,
         id = account.id,
         name = account.name,
         amount = account.initialBalance.amount.toPlainString(),

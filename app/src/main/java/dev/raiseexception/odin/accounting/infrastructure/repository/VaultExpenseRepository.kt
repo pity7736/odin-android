@@ -28,6 +28,7 @@ class VaultExpenseRepository(
     }
 
     private fun toRecord(expense: Expense) = ExpenseRecord(
+        recordType = ExpenseRecord.EXPENSE_RECORD_TYPE,
         id = expense.id,
         accountId = expense.accountId,
         amount = expense.amount.amount.toPlainString(),

@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class AccountRecord(
-    val recordType: String = ACCOUNT_RECORD_TYPE,
+    val recordType: String,
     val id: String,
     val name: String,
     val amount: String,
