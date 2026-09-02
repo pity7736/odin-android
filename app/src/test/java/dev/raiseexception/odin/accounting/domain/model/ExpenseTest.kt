@@ -143,6 +143,22 @@ class ExpenseTest {
         assertNull(error.dateError)
     }
 
+    @Test
+    fun `given an amount greater than account balance, when account creates expense, then returns amount error`() {
+        val result = account.createExpense(
+            amount = "1000.01",
+            date = today.toString(),
+            categoryId = "cat-1",
+            description = "",
+            clock = fixedClock
+        )
+
+        val error = assertInvalidInput(result)
+        assertNotNull(error.amountError)
+        assertNull(error.dateError)
+        assertNull(error.categoryError)
+    }
+
     private fun assertInvalidInput(result: Outcome<Expense>): ExpenseCreationError.InvalidInput {
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error

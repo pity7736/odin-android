@@ -17,6 +17,7 @@ As a user, I want to record an expense amount against an account I am viewing, s
 - The date field opens a calendar picker. Today's date is pre-selected so the user can save immediately without changing it.
 - The account the expense belongs to is the one the user is currently viewing — it is not chosen in the form.
 - The amount must be a positive value greater than zero.
+- The amount must be equal to or less than the account's current balance.
 - The date must be today or in the past.
 - When the category field is focused, all existing expense categories are shown. As the user types, the list filters to matching categories. The user can pick one from the list or finish typing a new name to create a new expense category.
 - If any required field is invalid or missing, an error is shown next to that field.
@@ -34,6 +35,12 @@ As a user, I want to record an expense amount against an account I am viewing, s
 
 - Given the user is viewing an account's detail and has opened the record expense form
 - When they enter zero or a negative value and attempt to save
+- Then an error is shown next to the amount field and the expense is not saved
+
+### Rejection — amount exceeds balance
+
+- Given the user is viewing an account's detail and has opened the record expense form
+- When they enter an amount greater than the account's current balance and attempt to save
 - Then an error is shown next to the amount field and the expense is not saved
 
 ### Rejection — future date

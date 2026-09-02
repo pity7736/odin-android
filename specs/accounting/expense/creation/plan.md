@@ -7,7 +7,7 @@
 
 ## Change
 
-Implements expense recording end-to-end. A user viewing an account detail screen can open the expandable FAB, choose "Gasto", fill in an amount, date, expense category, and optional description, and save the expense. The account's balance is recomputed from its incomes and expenses and displayed on the detail screen. The account detail screen's single income FAB is replaced with an expandable FAB offering both "Ingreso" and "Gasto" actions. Satisfies all four spec scenarios: happy path, zero/negative amount rejection, future date rejection, and missing required field rejection.
+Implements expense recording end-to-end. A user viewing an account detail screen can open the expandable FAB, choose "Gasto", fill in an amount, date, expense category, and optional description, and save the expense. The account's balance is recomputed from its incomes and expenses and displayed on the detail screen. The account detail screen's single income FAB is replaced with an expandable FAB offering both "Ingreso" and "Gasto" actions. The expense amount must be equal to or less than the account's current balance; exceeding it is rejected with a field error. Satisfies all five spec scenarios: happy path, zero/negative amount rejection, amount exceeds balance rejection, future date rejection, and missing required field rejection.
 
 ## Architecture & Files (this change)
 
@@ -204,6 +204,7 @@ fun expenseCreate(accountId: String) = "expense_create/$accountId"
   - `given a missing amount, when account creates expense, then returns amount error`
   - `given a missing date, when account creates expense, then returns date error`
   - `given a missing category, when account creates expense, then returns category error`
+  - `given an amount greater than account balance, when account creates expense, then returns amount error`
 - `AccountTest` additions:
   - `given an account with incomes and expenses, when computing balance, then returns initial balance plus incomes minus expenses`
   - `given an account with expenses only, when computing balance, then returns initial balance minus expenses`
@@ -214,7 +215,7 @@ fun expenseCreate(accountId: String) = "expense_create/$accountId"
 - `AccountCriteria` — add `includeExpenses: Boolean = false`
 - `Account` primary constructor updated to include `expenses: List<Expense> = emptyList()`; `_expenses` mutable list; `expenses` defensive-copy getter
 - `Account.restore()` updated to accept `expenses` parameter
-- `Account.createExpense(primitives)` — validates fields (reusing the renamed private helpers), constructs `Expense` via internal constructor, adds to `_expenses`
+- `Account.createExpense(primitives)` — validates fields (reusing the renamed private helpers) including that the parsed amount does not exceed `this.balance.amount`, constructs `Expense` via internal constructor, adds to `_expenses`
 - `Account.balance` updated to `initialBalance + sum(incomes) - sum(expenses)`
 - Rename private income-specific parse/validate helpers to generic names (`parseAmount`, `validateAmount`, `parseAndValidateDate`) since the rules are identical — `createIncome` and `createExpense` both call the same helpers but return their respective error types (`IncomeCreationError` / `ExpenseCreationError`)
 
@@ -229,10 +230,11 @@ fun expenseCreate(accountId: String) = "expense_create/$accountId"
   - `given missing required field, when creating expense, then returns field error`
   - `given category id not found, when creating expense, then returns category not found error`
   - `given category of wrong type, when creating expense, then returns category wrong type error`
+  - `given amount exceeds account balance, when creating expense, then returns amount error`
 
 **Green:**
 - `ExpenseRepository` interface — `suspend fun add(expense: Expense): Outcome<Unit>`
-- `ExpenseCreator` use case — loads account, resolves category via `CategoryInput` (validating it is `CategoryType.EXPENSE`), delegates to `Account.createExpense()`, saves expense via `ExpenseRepository`, wraps in `TransactionRunner`
+- `ExpenseCreator` use case — loads account with `AccountCriteria(includeIncomes = true, includeExpenses = true)` so the balance is available for validation, resolves category via `CategoryInput` (validating it is `CategoryType.EXPENSE`), delegates to `Account.createExpense()`, saves expense via `ExpenseRepository`, wraps in `TransactionRunner`
 
 ### Phase 3: Infrastructure — VaultExpenseRepository and VaultAccountRepository criteria
 
@@ -259,6 +261,7 @@ fun expenseCreate(accountId: String) = "expense_create/$accountId"
   - `given zero amount, when saving, then shows amount error`
   - `given future date, when saving, then shows date error`
   - `given missing required field, when saving, then shows field error`
+  - `given amount exceeds balance, when saving, then shows amount error`
   - `given already saving, when save called again, then ignores duplicate call`
 - `AccountDetailViewModelTest` addition:
   - `given account, when loaded, then criteria includes both incomes and expenses`
@@ -285,6 +288,7 @@ fun expenseCreate(accountId: String) = "expense_create/$accountId"
 
 - [ ] `Expense` is an entity within the `Account` aggregate; creation is always through `Account.createExpense()` with an `internal` constructor — same pattern as `Income`
 - [ ] `Account.balance` is a computed property: `initialBalance + sum(incomes) - sum(expenses)`; balance is never stored separately
+- [ ] `Account.createExpense()` rejects amounts that exceed the current balance; `ExpenseCreator` loads the account with `AccountCriteria(includeIncomes = true, includeExpenses = true)` so the balance is accurate at validation time
 - [ ] `AccountCriteria` extended with `includeExpenses` — same criteria pattern as incomes, prevents method proliferation
 - [ ] `ExpenseCreator` mirrors `IncomeCreator`: resolves `CategoryInput` (validating `CategoryType.EXPENSE`), delegates to `Account.createExpense()`, wraps in `TransactionRunner`
 - [ ] `CategoryInput` is reused as-is — the existing-vs-new category distinction is the same for both income and expense

@@ -232,6 +232,33 @@ class CreateExpenseViewModelTest {
     }
 
     @Test
+    fun `given amount exceeds balance, when saving, then shows amount error`() = runTest {
+        every { categoryLister.list(CategoryType.EXPENSE, "") } returns flowOf(
+            Outcome.Success(listOf(expenseCategory))
+        )
+        coEvery {
+            expenseCreator.create(any(), any(), any(), any(), any())
+        } returns Outcome.Failure(
+            ExpenseCreationError.InvalidInput(
+                amountError = "El monto supera el saldo disponible.",
+                dateError = null,
+                categoryError = null
+            )
+        )
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.save("999999.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as CreateExpenseUiState.ValidationError
+            assertNotNull(state.amountError)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `given already saving, when save called again, then ignores duplicate call`() = runTest {
         every { categoryLister.list(CategoryType.EXPENSE, "") } returns flowOf(
             Outcome.Success(listOf(expenseCategory))

@@ -81,7 +81,7 @@ class Account private constructor(
     ): Outcome<Expense> {
         val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         val parsedAmount = parseAmount(amount)
-        val amountError = validateAmount(amount, parsedAmount)
+        val amountError = validateExpenseAmount(amount, parsedAmount)
         val (parsedDate, dateError) = parseAndValidateDate(date, today)
         val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
         if (anyError(amountError, dateError, categoryError)) {
@@ -112,6 +112,10 @@ class Account private constructor(
     } catch (@Suppress("SwallowedException") exception: NumberFormatException) {
         null
     }
+
+    private fun validateExpenseAmount(rawAmount: String, parsed: BigDecimal?): String? =
+        validateAmount(rawAmount, parsed)
+            ?: if (parsed != null && parsed > this.balance.amount) "El monto supera el saldo disponible." else null
 
     private fun validateAmount(rawAmount: String, parsed: BigDecimal?): String? = when {
         rawAmount.isBlank() -> "El monto es obligatorio."

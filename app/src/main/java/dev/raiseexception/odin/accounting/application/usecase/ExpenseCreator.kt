@@ -30,7 +30,12 @@ class ExpenseCreator(
         categoryInput: CategoryInput,
         description: String
     ): Outcome<Expense> {
-        val account = when (val outcome = this.accountRepository.findById(accountId, AccountCriteria())) {
+        val account = when (
+            val outcome = this.accountRepository.findById(
+                accountId,
+                AccountCriteria(includeIncomes = true, includeExpenses = true)
+            )
+        ) {
             is Outcome.Success -> outcome.value
             is Outcome.Failure -> return Outcome.Failure(
                 ExpenseCreationError.StorageFailure(
