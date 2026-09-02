@@ -1,3 +1,3 @@
 package dev.raiseexception.odin.accounting.domain.repository
 
-data class AccountCriteria(val includeIncomes: Boolean = false)
+data class AccountCriteria(val includeIncomes: Boolean = false, val includeExpenses: Boolean = false)

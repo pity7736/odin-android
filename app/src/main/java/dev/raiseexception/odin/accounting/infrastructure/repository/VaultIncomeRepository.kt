@@ -28,6 +28,7 @@ class VaultIncomeRepository(
     }
 
     private fun toRecord(income: Income) = IncomeRecord(
+        recordType = IncomeRecord.INCOME_RECORD_TYPE,
         id = income.id,
         accountId = income.accountId,
         amount = income.amount.amount.toPlainString(),

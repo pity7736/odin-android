@@ -9,6 +9,7 @@ import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -18,6 +19,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
@@ -28,7 +30,7 @@ class AccountDetailViewModelTest {
     private val accountFinder = mockk<AccountFinder>()
     private val testDispatcher = StandardTestDispatcher()
     private val accountId = "test-account-id"
-    private val criteria = AccountCriteria(includeIncomes = true)
+    private val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
 
     @Before
     fun setUp() {
@@ -114,5 +116,20 @@ class AccountDetailViewModelTest {
             )
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun `given account, when loaded, then criteria includes both incomes and expenses`() = runTest {
+        val savings = AccountBuilder().id(accountId).build()
+        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(savings)
+        val viewModel = buildViewModel()
+
+        viewModel.uiState.test {
+            assertEquals(AccountDetailUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertTrue(awaitItem() is AccountDetailUiState.Content)
+            cancelAndIgnoreRemainingEvents()
+        }
+        coVerify { accountFinder.find(accountId, AccountCriteria(includeIncomes = true, includeExpenses = true)) }
     }
 }

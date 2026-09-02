@@ -2,6 +2,7 @@ package dev.raiseexception.odin.accounting.domain.model
 
 import com.github.f4b6a3.uuid.UuidCreator
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
+import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.datetime.Clock
@@ -19,18 +20,23 @@ class Account private constructor(
     val type: AccountType,
     val description: String,
     val createdAt: Instant,
-    incomes: List<Income> = emptyList()
+    incomes: List<Income> = emptyList(),
+    expenses: List<Expense> = emptyList()
 ) {
 
     private val _incomes: MutableList<Income> = incomes.toMutableList()
     val incomes: List<Income> get() = this._incomes.toList()
 
+    private val _expenses: MutableList<Expense> = expenses.toMutableList()
+    val expenses: List<Expense> get() = this._expenses.toList()
+
     val currency: Currency get() = this.initialBalance.currency
 
-    val balance: Money get() = Money.of(
-        this._incomes.fold(this.initialBalance.amount) { acc, income -> acc.add(income.amount.amount) },
-        this.initialBalance.currency
-    )
+    val balance: Money get() {
+        val incomeSum = this._incomes.fold(BigDecimal.ZERO) { acc, income -> acc.add(income.amount.amount) }
+        val expenseSum = this._expenses.fold(BigDecimal.ZERO) { acc, expense -> acc.add(expense.amount.amount) }
+        return Money.of(this.initialBalance.amount.add(incomeSum).subtract(expenseSum), this.initialBalance.currency)
+    }
 
     fun createIncome(
         amount: String,
@@ -40,9 +46,9 @@ class Account private constructor(
         clock: Clock = Clock.System
     ): Outcome<Income> {
         val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
-        val parsedAmount = parseIncomeAmount(amount)
-        val amountError = validateIncomeAmount(amount, parsedAmount)
-        val (parsedDate, dateError) = parseAndValidateIncomeDate(date, today)
+        val parsedAmount = parseAmount(amount)
+        val amountError = validateAmount(amount, parsedAmount)
+        val (parsedDate, dateError) = parseAndValidateDate(date, today)
         val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
         if (anyError(amountError, dateError, categoryError)) {
             return Outcome.Failure(
@@ -66,21 +72,59 @@ class Account private constructor(
         return Outcome.Success(income)
     }
 
-    private fun parseIncomeAmount(rawAmount: String): BigDecimal? = try {
+    fun createExpense(
+        amount: String,
+        date: String,
+        categoryId: String,
+        description: String,
+        clock: Clock = Clock.System
+    ): Outcome<Expense> {
+        val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val parsedAmount = parseAmount(amount)
+        val amountError = validateExpenseAmount(amount, parsedAmount)
+        val (parsedDate, dateError) = parseAndValidateDate(date, today)
+        val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
+        if (anyError(amountError, dateError, categoryError)) {
+            return Outcome.Failure(
+                ExpenseCreationError.InvalidInput(
+                    amountError = amountError,
+                    dateError = dateError,
+                    categoryError = categoryError
+                )
+            )
+        }
+        val expense = Expense(
+            id = UuidCreator.getTimeOrderedEpoch().toString(),
+            accountId = this.id,
+            amount = Money.of(parsedAmount!!, this.currency),
+            date = parsedDate!!,
+            categoryId = categoryId,
+            description = description.trim(),
+            createdAt = clock.now()
+        )
+        this._expenses.add(expense)
+        return Outcome.Success(expense)
+    }
+
+    private fun parseAmount(rawAmount: String): BigDecimal? = try {
         val parsed = BigDecimal(rawAmount.trim())
         if (parsed.scale() > MAX_DECIMAL_PLACES) null else parsed
     } catch (@Suppress("SwallowedException") exception: NumberFormatException) {
         null
     }
 
-    private fun validateIncomeAmount(rawAmount: String, parsed: BigDecimal?): String? = when {
+    private fun validateExpenseAmount(rawAmount: String, parsed: BigDecimal?): String? =
+        validateAmount(rawAmount, parsed)
+            ?: if (parsed != null && parsed > this.balance.amount) "El monto supera el saldo disponible." else null
+
+    private fun validateAmount(rawAmount: String, parsed: BigDecimal?): String? = when {
         rawAmount.isBlank() -> "El monto es obligatorio."
         parsed == null -> "El monto no es un número válido."
         parsed.signum() <= 0 -> "El monto debe ser mayor que cero."
         else -> null
     }
 
-    private fun parseAndValidateIncomeDate(rawDate: String, today: LocalDate): Pair<LocalDate?, String?> {
+    private fun parseAndValidateDate(rawDate: String, today: LocalDate): Pair<LocalDate?, String?> {
         if (rawDate.isBlank()) return Pair(null, "La fecha es obligatoria.")
         val trimmed = rawDate.trim()
         val matchesFormat = trimmed.matches(Regex("""\d{4}-\d{2}-\d{2}"""))
@@ -109,7 +153,8 @@ class Account private constructor(
             type: AccountType,
             description: String,
             createdAt: Instant,
-            incomes: List<Income> = emptyList()
+            incomes: List<Income> = emptyList(),
+            expenses: List<Expense> = emptyList()
         ): Account = Account(
             id = id,
             name = name,
@@ -117,7 +162,8 @@ class Account private constructor(
             type = type,
             description = description,
             createdAt = createdAt,
-            incomes = incomes
+            incomes = incomes,
+            expenses = expenses
         )
 
         @Suppress("LongParameterList")

@@ -3,6 +3,7 @@ package dev.raiseexception.odin.testutil
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -19,7 +20,9 @@ class AccountBuilder {
     private var description = ""
     private var createdAt = Instant.parse("2026-01-01T00:00:00Z")
     private var incomes: List<Income> = emptyList()
+    private var expenses: List<Expense> = emptyList()
     private var incomeCreationParams: List<IncomeCreationParams> = emptyList()
+    private var expenseCreationParams: List<ExpenseCreationParams> = emptyList()
 
     fun id(id: String): AccountBuilder {
         this.id = id
@@ -56,6 +59,11 @@ class AccountBuilder {
         return this
     }
 
+    fun expenses(expenses: List<Expense>): AccountBuilder {
+        this.expenses = expenses
+        return this
+    }
+
     fun withIncome(
         amount: String = "500.00",
         date: String = "2026-01-01",
@@ -64,6 +72,23 @@ class AccountBuilder {
         clock: Clock = Clock.System
     ): AccountBuilder {
         this.incomeCreationParams += IncomeCreationParams(
+            amount = amount,
+            date = date,
+            categoryId = categoryId,
+            description = description,
+            clock = clock
+        )
+        return this
+    }
+
+    fun withExpense(
+        amount: String = "500.00",
+        date: String = "2026-01-01",
+        categoryId: String = "cat-1",
+        description: String = "",
+        clock: Clock = Clock.System
+    ): AccountBuilder {
+        this.expenseCreationParams += ExpenseCreationParams(
             amount = amount,
             date = date,
             categoryId = categoryId,
@@ -92,6 +117,16 @@ class AccountBuilder {
             )
             (outcome as Outcome.Success).value
         }
+        val createdExpenses = this.expenseCreationParams.map { params ->
+            val outcome = account.createExpense(
+                amount = params.amount,
+                date = params.date,
+                categoryId = params.categoryId,
+                description = params.description,
+                clock = params.clock
+            )
+            (outcome as Outcome.Success).value
+        }
         return Account.restore(
             id = this.id,
             name = this.name,
@@ -99,11 +134,20 @@ class AccountBuilder {
             type = this.type,
             description = this.description,
             createdAt = this.createdAt,
-            incomes = this.incomes + createdIncomes
+            incomes = this.incomes + createdIncomes,
+            expenses = this.expenses + createdExpenses
         )
     }
 
     private data class IncomeCreationParams(
+        val amount: String,
+        val date: String,
+        val categoryId: String,
+        val description: String,
+        val clock: Clock
+    )
+
+    private data class ExpenseCreationParams(
         val amount: String,
         val date: String,
         val categoryId: String,

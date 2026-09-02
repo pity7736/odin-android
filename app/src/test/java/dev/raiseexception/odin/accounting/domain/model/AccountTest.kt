@@ -269,6 +269,28 @@ class AccountBalanceTest {
 
         assertEquals(Money.of(BigDecimal("1500.00"), Currency.COP), account.balance)
     }
+
+    @Test
+    fun `given an account with incomes and expenses, when computing balance, then returns balance with both`() {
+        val account = AccountBuilder()
+            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
+            .withIncome(amount = "500.00", date = "2026-08-28")
+            .withExpense(amount = "200.00", date = "2026-08-28")
+            .build()
+
+        assertEquals(Money.of(BigDecimal("1300.00"), Currency.COP), account.balance)
+    }
+
+    @Test
+    fun `given an account with expenses only, when computing balance, then returns initial balance minus expenses`() {
+        val account = AccountBuilder()
+            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
+            .withExpense(amount = "300.00", date = "2026-08-28")
+            .withExpense(amount = "200.00", date = "2026-08-28")
+            .build()
+
+        assertEquals(Money.of(BigDecimal("500.00"), Currency.COP), account.balance)
+    }
 }
 
 class AccountRestoreTest {

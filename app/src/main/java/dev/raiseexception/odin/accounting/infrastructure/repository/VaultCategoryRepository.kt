@@ -75,6 +75,7 @@ class VaultCategoryRepository(
     }
 
     private fun toRecord(category: Category) = CategoryRecord(
+        recordType = CategoryRecord.CATEGORY_RECORD_TYPE,
         id = category.id,
         name = category.name,
         categoryType = category.type.name,

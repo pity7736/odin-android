@@ -5,11 +5,13 @@ import dev.raiseexception.odin.accounting.domain.AccountLookupError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.accounting.infrastructure.serialization.AccountRecord
+import dev.raiseexception.odin.accounting.infrastructure.serialization.ExpenseRecord
 import dev.raiseexception.odin.accounting.infrastructure.serialization.IncomeRecord
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.infrastructure.vault.EncryptedRecordStore
@@ -21,6 +23,7 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import java.math.BigDecimal
 
+@Suppress("TooManyFunctions")
 class VaultAccountRepository(
     private val encryptedRecordStore: EncryptedRecordStore,
     private val json: Json = Json
@@ -60,22 +63,39 @@ class VaultAccountRepository(
                     externalMessage = "Cuenta no encontrada"
                 )
             )
-        if (!criteria.includeIncomes) {
-            return Outcome.Success(this.toAccount(matchingRecord, emptyList()))
-        }
-        val incomeRecords = when (val decryptOutcome = this.decryptedIncomeRecords()) {
-            is Outcome.Success -> decryptOutcome.value
-            is Outcome.Failure -> return Outcome.Failure(
-                AccountLookupError.StorageFailure(
-                    internalMessage = decryptOutcome.error.internalMessage,
-                    externalMessage = "Error al cargar la cuenta"
+        val accountIncomes = if (criteria.includeIncomes) {
+            when (val decryptOutcome = this.decryptedIncomeRecords()) {
+                is Outcome.Success ->
+                    decryptOutcome.value
+                        .filter { it.accountId == id }
+                        .map { this.toIncome(it) }
+                is Outcome.Failure -> return Outcome.Failure(
+                    AccountLookupError.StorageFailure(
+                        internalMessage = decryptOutcome.error.internalMessage,
+                        externalMessage = "Error al cargar la cuenta"
+                    )
                 )
-            )
+            }
+        } else {
+            emptyList()
         }
-        val accountIncomes = incomeRecords
-            .filter { it.accountId == id }
-            .map { this.toIncome(it) }
-        return Outcome.Success(this.toAccount(matchingRecord, accountIncomes))
+        val accountExpenses = if (criteria.includeExpenses) {
+            when (val decryptOutcome = this.decryptedExpenseRecords()) {
+                is Outcome.Success ->
+                    decryptOutcome.value
+                        .filter { it.accountId == id }
+                        .map { this.toExpense(it) }
+                is Outcome.Failure -> return Outcome.Failure(
+                    AccountLookupError.StorageFailure(
+                        internalMessage = decryptOutcome.error.internalMessage,
+                        externalMessage = "Error al cargar la cuenta"
+                    )
+                )
+            }
+        } else {
+            emptyList()
+        }
+        return Outcome.Success(this.toAccount(matchingRecord, accountIncomes, accountExpenses))
     }
 
     override fun getAll(criteria: AccountCriteria): Flow<Outcome<List<Account>>> = flow {
@@ -106,6 +126,23 @@ class VaultAccountRepository(
         return Outcome.Success(accountRecords)
     }
 
+    private suspend fun decryptedExpenseRecords(): Outcome<List<ExpenseRecord>> {
+        val records = when (val readOutcome = this.encryptedRecordStore.readAll()) {
+            is Outcome.Success -> readOutcome.value
+            is Outcome.Failure -> return this.cryptoFailure(readOutcome.error.internalMessage)
+        }
+        val expenseRecords = records
+            .mapNotNull { record ->
+                try {
+                    this.json.decodeFromString(ExpenseRecord.serializer(), record.data.decodeToString())
+                } catch (@Suppress("SwallowedException") exception: SerializationException) {
+                    null
+                }
+            }
+            .filter { it.recordType == ExpenseRecord.EXPENSE_RECORD_TYPE }
+        return Outcome.Success(expenseRecords)
+    }
+
     private suspend fun decryptedIncomeRecords(): Outcome<List<IncomeRecord>> {
         val records = when (val readOutcome = this.encryptedRecordStore.readAll()) {
             is Outcome.Success -> readOutcome.value
@@ -123,14 +160,29 @@ class VaultAccountRepository(
         return Outcome.Success(incomeRecords)
     }
 
-    private fun toAccount(record: AccountRecord, incomes: List<Income>): Account = Account.restore(
+    private fun toAccount(
+        record: AccountRecord,
+        incomes: List<Income>,
+        expenses: List<Expense> = emptyList()
+    ): Account = Account.restore(
         id = record.id,
         name = record.name,
         initialBalance = Money.of(BigDecimal(record.amount), Currency.valueOf(record.currency)),
         type = AccountType.valueOf(record.accountType),
         description = record.description,
         createdAt = Instant.parse(record.createdAt),
-        incomes = incomes
+        incomes = incomes,
+        expenses = expenses
+    )
+
+    private fun toExpense(record: ExpenseRecord): Expense = Expense.restore(
+        id = record.id,
+        accountId = record.accountId,
+        amount = Money.of(BigDecimal(record.amount), Currency.valueOf(record.currency)),
+        date = LocalDate.parse(record.date),
+        categoryId = record.categoryId,
+        description = record.description,
+        createdAt = Instant.parse(record.createdAt)
     )
 
     private fun toIncome(record: IncomeRecord): Income = Income.restore(
@@ -144,6 +196,7 @@ class VaultAccountRepository(
     )
 
     private fun toRecord(account: Account) = AccountRecord(
+        recordType = AccountRecord.ACCOUNT_RECORD_TYPE,
         id = account.id,
         name = account.name,
         amount = account.initialBalance.amount.toPlainString(),

@@ -3,7 +3,7 @@ package dev.raiseexception.odin.accounting.infrastructure.serialization
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class IncomeRecord(
+data class ExpenseRecord(
     val recordType: String,
     val id: String,
     val accountId: String,
@@ -15,6 +15,6 @@ data class IncomeRecord(
     val createdAt: String
 ) {
     companion object {
-        const val INCOME_RECORD_TYPE = "income"
+        const val EXPENSE_RECORD_TYPE = "expense"
     }
 }

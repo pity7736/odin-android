@@ -32,6 +32,8 @@ import dev.raiseexception.odin.accounting.presentation.categorieslist.Categories
 import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryScreen
 import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryViewModel
 import dev.raiseexception.odin.accounting.presentation.categorydetail.CategoryDetailScreen
+import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExpenseScreen
+import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExpenseViewModel
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeScreen
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeViewModel
 import dev.raiseexception.odin.accounts.presentation.login.LoginScreen
@@ -103,6 +105,10 @@ private fun AppNavHost(startRoute: String) {
             composable(Routes.INCOME_CREATE) { backStackEntry ->
                 val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
                 CreateIncomeDestination(accountId, navController)
+            }
+            composable(Routes.EXPENSE_CREATE) { backStackEntry ->
+                val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
+                CreateExpenseDestination(accountId, navController)
             }
             composable(Routes.CATEGORIES) {
                 CategoriesListDestination(navController)
@@ -206,6 +212,9 @@ private fun AccountDetailDestination(accountId: String, navController: NavHostCo
         onCreateIncome = {
             navController.navigate(Routes.incomeCreate(accountId))
         },
+        onCreateExpense = {
+            navController.navigate(Routes.expenseCreate(accountId))
+        },
         onResume = accountDetailViewModel::reload
     )
 }
@@ -221,6 +230,21 @@ private fun CreateIncomeDestination(accountId: String, navController: NavHostCon
         uiState = uiState,
         onSave = createIncomeViewModel::save,
         navigationEvent = createIncomeViewModel.navigationEvent,
+        onNavigateBack = { navController.popBackStack() }
+    )
+}
+
+@Composable
+private fun CreateExpenseDestination(accountId: String, navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val createExpenseViewModel: CreateExpenseViewModel = viewModel(
+        factory = application.appContainer.createExpenseViewModelFactory(accountId)
+    )
+    val uiState by createExpenseViewModel.uiState.collectAsStateWithLifecycle()
+    CreateExpenseScreen(
+        uiState = uiState,
+        onSave = createExpenseViewModel::save,
+        navigationEvent = createExpenseViewModel.navigationEvent,
         onNavigateBack = { navController.popBackStack() }
     )
 }

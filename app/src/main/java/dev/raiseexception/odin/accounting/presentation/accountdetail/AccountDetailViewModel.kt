@@ -40,7 +40,7 @@ class AccountDetailViewModel(
             this@AccountDetailViewModel.mutableUiState.value = when (
                 val outcome = this@AccountDetailViewModel.accountFinder.find(
                     this@AccountDetailViewModel.accountId,
-                    AccountCriteria(includeIncomes = true)
+                    AccountCriteria(includeIncomes = true, includeExpenses = true)
                 )
             ) {
                 is Outcome.Success -> AccountDetailUiState.Content(outcome.value)
@@ -56,6 +56,14 @@ class AccountDetailViewModel(
         this.viewModelScope.launch {
             this@AccountDetailViewModel.navigationChannel.send(
                 AccountDetailNavigationTarget.CreateIncome(this@AccountDetailViewModel.accountId)
+            )
+        }
+    }
+
+    fun onCreateExpense() {
+        this.viewModelScope.launch {
+            this@AccountDetailViewModel.navigationChannel.send(
+                AccountDetailNavigationTarget.CreateExpense(this@AccountDetailViewModel.accountId)
             )
         }
     }

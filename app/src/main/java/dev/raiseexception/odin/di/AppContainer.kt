@@ -11,12 +11,15 @@ import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
+import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
+import dev.raiseexception.odin.accounting.domain.repository.ExpenseRepository
 import dev.raiseexception.odin.accounting.domain.repository.IncomeRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.VaultAccountRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.VaultCategoryRepository
+import dev.raiseexception.odin.accounting.infrastructure.repository.VaultExpenseRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.VaultIncomeRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.VaultTransactionRunner
 import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAccountViewModel
@@ -24,6 +27,7 @@ import dev.raiseexception.odin.accounting.presentation.accountdetail.AccountDeta
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListViewModel
 import dev.raiseexception.odin.accounting.presentation.categorieslist.CategoriesListViewModel
 import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryViewModel
+import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExpenseViewModel
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeViewModel
 import dev.raiseexception.odin.accounts.application.usecase.UserAuthenticator
 import dev.raiseexception.odin.accounts.application.usecase.UserRegistrar
@@ -69,10 +73,18 @@ class AppContainer(context: Context) {
     private val categoryCreator: CategoryCreator = CategoryCreator(categoryRepository)
     private val categoryLister: CategoryLister = CategoryLister(categoryRepository)
     private val incomeRepository: IncomeRepository = VaultIncomeRepository(encryptedRecordStore)
+    private val expenseRepository: ExpenseRepository = VaultExpenseRepository(encryptedRecordStore)
     private val transactionRunner: TransactionRunner = VaultTransactionRunner()
     private val incomeCreator: IncomeCreator = IncomeCreator(
         accountRepository = accountRepository,
         incomeRepository = incomeRepository,
+        categoryRepository = categoryRepository,
+        categoryCreator = categoryCreator,
+        transactionRunner = transactionRunner
+    )
+    private val expenseCreator: ExpenseCreator = ExpenseCreator(
+        accountRepository = accountRepository,
+        expenseRepository = expenseRepository,
         categoryRepository = categoryRepository,
         categoryCreator = categoryCreator,
         transactionRunner = transactionRunner
@@ -111,6 +123,13 @@ class AppContainer(context: Context) {
         viewModelFactory {
             initializer {
                 CreateIncomeViewModel(accountId, incomeCreator, categoryLister, ioDispatcher)
+            }
+        }
+
+    fun createExpenseViewModelFactory(accountId: String): ViewModelProvider.Factory =
+        viewModelFactory {
+            initializer {
+                CreateExpenseViewModel(accountId, expenseCreator, categoryLister, ioDispatcher)
             }
         }
 }

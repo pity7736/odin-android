@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class CategoryRecord(
-    val recordType: String = CATEGORY_RECORD_TYPE,
+    val recordType: String,
     val id: String,
     val name: String,
     val categoryType: String,
