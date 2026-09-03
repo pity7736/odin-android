@@ -9,6 +9,7 @@ import dev.raiseexception.odin.BuildConfig
 import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
+import dev.raiseexception.odin.accounting.application.usecase.AccountTransactionLister
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
@@ -69,6 +70,7 @@ class AppContainer(context: Context) {
     private val accountCreator: AccountCreator = AccountCreator(accountRepository)
     private val accountLister: AccountLister = AccountLister(accountRepository)
     private val accountFinder: AccountFinder = AccountFinder(accountRepository)
+    private val accountTransactionLister: AccountTransactionLister = AccountTransactionLister()
     private val categoryRepository: CategoryRepository = VaultCategoryRepository(encryptedRecordStore)
     private val categoryCreator: CategoryCreator = CategoryCreator(categoryRepository)
     private val categoryLister: CategoryLister = CategoryLister(categoryRepository)
@@ -110,7 +112,7 @@ class AppContainer(context: Context) {
     fun accountDetailViewModelFactory(accountId: String): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
-                AccountDetailViewModel(accountId, accountFinder, ioDispatcher)
+                AccountDetailViewModel(accountId, accountFinder, accountTransactionLister, ioDispatcher)
             }
         }
 

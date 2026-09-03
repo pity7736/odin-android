@@ -215,6 +215,7 @@ private fun AccountDetailDestination(accountId: String, navController: NavHostCo
         onCreateExpense = {
             navController.navigate(Routes.expenseCreate(accountId))
         },
+        onFilterChanged = accountDetailViewModel::onFilterChanged,
         onResume = accountDetailViewModel::reload
     )
 }

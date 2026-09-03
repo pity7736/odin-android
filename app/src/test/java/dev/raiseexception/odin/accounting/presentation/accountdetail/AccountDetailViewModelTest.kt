@@ -2,9 +2,12 @@ package dev.raiseexception.odin.accounting.presentation.accountdetail
 
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
+import dev.raiseexception.odin.accounting.application.usecase.AccountTransaction
+import dev.raiseexception.odin.accounting.application.usecase.AccountTransactionLister
 import dev.raiseexception.odin.accounting.domain.AccountLookupError
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
@@ -17,6 +20,8 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -28,6 +33,7 @@ import java.math.BigDecimal
 class AccountDetailViewModelTest {
 
     private val accountFinder = mockk<AccountFinder>()
+    private val accountTransactionLister = AccountTransactionLister()
     private val testDispatcher = StandardTestDispatcher()
     private val accountId = "test-account-id"
     private val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
@@ -42,14 +48,18 @@ class AccountDetailViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun buildViewModel() = AccountDetailViewModel(accountId, accountFinder, testDispatcher)
+    private fun buildViewModel() =
+        AccountDetailViewModel(accountId, accountFinder, accountTransactionLister, testDispatcher)
+
+    private fun clockAt(instant: String): Clock = object : Clock {
+        override fun now(): Instant = Instant.parse(instant)
+    }
 
     @Test
     fun `given an existing account, when the screen loads, then uiState is Content with the account`() = runTest {
         val savings = AccountBuilder().id(accountId).build()
         coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(savings)
         val viewModel = buildViewModel()
-
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
             testDispatcher.scheduler.advanceUntilIdle()
@@ -68,7 +78,6 @@ class AccountDetailViewModelTest {
             )
         )
         val viewModel = buildViewModel()
-
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
             testDispatcher.scheduler.advanceUntilIdle()
@@ -86,7 +95,6 @@ class AccountDetailViewModelTest {
             )
         )
         val viewModel = buildViewModel()
-
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
             testDispatcher.scheduler.advanceUntilIdle()
@@ -105,7 +113,6 @@ class AccountDetailViewModelTest {
             .build()
         coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(accountWithIncomes)
         val viewModel = buildViewModel()
-
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
             testDispatcher.scheduler.advanceUntilIdle()
@@ -123,7 +130,6 @@ class AccountDetailViewModelTest {
         val savings = AccountBuilder().id(accountId).build()
         coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(savings)
         val viewModel = buildViewModel()
-
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
             testDispatcher.scheduler.advanceUntilIdle()
@@ -131,5 +137,116 @@ class AccountDetailViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
         coVerify { accountFinder.find(accountId, AccountCriteria(includeIncomes = true, includeExpenses = true)) }
+    }
+
+    @Test
+    fun `given account with transactions, when loaded, then content has all transactions and ALL filter`() = runTest {
+        val account = AccountBuilder()
+            .id(accountId)
+            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
+            .withIncome(amount = "500.00", date = "2026-08-25", clock = clockAt("2026-08-25T10:00:00Z"))
+            .withExpense(amount = "200.00", date = "2026-08-26", clock = clockAt("2026-08-26T10:00:00Z"))
+            .build()
+        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(account)
+        val viewModel = buildViewModel()
+        viewModel.uiState.test {
+            assertEquals(AccountDetailUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = awaitItem() as AccountDetailUiState.Content
+            assertEquals(TransactionFilter.ALL, state.activeFilter)
+            assertEquals(2, state.transactions.size)
+            assertTrue(state.transactions[0] is AccountTransaction.ExpenseTransaction)
+            assertTrue(state.transactions[1] is AccountTransaction.IncomeTransaction)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given account with transactions, when filter changed to INCOME, then shows only incomes`() = runTest {
+        val account = AccountBuilder()
+            .id(accountId)
+            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
+            .withIncome(amount = "500.00", date = "2026-08-25", clock = clockAt("2026-08-25T10:00:00Z"))
+            .withExpense(amount = "200.00", date = "2026-08-26", clock = clockAt("2026-08-26T10:00:00Z"))
+            .build()
+        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(account)
+        val viewModel = buildViewModel()
+        viewModel.uiState.test {
+            assertEquals(AccountDetailUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            awaitItem()
+            viewModel.onFilterChanged(TransactionFilter.INCOME)
+            val state = awaitItem() as AccountDetailUiState.Content
+            assertEquals(TransactionFilter.INCOME, state.activeFilter)
+            assertEquals(1, state.transactions.size)
+            assertTrue(state.transactions.all { it is AccountTransaction.IncomeTransaction })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given account with transactions, when filter changed to EXPENSE, then shows only expenses`() = runTest {
+        val account = AccountBuilder()
+            .id(accountId)
+            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
+            .withIncome(amount = "500.00", date = "2026-08-25", clock = clockAt("2026-08-25T10:00:00Z"))
+            .withExpense(amount = "200.00", date = "2026-08-26", clock = clockAt("2026-08-26T10:00:00Z"))
+            .build()
+        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(account)
+        val viewModel = buildViewModel()
+        viewModel.uiState.test {
+            assertEquals(AccountDetailUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            awaitItem()
+            viewModel.onFilterChanged(TransactionFilter.EXPENSE)
+            val state = awaitItem() as AccountDetailUiState.Content
+            assertEquals(TransactionFilter.EXPENSE, state.activeFilter)
+            assertEquals(1, state.transactions.size)
+            assertTrue(state.transactions.all { it is AccountTransaction.ExpenseTransaction })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given account with transactions, when filter reset to ALL, then shows all with running balances`() = runTest {
+        val account = AccountBuilder()
+            .id(accountId)
+            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
+            .withIncome(amount = "500.00", date = "2026-08-25", clock = clockAt("2026-08-25T10:00:00Z"))
+            .withExpense(amount = "200.00", date = "2026-08-26", clock = clockAt("2026-08-26T10:00:00Z"))
+            .build()
+        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(account)
+        val viewModel = buildViewModel()
+        viewModel.uiState.test {
+            assertEquals(AccountDetailUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            awaitItem()
+            viewModel.onFilterChanged(TransactionFilter.INCOME)
+            awaitItem()
+            viewModel.onFilterChanged(TransactionFilter.ALL)
+            val state = awaitItem() as AccountDetailUiState.Content
+            assertEquals(TransactionFilter.ALL, state.activeFilter)
+            assertEquals(2, state.transactions.size)
+            assertTrue(state.transactions.all { it.runningBalance != null })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given account with no transactions, when loaded, then content has empty transactions`() = runTest {
+        val account = AccountBuilder()
+            .id(accountId)
+            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
+            .build()
+        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(account)
+        val viewModel = buildViewModel()
+        viewModel.uiState.test {
+            assertEquals(AccountDetailUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = awaitItem() as AccountDetailUiState.Content
+            assertTrue(state.transactions.isEmpty())
+            assertEquals(TransactionFilter.ALL, state.activeFilter)
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 }

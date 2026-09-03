@@ -5,14 +5,14 @@ import kotlinx.datetime.LocalDate
 
 @Suppress("LongParameterList")
 class Expense internal constructor(
-    val id: String,
-    val accountId: String,
-    val amount: Money,
-    val date: LocalDate,
-    val categoryId: String,
-    val description: String,
-    val createdAt: Instant
-) {
+    override val id: String,
+    override val accountId: String,
+    override val amount: Money,
+    override val date: LocalDate,
+    override val categoryId: String,
+    override val description: String,
+    override val createdAt: Instant
+) : Transaction {
 
     companion object {
         @Suppress("LongParameterList")
