@@ -16,7 +16,7 @@ class AccountTransactionLister {
         val filtered = this.applyFilter(transactions, filter)
         val sorted = this.sortByDateDescending(filtered)
         if (filter != TransactionFilter.ALL) {
-            return sorted.map { this.toAccountTransaction(it, null) }
+            return sorted.map { AccountTransaction(it, null) }
         }
         return this.attachRunningBalances(sorted, currentBalance)
     }
@@ -43,7 +43,7 @@ class AccountTransactionLister {
         var runningBalance = currentBalance.amount
         return sortedDescending.map { transaction ->
             val balanceAtThisPoint = Money.of(runningBalance, currentBalance.currency)
-            val result = this.toAccountTransaction(transaction, balanceAtThisPoint)
+            val result = AccountTransaction(transaction, balanceAtThisPoint)
             runningBalance = if (transaction is Income) {
                 runningBalance.subtract(transaction.amount.amount)
             } else {
@@ -52,12 +52,4 @@ class AccountTransactionLister {
             result
         }
     }
-
-    private fun toAccountTransaction(
-        transaction: Transaction,
-        runningBalance: Money?
-    ): AccountTransaction = AccountTransaction(
-        transaction = transaction,
-        runningBalance = runningBalance,
-    )
 }
