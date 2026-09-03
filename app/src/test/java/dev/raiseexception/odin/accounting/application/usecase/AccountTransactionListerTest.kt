@@ -2,6 +2,8 @@ package dev.raiseexception.odin.accounting.application.usecase
 
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
 import dev.raiseexception.odin.testutil.AccountBuilder
@@ -42,9 +44,9 @@ class AccountTransactionListerTest {
             .build()
         val result = listTransactions(account, TransactionFilter.ALL)
         assertEquals(3, result.size)
-        assertEquals("2026-08-27", result[0].date.toString())
-        assertEquals("2026-08-26", result[1].date.toString())
-        assertEquals("2026-08-25", result[2].date.toString())
+        assertEquals("2026-08-27", result[0].transaction.date.toString())
+        assertEquals("2026-08-26", result[1].transaction.date.toString())
+        assertEquals("2026-08-25", result[2].transaction.date.toString())
     }
 
     @Test
@@ -57,12 +59,12 @@ class AccountTransactionListerTest {
             .build()
         val result = listTransactions(account, TransactionFilter.ALL)
         assertEquals(3, result.size)
-        assertTrue(result[0] is AccountTransaction.ExpenseTransaction)
-        assertEquals(0, result[0].amount.amount.compareTo(BigDecimal("100.00")))
-        assertTrue(result[1] is AccountTransaction.IncomeTransaction)
-        assertEquals(0, result[1].amount.amount.compareTo(BigDecimal("50.00")))
-        assertTrue(result[2] is AccountTransaction.IncomeTransaction)
-        assertEquals(0, result[2].amount.amount.compareTo(BigDecimal("200.00")))
+        assertTrue(result[0].transaction is Expense)
+        assertEquals(0, result[0].transaction.amount.amount.compareTo(BigDecimal("100.00")))
+        assertTrue(result[1].transaction is Income)
+        assertEquals(0, result[1].transaction.amount.amount.compareTo(BigDecimal("50.00")))
+        assertTrue(result[2].transaction is Income)
+        assertEquals(0, result[2].transaction.amount.amount.compareTo(BigDecimal("200.00")))
     }
 
     @Test
@@ -75,9 +77,9 @@ class AccountTransactionListerTest {
             .build()
         val result = listTransactions(account, TransactionFilter.INCOME)
         assertEquals(2, result.size)
-        assertTrue(result.all { it is AccountTransaction.IncomeTransaction })
-        assertEquals("2026-08-27", result[0].date.toString())
-        assertEquals("2026-08-25", result[1].date.toString())
+        assertTrue(result.all { it.transaction is Income })
+        assertEquals("2026-08-27", result[0].transaction.date.toString())
+        assertEquals("2026-08-25", result[1].transaction.date.toString())
     }
 
     @Test
@@ -90,9 +92,9 @@ class AccountTransactionListerTest {
             .build()
         val result = listTransactions(account, TransactionFilter.EXPENSE)
         assertEquals(2, result.size)
-        assertTrue(result.all { it is AccountTransaction.ExpenseTransaction })
-        assertEquals("2026-08-27", result[0].date.toString())
-        assertEquals("2026-08-26", result[1].date.toString())
+        assertTrue(result.all { it.transaction is Expense })
+        assertEquals("2026-08-27", result[0].transaction.date.toString())
+        assertEquals("2026-08-26", result[1].transaction.date.toString())
     }
 
     @Test

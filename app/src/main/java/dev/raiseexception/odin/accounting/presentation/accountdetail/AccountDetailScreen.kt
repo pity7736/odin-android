@@ -43,6 +43,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import dev.raiseexception.odin.accounting.application.usecase.AccountTransaction
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
+import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
 import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.Clock
@@ -244,7 +245,7 @@ private fun TransactionEmptyState(activeFilter: TransactionFilter, modifier: Mod
 
 @Composable
 private fun TransactionList(transactions: List<AccountTransaction>, modifier: Modifier = Modifier) {
-    val groupedByDate = transactions.groupBy { it.date }
+    val groupedByDate = transactions.groupBy { it.transaction.date }
     LazyColumn(modifier = modifier) {
         groupedByDate.forEach { (date, transactionsForDate) ->
             item(key = "header-$date") {
@@ -255,7 +256,7 @@ private fun TransactionList(transactions: List<AccountTransaction>, modifier: Mo
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
-            items(transactionsForDate, key = { it.id }) { transaction ->
+            items(transactionsForDate, key = { it.transaction.id }) { transaction ->
                 TransactionRow(
                     transaction = transaction,
                     modifier = Modifier
@@ -280,31 +281,23 @@ private fun DateHeader(date: LocalDate, modifier: Modifier = Modifier) {
 
 @Composable
 private fun TransactionRow(transaction: AccountTransaction, modifier: Modifier = Modifier) {
-    val amountColor = when (transaction) {
-        is AccountTransaction.IncomeTransaction -> MaterialTheme.colorScheme.primary
-        is AccountTransaction.ExpenseTransaction -> MaterialTheme.colorScheme.error
-    }
-    val amountPrefix = when (transaction) {
-        is AccountTransaction.IncomeTransaction -> "+"
-        is AccountTransaction.ExpenseTransaction -> "-"
-    }
+    val isIncome = transaction.transaction is Income
+    val amountColor = if (isIncome) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+    val amountPrefix = if (isIncome) "+" else "-"
     Column(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = transaction.description.ifEmpty {
-                    when (transaction) {
-                        is AccountTransaction.IncomeTransaction -> "Ingreso"
-                        is AccountTransaction.ExpenseTransaction -> "Gasto"
-                    }
+                text = transaction.transaction.description.ifEmpty {
+                    if (isIncome) "Ingreso" else "Gasto"
                 },
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = "$amountPrefix${transaction.amount.amount.toPlainString()}",
+                text = "$amountPrefix${transaction.transaction.amount.amount.toPlainString()}",
                 style = MaterialTheme.typography.bodyLarge,
                 color = amountColor,
                 fontWeight = FontWeight.Medium

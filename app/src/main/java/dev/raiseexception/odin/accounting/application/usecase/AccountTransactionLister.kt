@@ -56,24 +56,8 @@ class AccountTransactionLister {
     private fun toAccountTransaction(
         transaction: Transaction,
         runningBalance: Money?
-    ): AccountTransaction =
-        if (transaction is Income) {
-            AccountTransaction.IncomeTransaction(
-                id = transaction.id,
-                amount = transaction.amount,
-                date = transaction.date,
-                categoryId = transaction.categoryId,
-                description = transaction.description,
-                runningBalance = runningBalance,
-            )
-        } else {
-            AccountTransaction.ExpenseTransaction(
-                id = transaction.id,
-                amount = transaction.amount,
-                date = transaction.date,
-                categoryId = transaction.categoryId,
-                description = transaction.description,
-                runningBalance = runningBalance,
-            )
-        }
+    ): AccountTransaction = AccountTransaction(
+        transaction = transaction,
+        runningBalance = runningBalance,
+    )
 }

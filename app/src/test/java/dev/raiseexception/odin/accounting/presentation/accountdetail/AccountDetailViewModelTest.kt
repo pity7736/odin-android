@@ -2,10 +2,11 @@ package dev.raiseexception.odin.accounting.presentation.accountdetail
 
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
-import dev.raiseexception.odin.accounting.application.usecase.AccountTransaction
 import dev.raiseexception.odin.accounting.application.usecase.AccountTransactionLister
 import dev.raiseexception.odin.accounting.domain.AccountLookupError
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
@@ -155,8 +156,8 @@ class AccountDetailViewModelTest {
             val state = awaitItem() as AccountDetailUiState.Content
             assertEquals(TransactionFilter.ALL, state.activeFilter)
             assertEquals(2, state.transactions.size)
-            assertTrue(state.transactions[0] is AccountTransaction.ExpenseTransaction)
-            assertTrue(state.transactions[1] is AccountTransaction.IncomeTransaction)
+            assertTrue(state.transactions[0].transaction is Expense)
+            assertTrue(state.transactions[1].transaction is Income)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -179,7 +180,7 @@ class AccountDetailViewModelTest {
             val state = awaitItem() as AccountDetailUiState.Content
             assertEquals(TransactionFilter.INCOME, state.activeFilter)
             assertEquals(1, state.transactions.size)
-            assertTrue(state.transactions.all { it is AccountTransaction.IncomeTransaction })
+            assertTrue(state.transactions.all { it.transaction is Income })
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -202,7 +203,7 @@ class AccountDetailViewModelTest {
             val state = awaitItem() as AccountDetailUiState.Content
             assertEquals(TransactionFilter.EXPENSE, state.activeFilter)
             assertEquals(1, state.transactions.size)
-            assertTrue(state.transactions.all { it is AccountTransaction.ExpenseTransaction })
+            assertTrue(state.transactions.all { it.transaction is Expense })
             cancelAndIgnoreRemainingEvents()
         }
     }
