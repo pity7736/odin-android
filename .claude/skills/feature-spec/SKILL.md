@@ -44,6 +44,13 @@ Do not write, copy, or fill any file until discovery is complete. Ask **one
 question at a time** and wait for the answer before the next. **Never assume** —
 if something is unclear, ask.
 
+**One topic at a time.** When a question opens a discussion (the user asks a
+follow-up, proposes alternatives, or partially agrees), stay on that topic. Do
+not advance to the next question until the user gives a clear, unambiguous
+decision. Never interpret a question, a partial opinion, or "I like it" followed
+by a question as a settled decision — it is not settled until the user says so
+without any open thread. Summarize what was decided and only then move on.
+
 1. **Q1 (branch):** Is this a **new feature**, an **update to an existing one**,
    or a **bug fix** in an existing one? The answer decides the path (see below).
 2. **Q2:** What is the feature about, in your own words?

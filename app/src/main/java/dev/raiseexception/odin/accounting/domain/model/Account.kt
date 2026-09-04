@@ -30,6 +30,8 @@ class Account private constructor(
     private val _expenses: MutableList<Expense> = expenses.toMutableList()
     val expenses: List<Expense> get() = this._expenses.toList()
 
+    val transactions: List<Transaction> get() = this._incomes + this._expenses
+
     val currency: Currency get() = this.initialBalance.currency
 
     val balance: Money get() {
