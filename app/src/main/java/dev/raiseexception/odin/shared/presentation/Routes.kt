@@ -12,6 +12,7 @@ object Routes {
     const val CATEGORIES = "categories"
     const val CATEGORY_CREATE = "category_create"
     const val CATEGORY_DETAIL = "category_detail/{categoryId}"
+    const val TRANSACTION_DETAIL = "transaction_detail/{transactionId}"
 
     fun accountDetail(accountId: String) = "account_detail/$accountId"
 
@@ -20,4 +21,6 @@ object Routes {
     fun expenseCreate(accountId: String) = "expense_create/$accountId"
 
     fun categoryDetail(categoryId: String) = "category_detail/$categoryId"
+
+    fun transactionDetail(transactionId: String) = "transaction_detail/$transactionId"
 }

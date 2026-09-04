@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions")
+
 package dev.raiseexception.odin
 
 import android.os.Bundle
@@ -36,6 +38,7 @@ import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExp
 import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExpenseViewModel
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeScreen
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeViewModel
+import dev.raiseexception.odin.accounting.presentation.transactiondetail.TransactionDetailScreen
 import dev.raiseexception.odin.accounts.presentation.login.LoginScreen
 import dev.raiseexception.odin.accounts.presentation.login.LoginViewModel
 import dev.raiseexception.odin.accounts.presentation.registration.RegistrationScreen
@@ -43,6 +46,7 @@ import dev.raiseexception.odin.accounts.presentation.registration.RegistrationVi
 import dev.raiseexception.odin.accounts.presentation.startup.StartupState
 import dev.raiseexception.odin.accounts.presentation.startup.StartupViewModel
 import dev.raiseexception.odin.home.presentation.home.HomeScreen
+import dev.raiseexception.odin.home.presentation.home.HomeViewModel
 import dev.raiseexception.odin.shared.presentation.Routes
 import dev.raiseexception.odin.ui.theme.OdinTheme
 
@@ -87,10 +91,11 @@ private fun AppNavHost(startRoute: String) {
                 LoginDestination(navController)
             }
             composable(Routes.HOME) {
-                HomeScreen(
-                    onOpenAccounts = { navController.navigate(Routes.ACCOUNTS) },
-                    onOpenCategories = { navController.navigate(Routes.CATEGORIES) }
-                )
+                HomeDestination(navController)
+            }
+            composable(Routes.TRANSACTION_DETAIL) { backStackEntry ->
+                val transactionId = backStackEntry.arguments?.getString("transactionId") ?: ""
+                TransactionDetailScreen(transactionId = transactionId)
             }
             composable(Routes.ACCOUNTS) {
                 AccountsListDestination(navController)
@@ -266,6 +271,31 @@ private fun CreateCategoryDestination(navController: NavHostController) {
                 popUpTo(Routes.CATEGORIES) { inclusive = true }
             }
         }
+    )
+}
+
+@Composable
+private fun HomeDestination(navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val homeViewModel: HomeViewModel = viewModel {
+        application.appContainer.homeViewModel()
+    }
+    val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
+    HomeScreen(
+        uiState = uiState,
+        navigationEvent = homeViewModel.navigationEvent,
+        onAccountSelected = homeViewModel::onAccountSelected,
+        onTransactionSelected = homeViewModel::onTransactionSelected,
+        onCreateAccountSelected = homeViewModel::onCreateAccountSelected,
+        onNavigateToAccountDetail = { accountId ->
+            navController.navigate(Routes.accountDetail(accountId))
+        },
+        onNavigateToTransactionDetail = { transactionId ->
+            navController.navigate(Routes.transactionDetail(transactionId))
+        },
+        onNavigateToAccountCreate = { navController.navigate(Routes.ACCOUNT_CREATE) },
+        onNavigateToAccounts = { navController.navigate(Routes.ACCOUNTS) },
+        onNavigateToCategories = { navController.navigate(Routes.CATEGORIES) },
     )
 }
 
