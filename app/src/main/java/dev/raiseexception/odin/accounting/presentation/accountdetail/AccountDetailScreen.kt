@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -61,6 +62,8 @@ private val accountTypeLabels = mapOf(
     AccountType.SAVINGS to "Ahorros",
     AccountType.CASH to "Efectivo"
 )
+
+private val IncomeGreen = Color(0xFF2E7D32)
 
 private val spanishMonths = mapOf(
     java.time.Month.JANUARY to "enero",
@@ -192,7 +195,11 @@ private fun AccountHeader(account: Account, modifier: Modifier = Modifier) {
         Text(text = account.name, style = MaterialTheme.typography.headlineMedium)
         Text(text = accountTypeLabels[account.type] ?: account.type.name)
         Text(
-            text = "${account.balance.amount.toPlainString()} ${account.currency.name}",
+            text = "Saldo inicial: ${account.initialBalance.amount.toPlainString()} ${account.currency.name}",
+            modifier = Modifier.testTag("account_initial_balance")
+        )
+        Text(
+            text = "Saldo: ${account.balance.amount.toPlainString()} ${account.currency.name}",
             modifier = Modifier.testTag("account_balance")
         )
         Text(text = account.description)
@@ -282,7 +289,7 @@ private fun DateHeader(date: LocalDate, modifier: Modifier = Modifier) {
 @Composable
 private fun TransactionRow(transaction: AccountTransaction, modifier: Modifier = Modifier) {
     val isIncome = transaction.transaction is Income
-    val amountColor = if (isIncome) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+    val amountColor = if (isIncome) IncomeGreen else MaterialTheme.colorScheme.error
     val amountPrefix = if (isIncome) "+" else "-"
     Column(modifier = modifier) {
         Row(
