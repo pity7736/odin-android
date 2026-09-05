@@ -41,6 +41,8 @@ import dev.raiseexception.odin.crypto.domain.VaultCrypto
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.crypto.infrastructure.BouncyCastleVaultCrypto
 import dev.raiseexception.odin.crypto.infrastructure.InMemoryMasterKeyRepository
+import dev.raiseexception.odin.home.application.usecase.RecentTransactionLister
+import dev.raiseexception.odin.home.presentation.home.HomeViewModel
 import dev.raiseexception.odin.persistence.OdinDatabase
 import dev.raiseexception.odin.shared.domain.TransactionRunner
 import dev.raiseexception.odin.shared.infrastructure.vault.EncryptedRecordStore
@@ -49,6 +51,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import java.security.SecureRandom
 
+@Suppress("TooManyFunctions")
 class AppContainer(context: Context) {
 
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
@@ -71,6 +74,7 @@ class AppContainer(context: Context) {
     private val accountLister: AccountLister = AccountLister(accountRepository)
     private val accountFinder: AccountFinder = AccountFinder(accountRepository)
     private val accountTransactionLister: AccountTransactionLister = AccountTransactionLister()
+    private val recentTransactionLister: RecentTransactionLister = RecentTransactionLister()
     private val categoryRepository: CategoryRepository = VaultCategoryRepository(encryptedRecordStore)
     private val categoryCreator: CategoryCreator = CategoryCreator(categoryRepository)
     private val categoryLister: CategoryLister = CategoryLister(categoryRepository)
@@ -115,6 +119,8 @@ class AppContainer(context: Context) {
                 AccountDetailViewModel(accountId, accountFinder, accountTransactionLister, ioDispatcher)
             }
         }
+
+    fun homeViewModel(): HomeViewModel = HomeViewModel(accountLister, recentTransactionLister, ioDispatcher)
 
     fun createCategoryViewModel(): CreateCategoryViewModel = CreateCategoryViewModel(categoryCreator)
 

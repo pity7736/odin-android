@@ -24,7 +24,7 @@ Tasks are listed in priority order.
 
 ### Home Screen
 
-- [ ] Summary view showing total balance across accounts, per-account balances, and recent transactions
+- [x] Summary view showing total balance across accounts, per-account balances, and recent transactions
 
 ### Auth
 

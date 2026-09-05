@@ -1,10 +1,12 @@
 package dev.raiseexception.odin.accounting.application.usecase
 
+import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -37,5 +39,15 @@ class AccountListerTest {
 
         assertTrue(result is Outcome.Success)
         assertTrue((result as Outcome.Success).value.isEmpty())
+    }
+
+    @Test
+    fun `given criteria with incomes and expenses, when list, then passes criteria to repository`() = runTest {
+        val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
+        every { accountRepository.getAll(criteria) } returns flowOf(Outcome.Success(emptyList()))
+
+        accountLister.list(criteria).first()
+
+        verify { accountRepository.getAll(criteria) }
     }
 }
