@@ -31,6 +31,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
@@ -52,8 +55,15 @@ fun HomeScreen(
     onNavigateToAccountCreate: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
+    onResume: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            onResume()
+        }
+    }
     LaunchedEffect(Unit) {
         navigationEvent.collect { target ->
             when (target) {

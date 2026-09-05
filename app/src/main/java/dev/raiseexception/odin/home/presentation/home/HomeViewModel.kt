@@ -33,6 +33,14 @@ class HomeViewModel(
     val navigationEvent: Flow<HomeNavigationTarget> = this.navigationChannel.receiveAsFlow()
 
     init {
+        this.load()
+    }
+
+    fun reload() {
+        this.load()
+    }
+
+    private fun load() {
         this.viewModelScope.launch(this.ioDispatcher) {
             val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
             this@HomeViewModel.accountLister.list(criteria).collect { outcome ->

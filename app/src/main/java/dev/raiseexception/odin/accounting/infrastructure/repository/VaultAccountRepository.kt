@@ -99,14 +99,52 @@ class VaultAccountRepository(
     }
 
     override fun getAll(criteria: AccountCriteria): Flow<Outcome<List<Account>>> = flow {
-        when (val outcome = this@VaultAccountRepository.decryptedAccountRecords()) {
-            is Outcome.Failure -> emit(outcome)
-            is Outcome.Success -> emit(
-                Outcome.Success(
-                    outcome.value.sortedBy { it.id }.map { this@VaultAccountRepository.toAccount(it, emptyList()) }
-                )
-            )
+        val accountRecords = when (val outcome = this@VaultAccountRepository.decryptedAccountRecords()) {
+            is Outcome.Success -> outcome.value
+            is Outcome.Failure -> {
+                emit(outcome)
+                return@flow
+            }
         }
+        val incomesByAccount = if (criteria.includeIncomes) {
+            when (val outcome = this@VaultAccountRepository.decryptedIncomeRecords()) {
+                is Outcome.Success ->
+                    outcome.value
+                        .map { this@VaultAccountRepository.toIncome(it) }
+                        .groupBy { it.accountId }
+                is Outcome.Failure -> {
+                    emit(this@VaultAccountRepository.cryptoFailure(outcome.error.internalMessage))
+                    return@flow
+                }
+            }
+        } else {
+            emptyMap()
+        }
+        val expensesByAccount = if (criteria.includeExpenses) {
+            when (val outcome = this@VaultAccountRepository.decryptedExpenseRecords()) {
+                is Outcome.Success ->
+                    outcome.value
+                        .map { this@VaultAccountRepository.toExpense(it) }
+                        .groupBy { it.accountId }
+                is Outcome.Failure -> {
+                    emit(this@VaultAccountRepository.cryptoFailure(outcome.error.internalMessage))
+                    return@flow
+                }
+            }
+        } else {
+            emptyMap()
+        }
+        emit(
+            Outcome.Success(
+                accountRecords.sortedBy { it.id }.map { record ->
+                    this@VaultAccountRepository.toAccount(
+                        record,
+                        incomesByAccount[record.id] ?: emptyList(),
+                        expensesByAccount[record.id] ?: emptyList()
+                    )
+                }
+            )
+        )
     }
 
     private suspend fun decryptedAccountRecords(): Outcome<List<AccountRecord>> {
