@@ -55,7 +55,7 @@ class RegistrationViewModelTest {
             salt = ByteArray(TEST_BYTE_ARRAY_SIZE) { it.toByte() },
             wrappedMasterKey = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + 1).toByte() }
         )
-        coEvery { userRegistrar.register("validPassword1", "validPassword1") } returns Outcome.Success(user)
+        coEvery { userRegistrar.register(any(), any()) } returns Outcome.Success(user)
 
         viewModel.uiState.test {
             assertEquals(RegistrationUiState.Idle, awaitItem())
@@ -72,18 +72,18 @@ class RegistrationViewModelTest {
             salt = ByteArray(TEST_BYTE_ARRAY_SIZE) { it.toByte() },
             wrappedMasterKey = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + 1).toByte() }
         )
-        coEvery { userRegistrar.register("validPassword1", "validPassword1") } returns Outcome.Success(user)
+        coEvery { userRegistrar.register(any(), any()) } returns Outcome.Success(user)
 
         viewModel.register("validPassword1", "validPassword1")
         viewModel.register("validPassword1", "validPassword1")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coVerify(exactly = 1) { userRegistrar.register("validPassword1", "validPassword1") }
+        coVerify(exactly = 1) { userRegistrar.register(any(), any()) }
     }
 
     @Test
     fun `given invalid password, when registering, then emits ValidationError with password error`() = runTest {
-        coEvery { userRegistrar.register("short", "short") } returns Outcome.Failure(
+        coEvery { userRegistrar.register(any(), any()) } returns Outcome.Failure(
             RegistrationError.InvalidPassword(
                 internalMessage = "Password must be at least 12 characters",
                 externalMessage = "La contraseña debe tener al menos 12 caracteres"
@@ -105,7 +105,7 @@ class RegistrationViewModelTest {
 
     @Test
     fun `given mismatched passwords, when registering, then emits ValidationError with confirmation error`() = runTest {
-        coEvery { userRegistrar.register("validPassword1", "differentPassword") } returns Outcome.Failure(
+        coEvery { userRegistrar.register(any(), any()) } returns Outcome.Failure(
             RegistrationError.PasswordsDoNotMatch(
                 internalMessage = "Password and confirmation do not match",
                 externalMessage = "Las contraseñas no coinciden"
@@ -127,7 +127,7 @@ class RegistrationViewModelTest {
 
     @Test
     fun `given crypto failure, when registering, then emits Error with message`() = runTest {
-        coEvery { userRegistrar.register("validPassword1", "validPassword1") } returns Outcome.Failure(
+        coEvery { userRegistrar.register(any(), any()) } returns Outcome.Failure(
             RegistrationError.CryptoFailure(
                 internalMessage = "Key derivation failed",
                 externalMessage = "Algo salió mal. Intente de nuevo más tarde"
@@ -149,7 +149,7 @@ class RegistrationViewModelTest {
 
     @Test
     fun `given storage failure, when registering, then emits Error with message`() = runTest {
-        coEvery { userRegistrar.register("validPassword1", "validPassword1") } returns Outcome.Failure(
+        coEvery { userRegistrar.register(any(), any()) } returns Outcome.Failure(
             RegistrationError.StorageFailure(
                 internalMessage = "Storage failed",
                 externalMessage = "Algo salió mal. Intente de nuevo más tarde"
@@ -176,7 +176,7 @@ class RegistrationViewModelTest {
             salt = ByteArray(TEST_BYTE_ARRAY_SIZE) { it.toByte() },
             wrappedMasterKey = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + 1).toByte() }
         )
-        coEvery { userRegistrar.register("validPassword1", "validPassword1") } returns Outcome.Success(user)
+        coEvery { userRegistrar.register(any(), any()) } returns Outcome.Success(user)
         viewModel.register("validPassword1", "validPassword1")
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(NavigationTarget.Home, viewModel.navigationEvent.first())
@@ -184,7 +184,7 @@ class RegistrationViewModelTest {
 
     @Test
     fun `given user already registered, when registering, then emits Error with message`() = runTest {
-        coEvery { userRegistrar.register("validPassword1", "validPassword1") } returns Outcome.Failure(
+        coEvery { userRegistrar.register(any(), any()) } returns Outcome.Failure(
             RegistrationError.AlreadyRegistered(
                 internalMessage = "User already registered on this device",
                 externalMessage = "Ya existe un usuario en este dispositivo"

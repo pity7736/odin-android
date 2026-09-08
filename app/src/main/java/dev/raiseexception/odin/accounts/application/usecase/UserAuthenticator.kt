@@ -4,6 +4,7 @@ import dev.raiseexception.odin.accounts.domain.LoginError
 import dev.raiseexception.odin.accounts.domain.model.User
 import dev.raiseexception.odin.accounts.domain.repository.UserRepository
 import dev.raiseexception.odin.crypto.domain.CryptoError
+import dev.raiseexception.odin.crypto.domain.SensitivePassword
 import dev.raiseexception.odin.crypto.domain.VaultCrypto
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.shared.domain.DomainError
@@ -19,15 +20,21 @@ class UserAuthenticator(
     private val cpuDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
 
-    suspend fun authenticate(rawPassword: String): Outcome<User> {
-        if (rawPassword.isBlank()) {
+    suspend fun authenticate(password: SensitivePassword): Outcome<User> {
+        val result = this.performAuthentication(password)
+        password.wipe()
+        return result
+    }
+
+    private suspend fun performAuthentication(password: SensitivePassword): Outcome<User> {
+        if (password.value.isEmpty() || password.value.all { it.isWhitespace() }) {
             return this.emptyPasswordFailure()
         }
         val user = when (val userOutcome = this.userRepository.get()) {
             is Outcome.Success -> userOutcome.value
             is Outcome.Failure -> return userOutcome
         }
-        return this.verifyPassword(rawPassword, user)
+        return this.verifyPassword(password, user)
     }
 
     private fun emptyPasswordFailure() = Outcome.Failure(
@@ -37,9 +44,9 @@ class UserAuthenticator(
         )
     )
 
-    private suspend fun verifyPassword(rawPassword: String, user: User): Outcome<User> =
+    private suspend fun verifyPassword(password: SensitivePassword, user: User): Outcome<User> =
         withContext(this.cpuDispatcher) {
-            val derivedKeys = when (val keysOutcome = vaultCrypto.deriveKeys(rawPassword, user.salt)) {
+            val derivedKeys = when (val keysOutcome = vaultCrypto.deriveKeys(password, user.salt)) {
                 is Outcome.Success -> keysOutcome.value
                 is Outcome.Failure -> return@withContext cryptoFailure(keysOutcome.error.internalMessage)
             }

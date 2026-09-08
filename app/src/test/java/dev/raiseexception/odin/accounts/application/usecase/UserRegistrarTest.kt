@@ -4,6 +4,7 @@ import dev.raiseexception.odin.accounts.domain.RegistrationError
 import dev.raiseexception.odin.accounts.domain.repository.UserRepository
 import dev.raiseexception.odin.crypto.domain.CryptoError
 import dev.raiseexception.odin.crypto.domain.DerivedKeys
+import dev.raiseexception.odin.crypto.domain.SensitivePassword
 import dev.raiseexception.odin.crypto.domain.VaultCrypto
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -14,6 +15,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -38,8 +40,6 @@ class UserRegistrarTest {
     private val masterKey = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + MASTER_KEY_OFFSET).toByte() }
     private val wrappedMasterKey = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + WRAPPED_KEY_OFFSET).toByte() }
     private val derivedKeys = DerivedKeys(authHash = "authHash", encryptionKey = encryptionKey)
-    private val validPassword = "validPassword1"
-    private val validPasswordConfirmation = "validPassword1"
 
     @Before
     fun setUp() {
@@ -48,18 +48,13 @@ class UserRegistrarTest {
 
     @Test
     fun `given valid password, when registering, then completes full crypto flow and returns user`() = runTest {
-        coEvery { userRepository.exists() } returns false
-        every { vaultCrypto.generateSalt() } returns salt
-        every { vaultCrypto.deriveKeys(validPassword, salt) } returns Outcome.Success(derivedKeys)
-        every { vaultCrypto.generateMasterKey() } returns masterKey
-        every { vaultCrypto.wrapMasterKey(masterKey, encryptionKey) } returns Outcome.Success(wrappedMasterKey)
-        coEvery { userRepository.add(any()) } returns Outcome.Success(Unit)
+        stubSuccessfulRegistration()
 
-        val result = registrar.register(validPassword, validPasswordConfirmation)
+        val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
 
         assertTrue(result is Outcome.Success)
         verify { vaultCrypto.generateSalt() }
-        verify { vaultCrypto.deriveKeys(validPassword, salt) }
+        verify { vaultCrypto.deriveKeys(any(), eq(salt)) }
         verify { vaultCrypto.generateMasterKey() }
         verify { vaultCrypto.wrapMasterKey(masterKey, encryptionKey) }
         coVerify { userRepository.add(any()) }
@@ -68,48 +63,32 @@ class UserRegistrarTest {
 
     @Test
     fun `given valid password, when registering, then user contains id salt and wrapped key`() = runTest {
-        coEvery { userRepository.exists() } returns false
-        every { vaultCrypto.generateSalt() } returns salt
-        every { vaultCrypto.deriveKeys(validPassword, salt) } returns Outcome.Success(derivedKeys)
-        every { vaultCrypto.generateMasterKey() } returns masterKey
-        every { vaultCrypto.wrapMasterKey(masterKey, encryptionKey) } returns Outcome.Success(wrappedMasterKey)
-        coEvery { userRepository.add(any()) } returns Outcome.Success(Unit)
+        stubSuccessfulRegistration()
 
-        val result = registrar.register(validPassword, validPasswordConfirmation)
+        val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
 
         assertTrue(result is Outcome.Success)
         val user = (result as Outcome.Success).value
         assertTrue(user.id.isNotEmpty())
-        assertTrue(user.salt.contentEquals(salt))
-        assertTrue(user.wrappedMasterKey.contentEquals(wrappedMasterKey))
+        assertArrayEquals(salt, user.salt)
+        assertArrayEquals(wrappedMasterKey, user.wrappedMasterKey)
     }
 
     @Test
     fun `given password of exactly 12 chars, when registering, then succeeds`() = runTest {
-        val shortPassword = "123456789012"
-        coEvery { userRepository.exists() } returns false
-        every { vaultCrypto.generateSalt() } returns salt
-        every { vaultCrypto.deriveKeys(shortPassword, salt) } returns Outcome.Success(derivedKeys)
-        every { vaultCrypto.generateMasterKey() } returns masterKey
-        every { vaultCrypto.wrapMasterKey(masterKey, encryptionKey) } returns Outcome.Success(wrappedMasterKey)
-        coEvery { userRepository.add(any()) } returns Outcome.Success(Unit)
+        stubSuccessfulRegistration()
 
-        val result = registrar.register(shortPassword, shortPassword)
+        val result = registrar.register(sensitivePassword("123456789012"), sensitivePassword("123456789012"))
 
         assertTrue(result is Outcome.Success)
     }
 
     @Test
     fun `given password of exactly 100 chars, when registering, then succeeds`() = runTest {
-        val longPassword = "a".repeat(MAX_PASSWORD_LENGTH)
-        coEvery { userRepository.exists() } returns false
-        every { vaultCrypto.generateSalt() } returns salt
-        every { vaultCrypto.deriveKeys(longPassword, salt) } returns Outcome.Success(derivedKeys)
-        every { vaultCrypto.generateMasterKey() } returns masterKey
-        every { vaultCrypto.wrapMasterKey(masterKey, encryptionKey) } returns Outcome.Success(wrappedMasterKey)
-        coEvery { userRepository.add(any()) } returns Outcome.Success(Unit)
+        stubSuccessfulRegistration()
 
-        val result = registrar.register(longPassword, longPassword)
+        val longPassword = "a".repeat(MAX_PASSWORD_LENGTH)
+        val result = registrar.register(sensitivePassword(longPassword), sensitivePassword(longPassword))
 
         assertTrue(result is Outcome.Success)
     }
@@ -118,7 +97,7 @@ class UserRegistrarTest {
     fun `given password shorter than 12 chars, when registering, then returns invalid password`() = runTest {
         coEvery { userRepository.exists() } returns false
 
-        val result = registrar.register("short", "short")
+        val result = registrar.register(sensitivePassword("short"), sensitivePassword("short"))
 
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is RegistrationError.InvalidPassword)
@@ -129,7 +108,7 @@ class UserRegistrarTest {
         val tooLong = "a".repeat(OVER_MAX_PASSWORD_LENGTH)
         coEvery { userRepository.exists() } returns false
 
-        val result = registrar.register(tooLong, tooLong)
+        val result = registrar.register(sensitivePassword(tooLong), sensitivePassword(tooLong))
 
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is RegistrationError.InvalidPassword)
@@ -139,7 +118,7 @@ class UserRegistrarTest {
     fun `given empty password, when registering, then returns invalid password`() = runTest {
         coEvery { userRepository.exists() } returns false
 
-        val result = registrar.register("", "")
+        val result = registrar.register(sensitivePassword(""), sensitivePassword(""))
 
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is RegistrationError.InvalidPassword)
@@ -149,7 +128,7 @@ class UserRegistrarTest {
     fun `given mismatched passwords, when registering, then returns passwords do not match`() = runTest {
         coEvery { userRepository.exists() } returns false
 
-        val result = registrar.register(validPassword, "differentPassword")
+        val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("differentPassword"))
 
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is RegistrationError.PasswordsDoNotMatch)
@@ -159,11 +138,9 @@ class UserRegistrarTest {
     fun `given deriveKeys fails, when registering, then returns crypto failure`() = runTest {
         coEvery { userRepository.exists() } returns false
         every { vaultCrypto.generateSalt() } returns salt
-        every { vaultCrypto.deriveKeys(validPassword, salt) } returns Outcome.Failure(
-            CryptoError.InvalidSalt()
-        )
+        every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Failure(CryptoError.InvalidSalt())
 
-        val result = registrar.register(validPassword, validPasswordConfirmation)
+        val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
 
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is RegistrationError.CryptoFailure)
@@ -173,13 +150,13 @@ class UserRegistrarTest {
     fun `given wrapMasterKey fails, when registering, then returns crypto failure`() = runTest {
         coEvery { userRepository.exists() } returns false
         every { vaultCrypto.generateSalt() } returns salt
-        every { vaultCrypto.deriveKeys(validPassword, salt) } returns Outcome.Success(derivedKeys)
+        every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
         every { vaultCrypto.generateMasterKey() } returns masterKey
-        every { vaultCrypto.wrapMasterKey(masterKey, encryptionKey) } returns Outcome.Failure(
-            CryptoError.InvalidKeySize()
-        )
+        every {
+            vaultCrypto.wrapMasterKey(masterKey, encryptionKey)
+        } returns Outcome.Failure(CryptoError.InvalidKeySize())
 
-        val result = registrar.register(validPassword, validPasswordConfirmation)
+        val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
 
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is RegistrationError.CryptoFailure)
@@ -189,7 +166,7 @@ class UserRegistrarTest {
     fun `given crypto succeeds but add fails, when registering, then returns storage failure`() = runTest {
         coEvery { userRepository.exists() } returns false
         every { vaultCrypto.generateSalt() } returns salt
-        every { vaultCrypto.deriveKeys(validPassword, salt) } returns Outcome.Success(derivedKeys)
+        every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
         every { vaultCrypto.generateMasterKey() } returns masterKey
         every { vaultCrypto.wrapMasterKey(masterKey, encryptionKey) } returns Outcome.Success(wrappedMasterKey)
         coEvery { userRepository.add(any()) } returns Outcome.Failure(
@@ -199,7 +176,7 @@ class UserRegistrarTest {
             )
         )
 
-        val result = registrar.register(validPassword, validPasswordConfirmation)
+        val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
 
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is RegistrationError.StorageFailure)
@@ -209,7 +186,7 @@ class UserRegistrarTest {
     fun `given user already exists, when registering, then returns already registered`() = runTest {
         coEvery { userRepository.exists() } returns true
 
-        val result = registrar.register(validPassword, validPasswordConfirmation)
+        val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
 
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is RegistrationError.AlreadyRegistered)
@@ -219,10 +196,45 @@ class UserRegistrarTest {
     fun `given user already exists, when registering, then already registered has correct message`() = runTest {
         coEvery { userRepository.exists() } returns true
 
-        val result = registrar.register(validPassword, validPasswordConfirmation)
+        val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
 
         val error = (result as Outcome.Failure).error as RegistrationError.AlreadyRegistered
         val expectedMessage = "Ya existe un usuario en este dispositivo"
         assertTrue(error.externalMessage == expectedMessage)
     }
+
+    @Test
+    fun `given a valid registration, when completed, then both passwords are wiped`() = runTest {
+        stubSuccessfulRegistration()
+        val password = sensitivePassword("validPassword1")
+        val confirmation = sensitivePassword("validPassword1")
+
+        registrar.register(password, confirmation)
+
+        assertTrue(password.value.all { it == ' ' })
+        assertTrue(confirmation.value.all { it == ' ' })
+    }
+
+    @Test
+    fun `given an already registered user, when registering, then both passwords are wiped`() = runTest {
+        coEvery { userRepository.exists() } returns true
+        val password = sensitivePassword("validPassword1")
+        val confirmation = sensitivePassword("validPassword1")
+
+        registrar.register(password, confirmation)
+
+        assertTrue(password.value.all { it == ' ' })
+        assertTrue(confirmation.value.all { it == ' ' })
+    }
+
+    private fun stubSuccessfulRegistration() {
+        coEvery { userRepository.exists() } returns false
+        every { vaultCrypto.generateSalt() } returns salt
+        every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
+        every { vaultCrypto.generateMasterKey() } returns masterKey
+        every { vaultCrypto.wrapMasterKey(masterKey, encryptionKey) } returns Outcome.Success(wrappedMasterKey)
+        coEvery { userRepository.add(any()) } returns Outcome.Success(Unit)
+    }
+
+    private fun sensitivePassword(raw: String) = SensitivePassword(raw.toCharArray())
 }

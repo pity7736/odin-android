@@ -26,7 +26,7 @@ abstract class VaultCryptoContractTest {
 
     @Test
     fun `given a valid password and salt, when deriving keys, then returns auth hash and encryption key`() {
-        val password = "correcthorsebatterystaple"
+        val password = SensitivePassword("correcthorsebatterystaple".toCharArray())
         val salt = ByteArray(SALT_SIZE) { it.toByte() }
         val result = vaultCrypto.deriveKeys(password, salt)
         assertTrue(result is Outcome.Success)
@@ -37,34 +37,36 @@ abstract class VaultCryptoContractTest {
 
     @Test
     fun `given the same password and salt, when deriving keys twice, then returns identical results`() {
-        val password = "correcthorsebatterystaple"
         val salt = ByteArray(SALT_SIZE) { it.toByte() }
+        val password = SensitivePassword("correcthorsebatterystaple".toCharArray())
         val first = vaultCrypto.deriveKeys(password, salt) as Outcome.Success
-        val second = vaultCrypto.deriveKeys(password, salt) as Outcome.Success
+        val samePassword = SensitivePassword("correcthorsebatterystaple".toCharArray())
+        val second = vaultCrypto.deriveKeys(samePassword, salt) as Outcome.Success
         assertEquals(first.value, second.value)
     }
 
     @Test
     fun `given different salts, when deriving keys with the same password, then returns different results`() {
-        val password = "correcthorsebatterystaple"
         val saltOne = ByteArray(SALT_SIZE) { it.toByte() }
         val saltTwo = ByteArray(SALT_SIZE) { (it + 1).toByte() }
+        val password = SensitivePassword("correcthorsebatterystaple".toCharArray())
         val first = vaultCrypto.deriveKeys(password, saltOne) as Outcome.Success
-        val second = vaultCrypto.deriveKeys(password, saltTwo) as Outcome.Success
+        val samePassword = SensitivePassword("correcthorsebatterystaple".toCharArray())
+        val second = vaultCrypto.deriveKeys(samePassword, saltTwo) as Outcome.Success
         assertFalse(first.value.authHash == second.value.authHash)
     }
 
     @Test
     fun `given an empty password, when deriving keys, then returns invalid password error`() {
         val salt = ByteArray(SALT_SIZE) { it.toByte() }
-        val result = vaultCrypto.deriveKeys("", salt)
+        val result = vaultCrypto.deriveKeys(SensitivePassword(charArrayOf()), salt)
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is CryptoError.InvalidPassword)
     }
 
     @Test
     fun `given an empty salt, when deriving keys, then returns invalid salt error`() {
-        val result = vaultCrypto.deriveKeys("password", ByteArray(0))
+        val result = vaultCrypto.deriveKeys(SensitivePassword("password1234".toCharArray()), ByteArray(0))
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is CryptoError.InvalidSalt)
     }
@@ -72,7 +74,7 @@ abstract class VaultCryptoContractTest {
     @Test
     fun `given a salt shorter than required, when deriving keys, then returns invalid salt error`() {
         val shortSalt = ByteArray(SALT_SIZE - 1) { it.toByte() }
-        val result = vaultCrypto.deriveKeys("password", shortSalt)
+        val result = vaultCrypto.deriveKeys(SensitivePassword("password1234".toCharArray()), shortSalt)
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is CryptoError.InvalidSalt)
     }
@@ -80,7 +82,7 @@ abstract class VaultCryptoContractTest {
     @Test
     fun `given a salt longer than required, when deriving keys, then returns invalid salt error`() {
         val longSalt = ByteArray(SALT_SIZE + 1) { it.toByte() }
-        val result = vaultCrypto.deriveKeys("password", longSalt)
+        val result = vaultCrypto.deriveKeys(SensitivePassword("password1234".toCharArray()), longSalt)
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is CryptoError.InvalidSalt)
     }
@@ -295,12 +297,13 @@ abstract class VaultCryptoContractTest {
 
     @Test
     fun `given a wrapped master key, when re-deriving keys and unwrapping, then recovers the master key`() {
-        val password = "correcthorsebatterystaple"
         val salt = ByteArray(SALT_SIZE) { it.toByte() }
         val masterKey = vaultCrypto.generateMasterKey()
+        val password = SensitivePassword("correcthorsebatterystaple".toCharArray())
         val derivedKeys = (vaultCrypto.deriveKeys(password, salt) as Outcome.Success).value
         val wrapped = (vaultCrypto.wrapMasterKey(masterKey, derivedKeys.encryptionKey) as Outcome.Success).value
-        val reDerivedKeys = (vaultCrypto.deriveKeys(password, salt) as Outcome.Success).value
+        val samePassword = SensitivePassword("correcthorsebatterystaple".toCharArray())
+        val reDerivedKeys = (vaultCrypto.deriveKeys(samePassword, salt) as Outcome.Success).value
         val unwrapped = (vaultCrypto.unwrapMasterKey(wrapped, reDerivedKeys.encryptionKey) as Outcome.Success).value
         assertArrayEquals(masterKey, unwrapped)
         assertEquals(derivedKeys.authHash, reDerivedKeys.authHash)

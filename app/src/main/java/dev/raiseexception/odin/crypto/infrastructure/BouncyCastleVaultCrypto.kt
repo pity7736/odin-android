@@ -2,6 +2,7 @@ package dev.raiseexception.odin.crypto.infrastructure
 
 import dev.raiseexception.odin.crypto.domain.CryptoError
 import dev.raiseexception.odin.crypto.domain.DerivedKeys
+import dev.raiseexception.odin.crypto.domain.SensitivePassword
 import dev.raiseexception.odin.crypto.domain.VaultCrypto
 import dev.raiseexception.odin.shared.domain.Outcome
 import org.bouncycastle.crypto.generators.Argon2BytesGenerator
@@ -17,8 +18,8 @@ class BouncyCastleVaultCrypto(
     private val secureRandom: SecureRandom = SecureRandom()
 ) : VaultCrypto {
 
-    override fun deriveKeys(password: String, salt: ByteArray): Outcome<DerivedKeys> = when {
-        password.isEmpty() -> Outcome.Failure(CryptoError.InvalidPassword())
+    override fun deriveKeys(password: SensitivePassword, salt: ByteArray): Outcome<DerivedKeys> = when {
+        password.value.isEmpty() -> Outcome.Failure(CryptoError.InvalidPassword())
         salt.size != SALT_SIZE -> Outcome.Failure(CryptoError.InvalidSalt())
         else -> deriveKeysFromArgon2id(password, salt)
     }
@@ -29,8 +30,9 @@ class BouncyCastleVaultCrypto(
         return salt
     }
 
-    private fun deriveKeysFromArgon2id(password: String, salt: ByteArray): Outcome<DerivedKeys> {
+    private fun deriveKeysFromArgon2id(password: SensitivePassword, salt: ByteArray): Outcome<DerivedKeys> {
         val output = ByteArray(VaultCrypto.ARGON_OUTPUT_LENGTH)
+        val passwordBytes = String(password.value).toByteArray(Charsets.UTF_8)
         val parameters = Argon2Parameters.Builder(Argon2Parameters.ARGON2_id)
             .withVersion(VaultCrypto.ARGON_VERSION)
             .withIterations(VaultCrypto.ARGON_ITERATIONS)
@@ -40,7 +42,8 @@ class BouncyCastleVaultCrypto(
             .build()
         val generator = Argon2BytesGenerator()
         generator.init(parameters)
-        generator.generateBytes(password.toByteArray(Charsets.UTF_8), output)
+        generator.generateBytes(passwordBytes, output)
+        passwordBytes.fill(0)
         val authHash = Base64.getEncoder().encodeToString(output.copyOfRange(0, ENCRYPTION_KEY_SIZE))
         val encryptionKey = output.copyOfRange(ENCRYPTION_KEY_SIZE, VaultCrypto.ARGON_OUTPUT_LENGTH)
         return Outcome.Success(DerivedKeys(authHash = authHash, encryptionKey = encryptionKey))

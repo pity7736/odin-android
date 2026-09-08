@@ -17,7 +17,9 @@ deliberately (the Plan).
        plan is frozen.
 
 The operational, step-by-step version of this workflow lives in the feature-spec
-skill (`.claude/skills/feature-spec/SKILL.md`). This document is the narrative.
+skill (`.claude/skills/feature-spec/SKILL.md`). For purely technical changes —
+refactors, infrastructure shifts, cross-cutting concerns — see the technical-plan
+skill (`.claude/skills/technical-plan/SKILL.md`). This document is the narrative.
 
 ## Specification File (The WHAT)
 
@@ -85,3 +87,28 @@ When an existing feature's own behavior or implementation genuinely changes:
 3. **Write a fresh `plan.md` work order** for this change, overwriting the previous one (git keeps it). For a bug fix, its Implementation Phases open with a FAILING reproduction test (Phase 1) per path the defect touches.
 4. **Implement, review, and manually test** following TDD.
 5. **At the hydrate gate:** update `design.md` in place to reflect the change, then freeze `plan.md`.
+
+## Technical Changes (No User-Facing Behavior)
+
+Some changes are purely technical — refactors, infrastructure shifts (e.g. Room
+migration), cross-cutting concerns (e.g. structured logging), or internal
+improvements (e.g. replacing `String` with a wipeable type in the crypto chain).
+These have no business-language spec to write.
+
+**How to tell which workflow to use:** if you would write Given/When/Then
+scenarios in business language, use the feature-spec skill. If not, use the
+technical-plan skill.
+
+Technical changes follow a plan-only workflow:
+
+- **Location:** `specs/technical/<topic>/plan.md` — a topic-specific folder
+  under `specs/technical/`, separate from feature specs.
+- **No spec.** There is no `spec.md` — the change has no user-facing behavior.
+- **Affected features.** The plan declares which features are affected and links
+  their `design.md` files.
+- **Same hydrate gate.** Before merge, durable decisions are promoted into each
+  affected feature's `design.md`. The plan is then frozen.
+
+The operational workflow lives in the technical-plan skill
+(`.claude/skills/technical-plan/SKILL.md`). The canonical plan format lives in
+`.claude/skills/technical-plan/plan-template.md`.

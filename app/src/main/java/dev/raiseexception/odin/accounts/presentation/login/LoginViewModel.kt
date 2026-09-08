@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounts.application.usecase.UserAuthenticator
 import dev.raiseexception.odin.accounts.domain.LoginError
+import dev.raiseexception.odin.crypto.domain.SensitivePassword
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.coroutines.channels.Channel
@@ -29,7 +30,8 @@ class LoginViewModel(
         if (this.mutableUiState.value is LoginUiState.Loading) return
         this.mutableUiState.value = LoginUiState.Loading
         this.viewModelScope.launch {
-            val outcome = userAuthenticator.authenticate(rawPassword)
+            val password = SensitivePassword(rawPassword.toCharArray())
+            val outcome = userAuthenticator.authenticate(password)
             when (outcome) {
                 is Outcome.Success -> {
                     onLoginSuccess()

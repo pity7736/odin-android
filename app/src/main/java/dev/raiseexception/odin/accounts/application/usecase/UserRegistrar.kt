@@ -5,6 +5,7 @@ import dev.raiseexception.odin.accounts.domain.RegistrationError
 import dev.raiseexception.odin.accounts.domain.model.Password
 import dev.raiseexception.odin.accounts.domain.model.User
 import dev.raiseexception.odin.accounts.domain.repository.UserRepository
+import dev.raiseexception.odin.crypto.domain.SensitivePassword
 import dev.raiseexception.odin.crypto.domain.VaultCrypto
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -19,24 +20,32 @@ class UserRegistrar(
     private val cpuDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
 
-    suspend fun register(rawPassword: String, rawPasswordConfirmation: String): Outcome<User> {
+    suspend fun register(password: SensitivePassword, confirmation: SensitivePassword): Outcome<User> {
+        val result = this.performValidationAndRegistration(password, confirmation)
+        password.wipe()
+        confirmation.wipe()
+        return result
+    }
+
+    private suspend fun performValidationAndRegistration(
+        password: SensitivePassword,
+        confirmation: SensitivePassword
+    ): Outcome<User> {
         if (this.userRepository.exists()) {
             return this.alreadyRegisteredFailure()
         }
-        val password = when (val passwordOutcome = Password.create(rawPassword)) {
-            is Outcome.Success -> passwordOutcome.value
-            is Outcome.Failure -> return passwordOutcome
-        }
-        if (rawPassword != rawPasswordConfirmation) {
+        val validationOutcome = Password.create(password.value)
+        if (validationOutcome is Outcome.Failure) return validationOutcome
+        if (password != confirmation) {
             return this.passwordsDoNotMatchFailure()
         }
         return this.performRegistration(password)
     }
 
-    private suspend fun performRegistration(password: Password): Outcome<User> =
+    private suspend fun performRegistration(password: SensitivePassword): Outcome<User> =
         withContext(this.cpuDispatcher) {
             val salt = vaultCrypto.generateSalt()
-            val derivedKeys = when (val keysOutcome = vaultCrypto.deriveKeys(password.value, salt)) {
+            val derivedKeys = when (val keysOutcome = vaultCrypto.deriveKeys(password, salt)) {
                 is Outcome.Success -> keysOutcome.value
                 is Outcome.Failure -> return@withContext cryptoFailure(keysOutcome.error.internalMessage)
             }
