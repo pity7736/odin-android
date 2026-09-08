@@ -19,7 +19,7 @@ class BouncyCastleVaultCrypto(
 ) : VaultCrypto {
 
     override fun deriveKeys(password: SensitivePassword, salt: ByteArray): Outcome<DerivedKeys> = when {
-        password.value.isEmpty() -> Outcome.Failure(CryptoError.InvalidPassword())
+        password.isEmpty() -> Outcome.Failure(CryptoError.InvalidPassword())
         salt.size != SALT_SIZE -> Outcome.Failure(CryptoError.InvalidSalt())
         else -> deriveKeysFromArgon2id(password, salt)
     }
@@ -32,7 +32,7 @@ class BouncyCastleVaultCrypto(
 
     private fun deriveKeysFromArgon2id(password: SensitivePassword, salt: ByteArray): Outcome<DerivedKeys> {
         val output = ByteArray(VaultCrypto.ARGON_OUTPUT_LENGTH)
-        val passwordBytes = String(password.value).toByteArray(Charsets.UTF_8)
+        val passwordBytes = password.toUtf8Bytes()
         val parameters = Argon2Parameters.Builder(Argon2Parameters.ARGON2_id)
             .withVersion(VaultCrypto.ARGON_VERSION)
             .withIterations(VaultCrypto.ARGON_ITERATIONS)

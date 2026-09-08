@@ -143,7 +143,7 @@ class UserAuthenticatorTest {
 
         authenticator.authenticate(password)
 
-        assertTrue(password.value.all { it == ' ' })
+        assertTrue(password.isBlank())
     }
 
     @Test
@@ -152,7 +152,7 @@ class UserAuthenticatorTest {
 
         authenticator.authenticate(password)
 
-        assertTrue(password.value.all { it == ' ' })
+        assertTrue(password.isBlank())
     }
 
     private fun sensitivePassword(raw: String) = SensitivePassword(raw.toCharArray())

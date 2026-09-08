@@ -27,7 +27,7 @@ class UserAuthenticator(
     }
 
     private suspend fun performAuthentication(password: SensitivePassword): Outcome<User> {
-        if (password.value.isEmpty() || password.value.all { it.isWhitespace() }) {
+        if (password.isBlank()) {
             return this.emptyPasswordFailure()
         }
         val user = when (val userOutcome = this.userRepository.get()) {

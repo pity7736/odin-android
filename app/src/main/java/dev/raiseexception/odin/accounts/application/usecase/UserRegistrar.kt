@@ -2,8 +2,8 @@ package dev.raiseexception.odin.accounts.application.usecase
 
 import com.github.f4b6a3.uuid.UuidCreator
 import dev.raiseexception.odin.accounts.domain.RegistrationError
-import dev.raiseexception.odin.accounts.domain.model.Password
 import dev.raiseexception.odin.accounts.domain.model.User
+import dev.raiseexception.odin.accounts.domain.model.validatePassword
 import dev.raiseexception.odin.accounts.domain.repository.UserRepository
 import dev.raiseexception.odin.crypto.domain.SensitivePassword
 import dev.raiseexception.odin.crypto.domain.VaultCrypto
@@ -34,7 +34,7 @@ class UserRegistrar(
         if (this.userRepository.exists()) {
             return this.alreadyRegisteredFailure()
         }
-        val validationOutcome = Password.create(password.value)
+        val validationOutcome = validatePassword(password)
         if (validationOutcome is Outcome.Failure) return validationOutcome
         if (password != confirmation) {
             return this.passwordsDoNotMatchFailure()

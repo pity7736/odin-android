@@ -2,7 +2,9 @@ package dev.raiseexception.odin.crypto.domain
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 private const val TEST_PASSWORD_LENGTH = 14
@@ -10,21 +12,55 @@ private const val TEST_PASSWORD_LENGTH = 14
 class SensitivePasswordTest {
 
     @Test
-    fun `given a password, when accessing value, then returns the original content`() {
-        val characters = "my-secret-pass".toCharArray()
-        val password = SensitivePassword(characters)
+    fun `given a password, when checking length, then returns the character count`() {
+        val password = SensitivePassword("my-secret-pass".toCharArray())
 
-        assertArrayEquals(characters, password.value)
+        assertEquals(TEST_PASSWORD_LENGTH, password.length)
     }
 
     @Test
-    fun `given a password, when wiped, then characters are all zeroes`() {
+    fun `given a password, when checking isEmpty, then returns false`() {
+        val password = SensitivePassword("my-secret-pass".toCharArray())
+
+        assertFalse(password.isEmpty())
+    }
+
+    @Test
+    fun `given an empty password, when checking isEmpty, then returns true`() {
+        val password = SensitivePassword(charArrayOf())
+
+        assertTrue(password.isEmpty())
+    }
+
+    @Test
+    fun `given a blank password, when checking isBlank, then returns true`() {
+        val password = SensitivePassword("   ".toCharArray())
+
+        assertTrue(password.isBlank())
+    }
+
+    @Test
+    fun `given a non-blank password, when checking isBlank, then returns false`() {
+        val password = SensitivePassword("my-secret-pass".toCharArray())
+
+        assertFalse(password.isBlank())
+    }
+
+    @Test
+    fun `given a password, when converting to UTF-8 bytes, then returns correct encoding`() {
+        val password = SensitivePassword("hello".toCharArray())
+
+        assertArrayEquals("hello".toByteArray(Charsets.UTF_8), password.toUtf8Bytes())
+    }
+
+    @Test
+    fun `given a password, when wiped, then becomes blank`() {
         val password = SensitivePassword("my-secret-pass".toCharArray())
 
         password.wipe()
 
-        val expected = CharArray(TEST_PASSWORD_LENGTH) { '\u0020' }
-        assertArrayEquals(expected, password.value)
+        assertTrue(password.isBlank())
+        assertEquals(TEST_PASSWORD_LENGTH, password.length)
     }
 
     @Test

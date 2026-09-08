@@ -211,8 +211,8 @@ class UserRegistrarTest {
 
         registrar.register(password, confirmation)
 
-        assertTrue(password.value.all { it == ' ' })
-        assertTrue(confirmation.value.all { it == ' ' })
+        assertTrue(password.isBlank())
+        assertTrue(confirmation.isBlank())
     }
 
     @Test
@@ -223,8 +223,8 @@ class UserRegistrarTest {
 
         registrar.register(password, confirmation)
 
-        assertTrue(password.value.all { it == ' ' })
-        assertTrue(confirmation.value.all { it == ' ' })
+        assertTrue(password.isBlank())
+        assertTrue(confirmation.isBlank())
     }
 
     private fun stubSuccessfulRegistration() {
