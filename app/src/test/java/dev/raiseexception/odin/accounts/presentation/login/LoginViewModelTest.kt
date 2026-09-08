@@ -56,7 +56,7 @@ class LoginViewModelTest {
 
     @Test
     fun `given valid credentials, when logging in, then emits Loading and stays Loading`() = runTest {
-        coEvery { userAuthenticator.authenticate("validPassword1") } returns Outcome.Success(user)
+        coEvery { userAuthenticator.authenticate(any()) } returns Outcome.Success(user)
 
         viewModel.uiState.test {
             assertEquals(LoginUiState.Idle, awaitItem())
@@ -68,7 +68,7 @@ class LoginViewModelTest {
 
     @Test
     fun `given valid credentials, when logging in, then emits navigation event to Home`() = runTest {
-        coEvery { userAuthenticator.authenticate("validPassword1") } returns Outcome.Success(user)
+        coEvery { userAuthenticator.authenticate(any()) } returns Outcome.Success(user)
         viewModel.login("validPassword1")
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(NavigationTarget.Home, viewModel.navigationEvent.first())
@@ -76,18 +76,18 @@ class LoginViewModelTest {
 
     @Test
     fun `given a login in progress, when logging in again, then ignores the second attempt`() = runTest {
-        coEvery { userAuthenticator.authenticate("validPassword1") } returns Outcome.Success(user)
+        coEvery { userAuthenticator.authenticate(any()) } returns Outcome.Success(user)
 
         viewModel.login("validPassword1")
         viewModel.login("validPassword1")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coVerify(exactly = 1) { userAuthenticator.authenticate("validPassword1") }
+        coVerify(exactly = 1) { userAuthenticator.authenticate(any()) }
     }
 
     @Test
     fun `given an incorrect password, when logging in, then emits Error with incorrect password message`() = runTest {
-        coEvery { userAuthenticator.authenticate("wrongPassword1") } returns Outcome.Failure(
+        coEvery { userAuthenticator.authenticate(any()) } returns Outcome.Failure(
             LoginError.InvalidCredentials(
                 internalMessage = "Master key unwrap failed: incorrect password",
                 externalMessage = "Contraseña incorrecta"
@@ -106,7 +106,7 @@ class LoginViewModelTest {
 
     @Test
     fun `given a blank password, when logging in, then emits ValidationError and does not navigate`() = runTest {
-        coEvery { userAuthenticator.authenticate("   ") } returns Outcome.Failure(
+        coEvery { userAuthenticator.authenticate(any()) } returns Outcome.Failure(
             LoginError.EmptyPassword(
                 internalMessage = "Password must not be blank",
                 externalMessage = "Ingrese su contraseña"
@@ -125,7 +125,7 @@ class LoginViewModelTest {
 
     @Test
     fun `given a crypto failure, when logging in, then emits Error with general message`() = runTest {
-        coEvery { userAuthenticator.authenticate("validPassword1") } returns Outcome.Failure(
+        coEvery { userAuthenticator.authenticate(any()) } returns Outcome.Failure(
             LoginError.CryptoFailure(
                 internalMessage = "Key derivation failed",
                 externalMessage = "Algo salió mal. Intente de nuevo más tarde"

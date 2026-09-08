@@ -1,0 +1,183 @@
+# Technical Work Order: Secure Password Handling — Replace String with wipeable SensitivePassword
+
+> Technical change — no user-facing behavior change. Disposable — overwritten by
+> the next change (git keeps the history). Hydrate affected design docs before
+> merge, then freeze this file.
+
+## Motivation
+
+Passwords flow through the entire call chain (ViewModel → use case → VaultCrypto)
+as `String`, which is immutable on the JVM — the plaintext lingers on the heap
+until GC with no way to zero it. For a zero-knowledge app, the in-memory
+plaintext window should be as short as possible. This change introduces a
+`SensitivePassword` wrapper around `CharArray` so the plaintext can be zeroed
+deterministically after the crypto operation completes. Additionally, the
+intermediate `ByteArray` created inside `BouncyCastleVaultCrypto` for Argon2 is
+zeroed after use.
+
+Compose `TextField` produces `String` — that is unavoidable. The ViewModel is the
+earliest practical conversion point. From the ViewModel inward, the password
+travels as `SensitivePassword` and is wiped by the use case after use.
+
+## Affected Features
+
+| Feature | design.md | Impact |
+|---------|-----------|--------|
+| User Creation (registration) | `specs/accounts/user-creation/design.md` | `UserRegistrar.register` signature changes from `String` to `SensitivePassword`; `Password` becomes validation-only |
+| Login | `specs/accounts/login/design.md` | `UserAuthenticator.authenticate` signature changes from `String` to `SensitivePassword` |
+
+## Architecture & Files (this change)
+
+```
+app/src/main/java/dev/raiseexception/odin/
+├── crypto/
+│   ├── domain/
+│   │   ├── SensitivePassword.kt                   # CREATE
+│   │   └── VaultCrypto.kt                         # MODIFY
+│   └── infrastructure/
+│       └── BouncyCastleVaultCrypto.kt              # MODIFY
+├── accounts/
+│   ├── domain/
+│   │   └── model/
+│   │       └── Password.kt                         # MODIFY
+│   ├── application/
+│   │   └── usecase/
+│   │       ├── UserRegistrar.kt                    # MODIFY
+│   │       └── UserAuthenticator.kt                # MODIFY
+│   └── presentation/
+│       ├── registration/
+│       │   └── RegistrationViewModel.kt            # MODIFY
+│       └── login/
+│           └── LoginViewModel.kt                   # MODIFY
+
+app/src/test/java/dev/raiseexception/odin/
+├── crypto/
+│   ├── domain/
+│   │   ├── SensitivePasswordTest.kt                # CREATE
+│   │   └── VaultCryptoContractTest.kt              # MODIFY
+│   └── infrastructure/
+│       └── BouncyCastleVaultCryptoTest.kt          # (inherits contract — no direct change expected)
+├── accounts/
+│   ├── domain/
+│   │   └── model/
+│   │       └── PasswordTest.kt                     # MODIFY
+│   ├── application/
+│   │   └── usecase/
+│   │       ├── UserRegistrarTest.kt                # MODIFY
+│   │       └── UserAuthenticatorTest.kt            # MODIFY
+│   └── presentation/
+│       ├── registration/
+│       │   └── RegistrationViewModelTest.kt        # MODIFY
+│       └── login/
+│           └── LoginViewModelTest.kt               # MODIFY
+```
+
+## Key Types & Signatures
+
+```kotlin
+// crypto/domain/SensitivePassword.kt
+class SensitivePassword(private val characters: CharArray) {
+    val value: CharArray get() = this.characters
+    fun wipe()                      // characters.fill(' ')
+    override fun equals(other: Any?): Boolean   // CharArray content equality
+    override fun hashCode(): Int                // CharArray content hash
+    override fun toString(): String             // "SensitivePassword(***)"
+}
+
+// crypto/domain/VaultCrypto.kt — signature change
+fun deriveKeys(password: SensitivePassword, salt: ByteArray): Outcome<DerivedKeys>
+
+// accounts/domain/model/Password.kt — validation-only
+companion object {
+    fun create(raw: CharArray): Outcome<Unit>   // validates length, no longer stores value
+}
+
+// accounts/application/usecase/UserRegistrar.kt — signature change
+suspend fun register(password: SensitivePassword, confirmation: SensitivePassword): Outcome<User>
+
+// accounts/application/usecase/UserAuthenticator.kt — signature change
+suspend fun authenticate(password: SensitivePassword): Outcome<User>
+
+// accounts/presentation/registration/RegistrationViewModel.kt
+fun register(rawPassword: String, rawPasswordConfirmation: String)
+// internally: converts to SensitivePassword, passes down
+
+// accounts/presentation/login/LoginViewModel.kt
+fun login(rawPassword: String)
+// internally: converts to SensitivePassword, passes down
+```
+
+## Implementation Phases (TDD)
+
+### Phase 1: Domain — SensitivePassword (crypto)
+
+**Red:** Create `SensitivePasswordTest` with tests:
+- `given a password, when accessing value, then returns the original content`
+- `given a password, when wiped, then characters are all zeroes`
+- `given two passwords with same content, when compared, then they are equal`
+- `given two passwords with different content, when compared, then they are not equal`
+- `given a password, when converted to string, then content is redacted`
+
+**Green:** Create `SensitivePassword` in `crypto/domain/` — `CharArray`-backed wrapper with `wipe()`, `toCharArray()`, content-based `equals`/`hashCode`, redacted `toString()`.
+
+### Phase 2: Domain — Password validation-only (accounts)
+
+**Red:** Update `PasswordTest` — all 7 tests change from passing `String` to passing `CharArray` to `Password.create()`. Assertions change from checking `Outcome<Password>` to `Outcome<Unit>`. Same validation scenarios (min 12, max 100, special chars, empty, too short, too long).
+
+**Green:** Change `Password.create(raw: String): Outcome<Password>` to `Password.create(raw: CharArray): Outcome<Unit>`. Validate on `raw.size` instead of `raw.length`. Remove `value` property and private constructor (the class becomes a companion-only validation namespace, or the factory moves to a top-level function — implementer decides the cleanest form).
+
+### Phase 3: Domain — VaultCrypto interface (crypto)
+
+**Red:** Update `VaultCryptoContractTest` — all `deriveKeys` tests change from passing a `String` to passing a `SensitivePassword`. Same assertions.
+
+**Green:** Change `VaultCrypto.deriveKeys` signature: `password: String` → `password: SensitivePassword`.
+
+### Phase 4: Infrastructure — BouncyCastleVaultCrypto (crypto)
+
+**Red:** Add a test to `VaultCryptoContractTest`:
+- `given a valid password and salt, when deriving keys, then the intermediate byte array is zeroed` — this is hard to assert from outside. Alternative: test that `deriveKeys` still produces correct output when called with `SensitivePassword` (the contract tests already cover this from Phase 3). The intermediate zeroing is an implementation detail verified by code review.
+
+**Green:** Update `BouncyCastleVaultCrypto.deriveKeys` and `deriveKeysFromArgon2id`:
+- Accept `SensitivePassword` instead of `String`.
+- In `deriveKeysFromArgon2id`, convert `password.value` to UTF-8 `ByteArray`, pass to Argon2, then `fill(0)` the `ByteArray` after Argon2 consumes it.
+- Validation: check emptiness via `password.value.isEmpty()` (or add an `isEmpty` property to `SensitivePassword`).
+
+### Phase 5: Application — UserRegistrar (accounts)
+
+**Red:** Update `UserRegistrarTest` — all 12 tests change to pass `SensitivePassword` instead of `String` for password and confirmation. Add a test:
+- `given a valid registration, when completed, then both passwords are wiped` — assert `password.value` is all zeroes after `register` returns.
+- `given an already registered user, when registering, then both passwords are wiped` — assert wipe happens even on early failure.
+
+**Green:** Change `UserRegistrar.register` to accept `(password: SensitivePassword, confirmation: SensitivePassword)`. Extract the core logic into a private method. The public method calls it, captures the result, wipes both passwords, and returns the result. Call `Password.create(password.value)` for validation. Use `password == confirmation` for the confirmation check.
+
+### Phase 6: Application — UserAuthenticator (accounts)
+
+**Red:** Update `UserAuthenticatorTest` — all 6 tests change to pass `SensitivePassword` instead of `String`. Add:
+- `given a valid authentication, when completed, then password is wiped`
+- `given a blank password, when authenticating, then password is wiped`
+
+**Green:** Change `UserAuthenticator.authenticate` to accept `SensitivePassword`. Extract core logic, wipe after, return result. Replace `rawPassword.isBlank()` check with a check on the `CharArray` content.
+
+### Phase 7: Presentation — ViewModels (accounts)
+
+**Red:** Update `RegistrationViewModelTest` — all 8 tests still pass `String` to `viewModel.register()` (the public API doesn't change). But the mock setup for `userRegistrar.register` now expects `SensitivePassword` arguments. Use MockK argument matchers accordingly.
+
+Update `LoginViewModelTest` — same approach for all 7 tests.
+
+**Green:** In `RegistrationViewModel.register`, convert `rawPassword.toCharArray()` → `SensitivePassword` and `rawPasswordConfirmation.toCharArray()` → `SensitivePassword` before calling `userRegistrar.register`. In `LoginViewModel.login`, convert `rawPassword.toCharArray()` → `SensitivePassword` before calling `userAuthenticator.authenticate`.
+
+## Design docs to update
+
+### `specs/accounts/user-creation/design.md`
+- [ ] Design Decision: `Password` is validation-only — no longer holds the password value; `Password.create` takes `CharArray` and returns `Outcome<Unit>`
+- [ ] Design Decision: `SensitivePassword` (from `crypto/domain`) replaces `String` in the registration password chain
+- [ ] Design Decision: `UserRegistrar` wipes both `SensitivePassword` instances after every execution path
+- [ ] Data Flow: step 5 passes `SensitivePassword` to `VaultCrypto.deriveKeys` instead of `password.value`
+- [ ] Quality Pillars — Security: update to reflect deterministic password zeroing via `SensitivePassword.wipe()`
+- [ ] Known Limitations: remove the in-memory plaintext password limitation (resolved by this change)
+
+### `specs/accounts/login/design.md`
+- [ ] Design Decision: `SensitivePassword` (from `crypto/domain`) replaces `String` in the login password chain
+- [ ] Design Decision: `UserAuthenticator` wipes `SensitivePassword` after every execution path
+- [ ] Data Flow: update to reflect `SensitivePassword` passed to `VaultCrypto.deriveKeys`
+- [ ] Quality Pillars — Security: update to reflect deterministic password zeroing via `SensitivePassword.wipe()`

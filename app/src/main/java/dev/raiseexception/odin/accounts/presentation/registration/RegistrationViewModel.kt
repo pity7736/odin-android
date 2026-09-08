@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounts.application.usecase.UserRegistrar
 import dev.raiseexception.odin.accounts.domain.RegistrationError
+import dev.raiseexception.odin.crypto.domain.SensitivePassword
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.coroutines.channels.Channel
@@ -28,7 +29,9 @@ class RegistrationViewModel(
         if (this.mutableUiState.value is RegistrationUiState.Loading) return
         this.mutableUiState.value = RegistrationUiState.Loading
         this.viewModelScope.launch {
-            val outcome = userRegistrar.register(rawPassword, rawPasswordConfirmation)
+            val password = SensitivePassword(rawPassword.toCharArray())
+            val confirmation = SensitivePassword(rawPasswordConfirmation.toCharArray())
+            val outcome = userRegistrar.register(password, confirmation)
             when (outcome) {
                 is Outcome.Success -> navigationChannel.send(NavigationTarget.Home)
                 is Outcome.Failure -> mutableUiState.value = mapError(outcome.error)

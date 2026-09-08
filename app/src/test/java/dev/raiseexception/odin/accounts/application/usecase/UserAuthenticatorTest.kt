@@ -5,6 +5,7 @@ import dev.raiseexception.odin.accounts.domain.model.User
 import dev.raiseexception.odin.accounts.domain.repository.UserRepository
 import dev.raiseexception.odin.crypto.domain.CryptoError
 import dev.raiseexception.odin.crypto.domain.DerivedKeys
+import dev.raiseexception.odin.crypto.domain.SensitivePassword
 import dev.raiseexception.odin.crypto.domain.VaultCrypto
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -39,7 +40,6 @@ class UserAuthenticatorTest {
     private val wrappedMasterKey = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + WRAPPED_KEY_OFFSET).toByte() }
     private val derivedKeys = DerivedKeys(authHash = "authHash", encryptionKey = encryptionKey)
     private val storedUser = User(id = "user-1", salt = salt, wrappedMasterKey = wrappedMasterKey)
-    private val validPassword = "validPassword1"
 
     @Before
     fun setUp() {
@@ -55,10 +55,10 @@ class UserAuthenticatorTest {
     fun `given a correct password, when authenticating, then stores the master key and returns the user`() =
         runTest {
             coEvery { userRepository.get() } returns Outcome.Success(storedUser)
-            every { vaultCrypto.deriveKeys(validPassword, salt) } returns Outcome.Success(derivedKeys)
+            every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
             every { vaultCrypto.unwrapMasterKey(wrappedMasterKey, encryptionKey) } returns Outcome.Success(masterKey)
 
-            val result = authenticator.authenticate(validPassword)
+            val result = authenticator.authenticate(sensitivePassword("validPassword1"))
 
             assertTrue(result is Outcome.Success)
             assertTrue((result as Outcome.Success).value == storedUser)
@@ -70,12 +70,12 @@ class UserAuthenticatorTest {
     fun `given an incorrect password, when authenticating, then returns invalid credentials and stores nothing`() =
         runTest {
             coEvery { userRepository.get() } returns Outcome.Success(storedUser)
-            every { vaultCrypto.deriveKeys(validPassword, salt) } returns Outcome.Success(derivedKeys)
+            every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
             every { vaultCrypto.unwrapMasterKey(wrappedMasterKey, encryptionKey) } returns Outcome.Failure(
                 CryptoError.DecryptionFailed()
             )
 
-            val result = authenticator.authenticate(validPassword)
+            val result = authenticator.authenticate(sensitivePassword("validPassword1"))
 
             assertTrue(result is Outcome.Failure)
             assertTrue((result as Outcome.Failure).error is LoginError.InvalidCredentials)
@@ -85,7 +85,7 @@ class UserAuthenticatorTest {
     @Test
     fun `given a blank password, when authenticating, then returns empty password and never calls the crypto`() =
         runTest {
-            val result = authenticator.authenticate("   ")
+            val result = authenticator.authenticate(sensitivePassword("   "))
 
             assertTrue(result is Outcome.Failure)
             assertTrue((result as Outcome.Failure).error is LoginError.EmptyPassword)
@@ -96,9 +96,9 @@ class UserAuthenticatorTest {
     @Test
     fun `given key derivation fails, when authenticating, then returns crypto failure`() = runTest {
         coEvery { userRepository.get() } returns Outcome.Success(storedUser)
-        every { vaultCrypto.deriveKeys(validPassword, salt) } returns Outcome.Failure(CryptoError.InvalidSalt())
+        every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Failure(CryptoError.InvalidSalt())
 
-        val result = authenticator.authenticate(validPassword)
+        val result = authenticator.authenticate(sensitivePassword("validPassword1"))
 
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is LoginError.CryptoFailure)
@@ -108,12 +108,12 @@ class UserAuthenticatorTest {
     fun `given a non tag unwrap failure, when authenticating, then returns crypto failure`() =
         runTest {
             coEvery { userRepository.get() } returns Outcome.Success(storedUser)
-            every { vaultCrypto.deriveKeys(validPassword, salt) } returns Outcome.Success(derivedKeys)
+            every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
             every { vaultCrypto.unwrapMasterKey(wrappedMasterKey, encryptionKey) } returns Outcome.Failure(
                 CryptoError.InvalidKeySize()
             )
 
-            val result = authenticator.authenticate(validPassword)
+            val result = authenticator.authenticate(sensitivePassword("validPassword1"))
 
             assertTrue(result is Outcome.Failure)
             assertTrue((result as Outcome.Failure).error is LoginError.CryptoFailure)
@@ -128,9 +128,32 @@ class UserAuthenticatorTest {
             )
         )
 
-        val result = authenticator.authenticate(validPassword)
+        val result = authenticator.authenticate(sensitivePassword("validPassword1"))
 
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is LoginError.UserNotFound)
     }
+
+    @Test
+    fun `given a valid authentication, when completed, then password is wiped`() = runTest {
+        coEvery { userRepository.get() } returns Outcome.Success(storedUser)
+        every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
+        every { vaultCrypto.unwrapMasterKey(wrappedMasterKey, encryptionKey) } returns Outcome.Success(masterKey)
+        val password = sensitivePassword("validPassword1")
+
+        authenticator.authenticate(password)
+
+        assertTrue(password.isBlank())
+    }
+
+    @Test
+    fun `given a blank password, when authenticating, then password is wiped`() = runTest {
+        val password = sensitivePassword("   ")
+
+        authenticator.authenticate(password)
+
+        assertTrue(password.isBlank())
+    }
+
+    private fun sensitivePassword(raw: String) = SensitivePassword(raw.toCharArray())
 }

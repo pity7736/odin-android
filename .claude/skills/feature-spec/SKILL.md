@@ -109,13 +109,17 @@ Discovery (above) must be complete first.
    a. **Read the relevant code.** For an existing feature, the feature's code.
       For a new one, `docs/02-architecture.md`, `docs/05-code-standards.md`, and
       the closest existing feature to mirror its patterns.
-   b. **Surface findings.** What already exists, bugs, gaps, and architectural
-      concerns. Raise concerns and challenge decisions — do not stay quiet.
-   c. **Discuss** with the user until aligned. Be STRICT, not agreeable. Do not
-      default to agreement — if the user is wrong, say so plainly and explain
-      why; if the user is right, say why with real technical arguments, not
-      praise. Every position (yours or the user's) must be backed by an
-      argument. Sycophancy here produces bad plans.
+   b. **Surface findings one at a time.** Present ONE finding, concern, or
+      decision point. Wait for the user's response. Do not advance to the next
+      finding until the current one is settled. When a finding opens a
+      discussion (follow-ups, alternatives, partial agreement), stay on it.
+      Never dump multiple findings at once — the user is not a machine. Raise
+      concerns and challenge decisions — do not stay quiet.
+   c. **Discuss** each finding with the user until aligned. Be STRICT, not
+      agreeable. Do not default to agreement — if the user is wrong, say so
+      plainly and explain why; if the user is right, say why with real technical
+      arguments, not praise. Every position (yours or the user's) must be backed
+      by an argument. Sycophancy here produces bad plans.
    d. **GATE:** explicitly ask "are you good with the discussion?" Do NOT write
       the plan until the user says yes. This is a separate approval from the
       plan review in step 5.

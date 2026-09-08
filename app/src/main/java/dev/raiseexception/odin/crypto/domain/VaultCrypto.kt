@@ -3,7 +3,7 @@ package dev.raiseexception.odin.crypto.domain
 import dev.raiseexception.odin.shared.domain.Outcome
 
 interface VaultCrypto {
-    fun deriveKeys(password: String, salt: ByteArray): Outcome<DerivedKeys>
+    fun deriveKeys(password: SensitivePassword, salt: ByteArray): Outcome<DerivedKeys>
     fun generateSalt(): ByteArray
     fun generateMasterKey(): ByteArray
     fun wrapMasterKey(masterKey: ByteArray, encryptionKey: ByteArray): Outcome<ByteArray>
