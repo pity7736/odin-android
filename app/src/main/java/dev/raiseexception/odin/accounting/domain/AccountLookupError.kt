@@ -7,14 +7,4 @@ sealed class AccountLookupError : DomainError {
         override val internalMessage: String,
         override val externalMessage: String
     ) : AccountLookupError()
-
-    data class StorageFailure(
-        override val internalMessage: String,
-        override val externalMessage: String
-    ) : AccountLookupError()
-
-    data class CryptoFailure(
-        override val internalMessage: String,
-        override val externalMessage: String
-    ) : AccountLookupError()
 }

@@ -36,10 +36,6 @@ class HomeViewModel(
         this.load()
     }
 
-    fun reload() {
-        this.load()
-    }
-
     private fun load() {
         this.viewModelScope.launch(this.ioDispatcher) {
             val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)

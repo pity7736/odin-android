@@ -1,5 +1,8 @@
 package dev.raiseexception.odin.accounting.infrastructure.repository
 
+import android.content.Context
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
 import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
@@ -10,44 +13,68 @@ import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
-import dev.raiseexception.odin.crypto.infrastructure.BouncyCastleVaultCrypto
+import dev.raiseexception.odin.persistence.OdinDatabase
 import dev.raiseexception.odin.shared.domain.Outcome
-import dev.raiseexception.odin.shared.infrastructure.vault.InMemoryEncryptedRecordStore
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import dev.raiseexception.odin.shared.infrastructure.persistence.RoomTransactionRunner
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import java.math.BigDecimal
 
-private const val MASTER_KEY_SIZE = 32
-private const val SEED_ENTRY_COUNT = 9
-
+@RunWith(RobolectricTestRunner::class)
 class BalanceIntegrationTest {
 
-    private fun createStore() = InMemoryEncryptedRecordStore(
-        vaultCrypto = BouncyCastleVaultCrypto(),
-        masterKeyRepository = FakeMasterKeyRepository(ByteArray(MASTER_KEY_SIZE) { it.toByte() }),
-        cpuDispatcher = UnconfinedTestDispatcher()
-    )
+    private lateinit var database: OdinDatabase
+    private lateinit var accountCreator: AccountCreator
+    private lateinit var accountFinder: AccountFinder
+    private lateinit var incomeCreator: IncomeCreator
+    private lateinit var expenseCreator: ExpenseCreator
+    private lateinit var categoryCreator: CategoryCreator
 
-    @Test
-    fun `given seeder data, when loading ahorros via account finder, then balance is 3500000`() = runTest {
-        val store = createStore()
-        val accountRepository = VaultAccountRepository(store)
-        val categoryRepository = VaultCategoryRepository(store)
-        val incomeRepository = VaultIncomeRepository(store)
-        val categoryCreator = CategoryCreator(categoryRepository)
-        val incomeCreator = IncomeCreator(
+    @Before
+    fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        database = Room.inMemoryDatabaseBuilder(context, OdinDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        val accountRepository = RoomAccountRepository(database.accountDao())
+        val categoryRepository = RoomCategoryRepository(database.categoryDao())
+        val transactionDao = database.transactionDao()
+        val incomeRepository = RoomIncomeRepository(transactionDao)
+        val expenseRepository = RoomExpenseRepository(transactionDao)
+        val transactionRunner = RoomTransactionRunner(database)
+        categoryCreator = CategoryCreator(categoryRepository)
+        accountCreator = AccountCreator(accountRepository)
+        accountFinder = AccountFinder(accountRepository)
+        incomeCreator = IncomeCreator(
             accountRepository = accountRepository,
             incomeRepository = incomeRepository,
             categoryRepository = categoryRepository,
             categoryCreator = categoryCreator,
-            transactionRunner = VaultTransactionRunner()
+            transactionRunner = transactionRunner
         )
-        val accountCreator = AccountCreator(accountRepository)
-        val accountFinder = AccountFinder(accountRepository)
+        expenseCreator = ExpenseCreator(
+            accountRepository = accountRepository,
+            expenseRepository = expenseRepository,
+            categoryRepository = categoryRepository,
+            categoryCreator = categoryCreator,
+            transactionRunner = transactionRunner
+        )
+    }
 
+    @After
+    fun tearDown() {
+        database.close()
+    }
+
+    @Test
+    fun `given seeder data, when loading ahorros via account finder, then balance is 3500000`() = runTest {
         val ahorros = (
             accountCreator.create(
                 "Ahorros",
@@ -58,11 +85,9 @@ class BalanceIntegrationTest {
             ) as Outcome.Success
             ).value
         accountCreator.create("Efectivo", "50000", Currency.COP, AccountType.CASH, "")
-
         categoryCreator.create("Alimentación", CategoryType.EXPENSE, "", null)
         categoryCreator.create("Transporte", CategoryType.EXPENSE, "", null)
         categoryCreator.create("Entretenimiento", CategoryType.EXPENSE, "", null)
-
         val salarioResult = incomeCreator.create(
             accountId = ahorros.id,
             amount = "2000000",
@@ -71,7 +96,6 @@ class BalanceIntegrationTest {
             description = "Pago mensual"
         )
         assertTrue("Salario income should succeed: $salarioResult", salarioResult is Outcome.Success)
-
         val freelanceResult = incomeCreator.create(
             accountId = ahorros.id,
             amount = "500000",
@@ -80,13 +104,10 @@ class BalanceIntegrationTest {
             description = "Proyecto web"
         )
         assertTrue("Freelance income should succeed: $freelanceResult", freelanceResult is Outcome.Success)
-
-        assertEquals(SEED_ENTRY_COUNT, store.entries.size)
-
         val loaded = accountFinder.find(
             ahorros.id,
             AccountCriteria(includeIncomes = true, includeExpenses = true)
-        )
+        ).first()
         assertTrue("AccountFinder.find should succeed: $loaded", loaded is Outcome.Success)
         val account = (loaded as Outcome.Success).value
         assertEquals(2, account.incomes.size)
@@ -96,21 +117,6 @@ class BalanceIntegrationTest {
 
     @Test
     fun `given account with income, when loading via account finder, then balance includes income`() = runTest {
-        val store = createStore()
-        val accountRepository = VaultAccountRepository(store)
-        val categoryRepository = VaultCategoryRepository(store)
-        val incomeRepository = VaultIncomeRepository(store)
-        val categoryCreator = CategoryCreator(categoryRepository)
-        val incomeCreator = IncomeCreator(
-            accountRepository = accountRepository,
-            incomeRepository = incomeRepository,
-            categoryRepository = categoryRepository,
-            categoryCreator = categoryCreator,
-            transactionRunner = VaultTransactionRunner()
-        )
-        val accountCreator = AccountCreator(accountRepository)
-        val accountFinder = AccountFinder(accountRepository)
-
         val account = (
             accountCreator.create(
                 "Ahorros",
@@ -120,7 +126,6 @@ class BalanceIntegrationTest {
                 ""
             ) as Outcome.Success
             ).value
-
         val incomeResult = incomeCreator.create(
             accountId = account.id,
             amount = "2000000",
@@ -129,11 +134,10 @@ class BalanceIntegrationTest {
             description = "Pago mensual"
         )
         assertTrue("Income creation should succeed: $incomeResult", incomeResult is Outcome.Success)
-
         val loaded = accountFinder.find(
             account.id,
             AccountCriteria(includeIncomes = true, includeExpenses = true)
-        )
+        ).first()
         assertTrue("AccountFinder.find should succeed: $loaded", loaded is Outcome.Success)
         val loadedAccount = (loaded as Outcome.Success).value
         assertEquals(1, loadedAccount.incomes.size)
@@ -142,21 +146,6 @@ class BalanceIntegrationTest {
 
     @Test
     fun `given account with expense, when loading via account finder, then balance includes expense`() = runTest {
-        val store = createStore()
-        val accountRepository = VaultAccountRepository(store)
-        val categoryRepository = VaultCategoryRepository(store)
-        val expenseRepository = VaultExpenseRepository(store)
-        val categoryCreator = CategoryCreator(categoryRepository)
-        val expenseCreator = ExpenseCreator(
-            accountRepository = accountRepository,
-            expenseRepository = expenseRepository,
-            categoryRepository = categoryRepository,
-            categoryCreator = categoryCreator,
-            transactionRunner = VaultTransactionRunner()
-        )
-        val accountCreator = AccountCreator(accountRepository)
-        val accountFinder = AccountFinder(accountRepository)
-
         val account = (
             accountCreator.create(
                 "Ahorros",
@@ -166,7 +155,6 @@ class BalanceIntegrationTest {
                 ""
             ) as Outcome.Success
             ).value
-
         val expenseResult = expenseCreator.create(
             accountId = account.id,
             amount = "200000",
@@ -175,11 +163,10 @@ class BalanceIntegrationTest {
             description = "Mercado"
         )
         assertTrue("Expense creation should succeed: $expenseResult", expenseResult is Outcome.Success)
-
         val loaded = accountFinder.find(
             account.id,
             AccountCriteria(includeIncomes = true, includeExpenses = true)
-        )
+        ).first()
         assertTrue("AccountFinder.find should succeed: $loaded", loaded is Outcome.Success)
         val loadedAccount = (loaded as Outcome.Success).value
         assertEquals(1, loadedAccount.expenses.size)

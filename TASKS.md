@@ -39,8 +39,9 @@ Tasks are listed in priority order.
 ### Persistence
 
 - [x] Near-term: persist ONLY the user (survive process death) to unblock login end-to-end — login is logic-complete but currently unreachable because the in-memory user is wiped on cold start, so `StartupViewModel` never routes to login. Planned after the account-creation feature
-- [ ] Room database for user data (replace in-memory repositories)
+- [x] Room database for user data (replace in-memory repositories)
 - [ ] Android Keystore integration for master key at rest. Make the storage contract honest about failure: `MasterKeyRepository.store()` currently returns `Unit` and cannot report an error, but a Keystore-backed write can fail — change it to `Outcome<Unit>`, add a `StorageFailure` variant to both `LoginError` and `RegistrationError`, and handle the outcome in `UserAuthenticator` and `UserRegistrar` (otherwise a failed store returns Success while the session has no master key — the user appears logged in / registered but the app is in a broken half-state)
+- [ ] Replace `fallbackToDestructiveMigration` with proper Room migrations before MVP. Current config silently drops all tables on any schema version bump, destroying user data without warning
 - [ ] SQLCipher migration (encrypt the Room database at rest)
 
 ### Look and Feel
@@ -84,3 +85,5 @@ migration path.
 - [ ] `Account.createIncome()` owns income validation logic. Consider moving validation into `Income.create()` so `Income` validates its own invariants and `Account.createIncome()` just delegates, passing `this.id` and `this.currency`.
 - [ ] Navigation: all destinations are defined inline in `AppNavHost` inside `MainActivity.kt`. Extract per-module navigation graphs as screen count grows.
 - [ ] Global exception handler in ViewModels (catch uncaught library exceptions, map to UiState.Error instead of crashing). Pair with structured logging (Timber) so crashes are captured and surfaced to users without requiring developer tools.
+- [ ] `ExpenseCreator` and `IncomeCreator` read account balance outside the database transaction (`findById().first()` before `transactionRunner.run {}`). Two concurrent creations could both pass validation on stale balance. Move the read inside the transaction to guarantee consistency
+- [ ] `RoomAccountRepository.getAll()` with transactions loads every transaction row into memory via `@Relation` just to compute balances. A SQL `SUM(amount) GROUP BY type` query would return balance directly without loading individual rows — matters when accounts accumulate hundreds of transactions

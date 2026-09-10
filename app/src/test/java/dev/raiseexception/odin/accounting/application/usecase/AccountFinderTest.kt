@@ -8,8 +8,10 @@ import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
-import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -26,42 +28,39 @@ class AccountFinderTest {
     @Test
     fun `given an existing account, when find is called with its id, then returns the account`() = runTest {
         val savings = AccountBuilder().id("abc-123").build()
-        coEvery { accountRepository.findById("abc-123", AccountCriteria()) } returns Outcome.Success(savings)
-
-        val result = accountFinder.find("abc-123")
-
+        every { accountRepository.findById("abc-123", AccountCriteria()) } returns flowOf(Outcome.Success(savings))
+        val result = accountFinder.find("abc-123").first()
         assertTrue(result is Outcome.Success)
         assertEquals(savings, (result as Outcome.Success).value)
     }
 
     @Test
     fun `given no account with the id, when find is called, then returns NotFound`() = runTest {
-        coEvery { accountRepository.findById("missing", AccountCriteria()) } returns Outcome.Failure(
-            AccountLookupError.NotFound(
-                internalMessage = "Account with id missing not found",
-                externalMessage = "Cuenta no encontrada"
+        every { accountRepository.findById("missing", AccountCriteria()) } returns flowOf(
+            Outcome.Failure(
+                AccountLookupError.NotFound(
+                    internalMessage = "Account with id missing not found",
+                    externalMessage = "Cuenta no encontrada"
+                )
             )
         )
-
-        val result = accountFinder.find("missing")
-
+        val result = accountFinder.find("missing").first()
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is AccountLookupError.NotFound)
     }
 
     @Test
     fun `given a storage failure, when find is called, then returns StorageFailure`() = runTest {
-        coEvery { accountRepository.findById("any", AccountCriteria()) } returns Outcome.Failure(
-            AccountLookupError.StorageFailure(
-                internalMessage = "Storage error",
-                externalMessage = "Error al cargar la cuenta"
+        every { accountRepository.findById("any", AccountCriteria()) } returns flowOf(
+            Outcome.Failure(
+                dev.raiseexception.odin.shared.domain.StorageError(
+                    internalMessage = "Storage error"
+                )
             )
         )
-
-        val result = accountFinder.find("any")
-
+        val result = accountFinder.find("any").first()
         assertTrue(result is Outcome.Failure)
-        assertTrue((result as Outcome.Failure).error is AccountLookupError.StorageFailure)
+        assertTrue((result as Outcome.Failure).error is dev.raiseexception.odin.shared.domain.StorageError)
     }
 
     @Test
@@ -80,10 +79,8 @@ class AccountFinderTest {
             .incomes(listOf(income))
             .build()
         val criteria = AccountCriteria(includeIncomes = true)
-        coEvery { accountRepository.findById("abc-123", criteria) } returns Outcome.Success(accountWithIncomes)
-
-        val result = accountFinder.find("abc-123", criteria)
-
+        every { accountRepository.findById("abc-123", criteria) } returns flowOf(Outcome.Success(accountWithIncomes))
+        val result = accountFinder.find("abc-123", criteria).first()
         assertTrue(result is Outcome.Success)
         val account = (result as Outcome.Success).value
         assertEquals(1, account.incomes.size)

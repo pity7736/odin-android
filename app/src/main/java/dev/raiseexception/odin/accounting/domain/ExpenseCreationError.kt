@@ -27,11 +27,6 @@ sealed class ExpenseCreationError(
         externalMessage: String
     ) : ExpenseCreationError(internalMessage, externalMessage)
 
-    class CryptoFailure(
-        internalMessage: String,
-        externalMessage: String
-    ) : ExpenseCreationError(internalMessage, externalMessage)
-
     class StorageFailure(
         internalMessage: String,
         externalMessage: String

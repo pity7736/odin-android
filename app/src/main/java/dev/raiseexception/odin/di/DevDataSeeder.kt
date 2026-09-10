@@ -1,6 +1,7 @@
 package dev.raiseexception.odin.di
 
 import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
+import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.domain.model.AccountType
@@ -8,6 +9,7 @@ import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.shared.domain.Outcome
+import kotlinx.coroutines.flow.first
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
@@ -18,9 +20,13 @@ class DevDataSeeder(
     private val accountCreator: AccountCreator,
     private val categoryCreator: CategoryCreator,
     private val incomeCreator: IncomeCreator,
+    private val accountLister: AccountLister,
 ) {
 
     suspend fun seed() {
+        val existingAccounts = this.accountLister.list().first()
+        if (existingAccounts is Outcome.Success && existingAccounts.value.isNotEmpty()) return
+
         val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         val yesterday = today.minus(DAYS_AGO_YESTERDAY, DateTimeUnit.DAY)
         val lastWeek = today.minus(DAYS_AGO_LAST_WEEK, DateTimeUnit.DAY)

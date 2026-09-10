@@ -4,9 +4,10 @@ import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.shared.domain.Outcome
+import kotlinx.coroutines.flow.Flow
 
 class AccountFinder(private val accountRepository: AccountRepository) {
 
-    suspend fun find(id: String, criteria: AccountCriteria = AccountCriteria()): Outcome<Account> =
+    fun find(id: String, criteria: AccountCriteria = AccountCriteria()): Flow<Outcome<Account>> =
         this.accountRepository.findById(id, criteria)
 }

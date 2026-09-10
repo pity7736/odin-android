@@ -30,7 +30,7 @@ class IncomeCreator(
         categoryInput: CategoryInput,
         description: String
     ): Outcome<Income> {
-        val account = when (val outcome = this.accountRepository.findById(accountId, AccountCriteria())) {
+        val account = when (val outcome = this.accountRepository.findById(accountId, AccountCriteria()).first()) {
             is Outcome.Success -> outcome.value
             is Outcome.Failure -> return Outcome.Failure(
                 IncomeCreationError.StorageFailure(
@@ -100,7 +100,7 @@ class IncomeCreator(
         val categories = when (val outcome = this.categoryRepository.getAll().first()) {
             is Outcome.Success -> outcome.value
             is Outcome.Failure -> return Outcome.Failure(
-                IncomeCreationError.CryptoFailure(
+                IncomeCreationError.StorageFailure(
                     internalMessage = outcome.error.internalMessage,
                     externalMessage = outcome.error.externalMessage
                 )

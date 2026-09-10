@@ -34,7 +34,7 @@ class ExpenseCreator(
             val outcome = this.accountRepository.findById(
                 accountId,
                 AccountCriteria(includeIncomes = true, includeExpenses = true)
-            )
+            ).first()
         ) {
             is Outcome.Success -> outcome.value
             is Outcome.Failure -> return Outcome.Failure(
@@ -105,7 +105,7 @@ class ExpenseCreator(
         val categories = when (val outcome = this.categoryRepository.getAll().first()) {
             is Outcome.Success -> outcome.value
             is Outcome.Failure -> return Outcome.Failure(
-                ExpenseCreationError.CryptoFailure(
+                ExpenseCreationError.StorageFailure(
                     internalMessage = outcome.error.internalMessage,
                     externalMessage = outcome.error.externalMessage
                 )
