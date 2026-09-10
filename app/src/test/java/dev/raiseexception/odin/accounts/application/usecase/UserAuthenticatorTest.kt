@@ -100,7 +100,7 @@ class UserAuthenticatorTest {
 
     @Test
     fun `given no salt stored, when authenticate called, then returns UserNotFound`() = runTest {
-        coEvery { saltRepository.get() } returns null
+        coEvery { saltRepository.get() } returns Outcome.Failure(CryptoError.SaltNotFound())
 
         val result = authenticator.authenticate(sensitivePassword("validPassword1"))
 
@@ -111,7 +111,7 @@ class UserAuthenticatorTest {
     @Test
     fun `given an incorrect password, when authenticating, then returns invalid credentials and stores nothing`() =
         runTest {
-            coEvery { saltRepository.get() } returns salt
+            coEvery { saltRepository.get() } returns Outcome.Success(salt)
             every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
             every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
             coEvery { userRepository.get() } returns Outcome.Success(storedUser)
@@ -139,7 +139,7 @@ class UserAuthenticatorTest {
 
     @Test
     fun `given key derivation fails, when authenticating, then returns crypto failure`() = runTest {
-        coEvery { saltRepository.get() } returns salt
+        coEvery { saltRepository.get() } returns Outcome.Success(salt)
         every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Failure(CryptoError.InvalidSalt())
 
         val result = authenticator.authenticate(sensitivePassword("validPassword1"))
@@ -151,7 +151,7 @@ class UserAuthenticatorTest {
     @Test
     fun `given a non tag unwrap failure, when authenticating, then returns crypto failure`() =
         runTest {
-            coEvery { saltRepository.get() } returns salt
+            coEvery { saltRepository.get() } returns Outcome.Success(salt)
             every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
             every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
             coEvery { userRepository.get() } returns Outcome.Success(storedUser)
@@ -167,7 +167,7 @@ class UserAuthenticatorTest {
 
     @Test
     fun `given no registered user, when authenticating, then returns user not found`() = runTest {
-        coEvery { saltRepository.get() } returns salt
+        coEvery { saltRepository.get() } returns Outcome.Success(salt)
         every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
         every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
         coEvery { userRepository.get() } returns Outcome.Failure(
@@ -203,7 +203,7 @@ class UserAuthenticatorTest {
     }
 
     private fun stubSuccessfulAuthentication() {
-        coEvery { saltRepository.get() } returns salt
+        coEvery { saltRepository.get() } returns Outcome.Success(salt)
         every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
         every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
         coEvery { userRepository.get() } returns Outcome.Success(storedUser)

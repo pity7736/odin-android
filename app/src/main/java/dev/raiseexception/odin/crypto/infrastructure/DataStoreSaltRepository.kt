@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import dev.raiseexception.odin.crypto.domain.CryptoError
 import dev.raiseexception.odin.crypto.domain.repository.SaltRepository
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.StorageError
@@ -28,11 +29,21 @@ class DataStoreSaltRepository(
             )
         }
 
-    override suspend fun get(): ByteArray? =
-        this.dataStore.data
-            .map { preferences -> preferences[SALT_KEY] }
-            .first()
-            ?.let { encoded -> Base64.getDecoder().decode(encoded) }
+    override suspend fun get(): Outcome<ByteArray> =
+        try {
+            val encoded = this.dataStore.data
+                .map { preferences -> preferences[SALT_KEY] }
+                .first()
+            if (encoded != null) {
+                Outcome.Success(Base64.getDecoder().decode(encoded))
+            } else {
+                Outcome.Failure(CryptoError.SaltNotFound())
+            }
+        } catch (exception: IOException) {
+            Outcome.Failure(
+                StorageError(internalMessage = "Failed to read salt: ${exception.message}")
+            )
+        }
 
     override suspend fun exists(): Boolean =
         this.dataStore.data

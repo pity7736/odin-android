@@ -35,7 +35,10 @@ class UserAuthenticator(
         if (password.isBlank()) {
             return this.emptyPasswordFailure()
         }
-        val salt = this.saltRepository.get() ?: return this.userNotFoundFailure()
+        val salt = when (val saltOutcome = this.saltRepository.get()) {
+            is Outcome.Success -> saltOutcome.value
+            is Outcome.Failure -> return this.userNotFoundFailure()
+        }
         return this.verifyPassword(password, salt)
     }
 

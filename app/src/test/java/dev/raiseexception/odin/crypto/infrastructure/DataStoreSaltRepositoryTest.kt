@@ -1,11 +1,11 @@
 package dev.raiseexception.odin.crypto.infrastructure
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import dev.raiseexception.odin.crypto.domain.CryptoError
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -35,12 +35,13 @@ class DataStoreSaltRepositoryTest {
     }
 
     @Test
-    fun `given no salt stored, when get called, then returns null`() = runTest {
+    fun `given no salt stored, when get called, then returns SaltNotFound`() = runTest {
         val repository = createRepository()
 
         val result = repository.get()
 
-        assertNull(result)
+        assertTrue(result is Outcome.Failure)
+        assertTrue((result as Outcome.Failure).error is CryptoError.SaltNotFound)
     }
 
     @Test
@@ -52,7 +53,8 @@ class DataStoreSaltRepositoryTest {
         val result = repository.get()
 
         assertTrue(saveResult is Outcome.Success)
-        assertArrayEquals(salt, result)
+        assertTrue(result is Outcome.Success)
+        assertArrayEquals(salt, (result as Outcome.Success).value)
     }
 
     @Test
@@ -75,6 +77,6 @@ class DataStoreSaltRepositoryTest {
         repository.delete()
 
         assertFalse(repository.exists())
-        assertNull(repository.get())
+        assertTrue(repository.get() is Outcome.Failure)
     }
 }

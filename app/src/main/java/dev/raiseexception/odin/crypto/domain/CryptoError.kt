@@ -36,4 +36,9 @@ sealed class CryptoError(
         internalMessage = "No master key stored in the session",
         externalMessage = "No se encontró la protección de datos de la sesión"
     )
+
+    class SaltNotFound : CryptoError(
+        internalMessage = "No salt stored on this device",
+        externalMessage = "No se encontró la configuración de la cuenta"
+    )
 }
