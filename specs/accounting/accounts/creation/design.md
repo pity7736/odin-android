@@ -7,10 +7,8 @@
 The first feature of the `accounting` module: creating a financial account
 (name, initial balance, currency, type, optional description). A signed-in user
 fills a form; invalid input is rejected with per-field errors shown together; the
-account is encrypted before being stored; creation navigates to a placeholder
-accounts list. It is also the app's first feature to persist domain data, so it
-introduces the shared encrypted-storage shape that later accounting entities
-(incomes, expenses) will reuse.
+account is persisted to a Room database; creation navigates to a placeholder
+accounts list.
 
 ## Design Decisions & Rationale
 
@@ -52,40 +50,24 @@ introduces the shared encrypted-storage shape that later accounting entities
 - **The ViewModel is dumb.** It forwards the raw form fields to the use case and
   maps the resulting `Outcome` to `UiState`. No validation, no parsing, no
   user-facing messages live in it.
-- **One shared encrypted store, a repository per entity (anti-enumeration).**
-  Separate stores per entity type would leak cardinality metadata (a ~5-record
-  store is obviously "accounts") to whoever sees the encrypted storage — most
-  importantly the optional backup server. So all entities share ONE opaque store
-  and the entity **type lives inside the ciphertext**, never as a plaintext
-  discriminator. Listing/uniqueness decrypts and filters by that in-ciphertext
-  type. Only account records exist today, but the shape is built now so expenses
-  drop in later without a redesign.
-- **Encryption is not deferred.** Even the current in-memory store holds encrypted
-  blobs, so the spec's encryption criterion holds and the real crypto path is
-  exercised; the future storage swap only persists the same blob.
-- **Persistence is in-memory behind a port.** Room is intentionally not introduced
-  yet (the data model is still settling). The feature depends on the
-  `AccountRepository` and `EncryptedRecordStore` ports, so swapping the in-memory
-  adapters for Room later touches no feature code.
-- **Case-insensitive uniqueness by decrypt-and-compare, in the repository.** With
-  data encrypted and no plaintext name column, uniqueness can't be a query; the
-  repository decrypts existing records and compares names case-insensitively.
-  Negligible for a single-user vault, and it keeps the domain ignorant of
-  encryption.
+- **Room-backed persistence with `AccountEntity`.** `RoomAccountRepository`
+  persists accounts to the `accounts` table via `AccountDao`. Entity mappers
+  (`Account.toEntity()` / `AccountEntity.toDomain()`) are `internal` extension
+  functions — infrastructure-only, not part of the public contract. The repository
+  catches `SQLiteException` and returns `Outcome.Failure(StorageError(...))`.
+- **Case-insensitive uniqueness via SQL `COLLATE NOCASE`.** `AccountDao.existsByName`
+  performs the check directly in SQL, replacing the former decrypt-and-compare
+  approach.
 - **Money serialized as a String at the infra boundary** to keep the `BigDecimal`
-  amount exact across encrypt/decrypt.
+  amount exact across storage round-trips.
 - **`Account.createdAt` is captured in `Account.create` via an injected clock.** The factory
   accepts a `clock: Clock = Clock.System` parameter (from `kotlinx-datetime`). The default
   means no caller needs to change; tests inject a fixed `Clock` to assert the exact instant.
   `createdAt` is a `val` on an immutable `data class`, so immutability is enforced by
-  construction — no explicit guard is needed. `AccountRecord` stores the timestamp as an
-  ISO-8601 string (`Instant.toString()`) for the same reason `amount` is stored as a plain
-  string: exact round-trip at the infra boundary without loss. There is no new error subclass
-  for timestamp failure; if storage fails (and therefore the timestamp cannot be persisted),
-  the existing `StorageFailure`/`CryptoFailure` path applies and the ViewModel maps it to
-  `Error` as before. `Account.create` carries a `@Suppress("LongParameterList")` annotation
-  because the factory legitimately requires all its inputs; the suppress is scoped to that
-  function alone.
+  construction — no explicit guard is needed. `AccountEntity` stores the timestamp as an
+  ISO-8601 string (`Instant.toString()`) for exact round-trip at the infra boundary without
+  loss. `Account.create` carries a `@Suppress("LongParameterList")` annotation because the
+  factory legitimately requires all its inputs; the suppress is scoped to that function alone.
 - **`CreateAccountViewModel` is destination-scoped.** The `ACCOUNT_CREATE`
   destination obtains it via `androidx.lifecycle.viewmodel.compose.viewModel { … }`
   (backed by the `NavBackStackEntry`'s `ViewModelStore`; instance from the
@@ -110,14 +92,12 @@ app/src/main/java/dev/raiseexception/odin/
 │   │   └── repository/       # AccountRepository (port)
 │   ├── application/usecase/   # AccountCreator (orchestration only)
 │   ├── infrastructure/
-│   │   ├── serialization/    # AccountRecord (storage DTO, type tag inside ciphertext; createdAt as ISO-8601 string)
-│   │   └── repository/       # store-backed AccountRepository adapter
+│   │   └── repository/       # RoomAccountRepository, AccountEntity, AccountDao
 │   └── presentation/
 │       ├── accountcreation/  # CreateAccountViewModel (dumb), UiState, NavigationTarget, Screen
 │       └── accountslist/     # AccountsListScreen (placeholder)
-└── shared/infrastructure/vault/   # EncryptedRecordStore (port) + StoredRecord + in-memory adapter
 
-app/src/test/…            # JVM unit tests: Money, Account.create, AccountCreator, the store, the repository, the ViewModel
+app/src/test/…            # JVM unit tests: Money, Account.create, AccountCreator, the repository, the ViewModel
 app/src/androidTest/…     # Compose UI test for the create screen
 
 specs/accounting/accounts/creation/
@@ -137,12 +117,12 @@ specs/accounting/accounts/creation/
    everything (presence, balance parse, value rules), captures `createdAt` via
    `clock.now()`, and returns either the built `Account` or one `InvalidInput`
    carrying **all** offending field messages.
-5. **Infrastructure (`AccountRepository` → `EncryptedRecordStore`):** the account
-   is mapped to a storage DTO (with its type tag), serialized, **encrypted**, and
-   stored; uniqueness decrypts existing records and compares by name.
+5. **Infrastructure (`RoomAccountRepository` → `AccountDao`):** the account
+   is mapped to `AccountEntity` and inserted into the Room database; uniqueness
+   is checked via a SQL query with `COLLATE NOCASE`.
 6. Result flows back as `Outcome`: success → a one-shot navigation event to the
    accounts list; failure → the ViewModel maps `InvalidInput` to a per-field
-   `ValidationError`, `DuplicateName` to a name error, crypto/storage to a general
+   `ValidationError`, `DuplicateName` to a name error, storage to a general
    `Error`.
 
 ## Screen & States / Backend Interaction
@@ -154,40 +134,28 @@ specs/accounting/accounts/creation/
 - **UiState:** one immutable state — `Idle` / `Loading` / `ValidationError`
   (per-field: name, balance, currency, type, description) / `Error` (general
   message). Navigation is a one-shot event, separate from state.
-- **Backend Interaction:** none. Standalone/on-device only; the optional server
-  never receives plaintext (and, when enabled, would only ever see opaque
-  encrypted records).
+- **Backend Interaction:** none. Standalone/on-device only.
 
 ## Known Limitations
 
-- **In-memory storage** — accounts do not survive app restart until Room replaces
-  the store at MVP.
-- **Placeholder accounts list** — the destination does not read/display accounts;
-  the read-back path (bytes → `Account`) arrives with the list/read feature.
 - **Balance input is dot-only** — the domain parses with a dot decimal and no
   grouping separators; comma decimals / period grouping (es-CO) are unsupported.
   Acceptable for now (dev users), tracked in `TASKS.md`.
-- **In-memory store is not thread-safe** — acceptable for a single-user throwaway
-  store replaced by Room; no read/write overlap occurs in practice.
 - **Out of scope** (per spec): editing/deleting accounts, transactions, credit-card
   and other account types, and currencies beyond USD/EUR/COP.
 
 ## Quality Pillars
 
-- **Security:** Zero-knowledge preserved — account details are encrypted before
-  storage (AES-256-GCM via the crypto module, master key from the session key
-  store); the entity type lives inside the ciphertext, so even per-entity record
-  cardinality isn't leaked to storage or the optional backup server. No plaintext,
-  key, or password is logged.
+- **Security:** Data is stored as plaintext in Room during development;
+  SQLCipher encryption at rest is a separate subsequent task. No plaintext
+  key or password is logged.
 - **Reliability:** Failures are typed `Outcome`/`DomainError` values, never
   exceptions across layers; `Account.create` aggregates all field errors; a single
   authority means the ViewModel and use case can't disagree about validity.
   `create` ignores a second invocation while a creation is in progress (it returns
   early when the state is already `Loading`), so a double tap cannot start two
-  creations. Persistence is non-durable by design for now (see Known Limitations).
-- **Performance:** Crypto runs off the main thread on an injected dispatcher.
-  Uniqueness decrypts all records per create — O(n) but negligible for a
-  single-user vault; chunk-batching is the answer if it ever matters.
+  creations. Room repos catch `SQLiteException` and return `Outcome.Failure`.
+- **Performance:** Database operations run off the main thread on an injected
+  dispatcher. Uniqueness is a direct SQL query, O(1) via index.
 - **Observability:** Deferred — no structured logging yet (tracked in `TASKS.md`);
   when added it must respect zero-knowledge (never log keys/plaintext).
- 

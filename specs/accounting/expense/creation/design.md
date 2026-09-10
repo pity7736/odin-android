@@ -16,11 +16,13 @@ Records an expense against an existing account. The user navigates from the acco
 
 - **Private validation helpers in `Account` are shared between `createIncome()` and `createExpense()`** — `parseAmount`, `validateAmount`, and `parseAndValidateDate` are generic private methods. `createExpense()` uses an additional `validateExpenseAmount()` wrapper that layers the balance check on top of the shared `validateAmount()`. Each method returns its own error type (`IncomeCreationError` / `ExpenseCreationError`). Alternative rejected: duplicating the validation logic — identical rules would drift independently.
 
-- **`AccountCriteria` extended with `includeExpenses`** — follows the same pattern as `includeIncomes`. The criteria object controls which related entities are loaded with the account, preventing unnecessary vault decryption. Alternative rejected: separate `findByIdWithExpenses` / `findByIdWithIncomesAndExpenses` methods — combinatorial method proliferation.
+- **`AccountCriteria` extended with `includeExpenses`** — follows the same pattern as `includeIncomes`. The criteria object controls which related entities are loaded with the account. Alternative rejected: separate `findByIdWithExpenses` / `findByIdWithIncomesAndExpenses` methods — combinatorial method proliferation.
+
+- **Single `transactions` table with type discriminator** — incomes and expenses are stored in one `transactions` table with a `type` column ("INCOME"/"EXPENSE"). `RoomAccountRepository` splits transactions by type using a `splitTransactions()` helper and maps them to domain objects via `internal` extension functions (`TransactionEntity.toIncome()` / `TransactionEntity.toExpense()`). This design supports future query patterns (listing, search, reporting, pagination) that treat incomes and expenses as one concept. Alternative rejected: separate `incomes` and `expenses` tables — every query feature would need to UNION across both.
 
 - **`ExpenseCreator` mirrors `IncomeCreator`** — resolves `CategoryInput` (validating `CategoryType.EXPENSE`), delegates to `Account.createExpense()`, saves via `ExpenseRepository`, wraps in `TransactionRunner`. `CategoryInput` is reused as-is; the existing-vs-new category distinction is the same for both income and expense. Alternative rejected: a generic `TransactionCreator` for both — income and expense have diverging validation rules (balance ceiling), so merging them adds conditional complexity without reducing code.
 
-- **`recordType` has no default value in record classes** — `ExpenseRecord.recordType` (and all other record classes) is a required constructor parameter with no default. The constant is passed explicitly at construction sites. This prevents `kotlinx.serialization`'s `encodeDefaults = false` from omitting `recordType` during serialization, which caused cross-type deserialization to silently succeed with wrong defaults. Alternative rejected: keeping the default and setting `encodeDefaults = true` — changes global serialization behavior and increases payload size for all records.
+- **`RoomTransactionRunner` wraps `database.withTransaction {}`** — provides atomicity for category creation + expense save. Implements the `TransactionRunner` domain port.
 
 - **`CategoryCreationError.DuplicateName` maps to a field error, not a full-screen error** — when creating a new expense category inline and the name already exists, the error appears next to the category field as an `InvalidInput.categoryError`. Alternative rejected: a separate error state — inconsistent with the field-level validation pattern used for all other input errors.
 
@@ -44,11 +46,10 @@ app/src/main/java/dev/raiseexception/odin/
     ├── application/usecase/
     │   └── ExpenseCreator.kt
     ├── infrastructure/
-    │   ├── serialization/
-    │   │   └── ExpenseRecord.kt
     │   └── repository/
-    │       ├── VaultExpenseRepository.kt
-    │       └── VaultAccountRepository.kt (includeExpenses support)
+    │       ├── RoomExpenseRepository.kt
+    │       ├── TransactionEntity.kt      (single table, type discriminator)
+    │       └── RoomAccountRepository.kt  (includeExpenses support, splitTransactions helper)
     └── presentation/
         ├── expensecreation/
         │   ├── CreateExpenseViewModel.kt
@@ -63,8 +64,8 @@ app/src/test/java/dev/raiseexception/odin/accounting/
 ├── domain/model/ExpenseTest.kt
 ├── domain/model/AccountTest.kt           (balance with expenses)
 ├── application/usecase/ExpenseCreatorTest.kt
-├── infrastructure/repository/VaultExpenseRepositoryTest.kt
-├── infrastructure/repository/VaultAccountRepositoryTest.kt (includeExpenses)
+├── infrastructure/repository/RoomExpenseRepositoryTest.kt
+├── infrastructure/repository/RoomAccountRepositoryTest.kt (includeExpenses)
 ├── infrastructure/repository/BalanceIntegrationTest.kt
 └── presentation/
     ├── expensecreation/CreateExpenseViewModelTest.kt
@@ -87,7 +88,7 @@ specs/accounting/expense/creation/
 3. `CreateExpenseViewModel.init` loads expense categories via `CategoryLister.list(CategoryType.EXPENSE)` and transitions to `Idle`
 4. User fills in amount, date, category, and optional description; taps "Guardar"
 5. `CreateExpenseViewModel.save()` delegates to `ExpenseCreator.create()`
-6. `ExpenseCreator` loads the account via `AccountRepository.findById(id, AccountCriteria(includeIncomes = true, includeExpenses = true))` so the balance is accurate
+6. `ExpenseCreator` loads the account via `AccountRepository.findById(id, AccountCriteria(includeIncomes = true, includeExpenses = true)).first()` so the balance is accurate
 7. `ExpenseCreator` resolves `CategoryInput` — for `Existing`, validates the category exists and is `CategoryType.EXPENSE`; for `New`, creates it via `CategoryCreator`
 8. `Account.createExpense()` validates all fields (including amount vs. balance), constructs the `Expense`, adds it to the aggregate's internal list
 9. `ExpenseCreator` saves via `ExpenseRepository.add()`, wrapped in `TransactionRunner`
@@ -105,13 +106,14 @@ specs/accounting/expense/creation/
 
 ## Known Limitations
 
-- **`VaultAccountRepository` with both `includeIncomes` and `includeExpenses` performs three full vault decryption scans** — one for accounts, one for incomes, one for expenses. Acceptable for the current encrypted store; replaced by indexed queries when Room is introduced.
-- **Balance validation is point-in-time** — the balance is computed from the incomes and expenses loaded when `ExpenseCreator` fetches the account. There is no concurrency control; in the current single-user, single-device design this is acceptable.
+- **Balance validation is point-in-time** — the balance is computed from the incomes and expenses loaded when `ExpenseCreator` fetches the account. The account read happens outside the database transaction (`findById().first()` before `transactionRunner.run {}`), so concurrent expense creations could both pass validation on stale balance. Acceptable for the current single-user, single-device design; tracked in `TASKS.md`.
 - **AccountType display labels in account detail are hardcoded in Spanish** — full i18n support is deferred.
 
 ## Quality Pillars
 
-- **Security:** expense data is written to and read from the encrypted store; decryption happens in the infrastructure layer. No plaintext financial data is logged. User-facing error messages contain no internal detail.
-- **Reliability:** all field validation errors produce per-field messages rather than generic failures. Category resolution (existing vs. new) and balance validation are handled before the save attempt. The `TransactionRunner` wraps category creation and expense save.
-- **Performance:** loading account with full criteria (incomes + expenses) for balance validation adds two extra vault scans per expense save. Acceptable for the current store size; replaced by indexed Room queries when Room is introduced.
-- **Observability:** internal error messages from the store and crypto layers are preserved in error types' `internalMessage` fields, available for future structured logging without being surfaced to the user.
+- **Security:** Data is stored as plaintext in Room during development;
+  SQLCipher encryption at rest is a separate subsequent task. No plaintext
+  financial data is logged. User-facing error messages contain no internal detail.
+- **Reliability:** All field validation errors produce per-field messages rather than generic failures. Category resolution (existing vs. new) and balance validation are handled before the save attempt. The `RoomTransactionRunner` wraps category creation and expense save atomically. Room repos catch `SQLiteException` and return `Outcome.Failure(StorageError(...))`.
+- **Performance:** Loading account with full criteria (incomes + expenses) for balance validation uses Room's `@Relation` eager loading (two queries). Acceptable for current data volumes; a SQL-based balance query is tracked in `TASKS.md` for when transaction counts grow.
+- **Observability:** Internal error messages from the storage layer are preserved in error types' `internalMessage` fields, available for future structured logging without being surfaced to the user.

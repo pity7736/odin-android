@@ -6,11 +6,9 @@
 
 A signed-in user creates a category (name, type, optional description, optional
 color) to later tag income and expense transactions. Invalid input is rejected
-with per-field errors shown together. The category is encrypted before storage.
-The feature reuses the shared encrypted-storage shape introduced by account
-creation and extends the same `EncryptedRecordStore` with a second entity type.
-Navigation entry is a "Categorías" action on Home; the categories list screen
-is the landing destination; the create form is reached from there.
+with per-field errors shown together. The category is persisted to the Room
+database. Navigation entry is a "Categorías" action on Home; the categories list
+screen is the landing destination; the create form is reached from there.
 
 ## Design Decisions & Rationale
 
@@ -40,20 +38,11 @@ is the landing destination; the create form is reached from there.
   palette values. The color picker UI shows all 20 as tappable circles — users
   never type a hex code. An unselected color means auto-assign; the ViewModel
   passes `null` to the use case, which resolves it via `colorPicker`.
-- **`CategoryCreationError.CryptoFailure` vs `StorageFailure`.** `CryptoFailure`
-  is returned when the `EncryptedRecordStore` fails on a read or write due to a
-  crypto-layer error (wrong key, tampered blob). `StorageFailure` is declared
-  for when the underlying persistence write fails (I/O, disk full); it is not
-  reachable with the current in-memory store and will become live when Room
-  replaces it.
-- **Same shared encrypted store, second entity type.** `VaultCategoryRepository`
-  writes to the same `EncryptedRecordStore` as `VaultAccountRepository`. The
-  entity type lives inside the ciphertext as `recordType = "category"` in
-  `CategoryRecord`. On read, the repository decrypts all blobs and filters by
-  `recordType` — cross-type records are skipped silently (a corrupt or foreign
-  record can't deserialized into `CategoryRecord` anyway, and `SerializationException`
-  is caught and dropped). This keeps storage opaque: the server, if enabled, sees
-  one undifferentiated blob store with no plaintext type metadata.
+- **Room-backed persistence with `CategoryEntity`.** `RoomCategoryRepository`
+  persists categories to the `categories` table via `CategoryDao`. Entity mappers
+  (`Category.toEntity()` / `CategoryEntity.toDomain()`) are `internal` extension
+  functions. The repository catches `SQLiteException` and returns
+  `Outcome.Failure(StorageError(...))`.
 - **`CategoriesListScreen` is the landing screen for categories.** It holds an
   entry point to the create form. Listing, filter, and search logic live in the
   list-categories feature (`specs/accounting/list-categories/`).
@@ -71,11 +60,10 @@ app/src/main/java/dev/raiseexception/odin/
 │   ├── domain/
 │   │   ├── model/              # Category (create + restore factories; DEFAULT_PALETTE), CategoryType
 │   │   ├── CategoryCreationError (sealed DomainError)
-│   │   └── repository/         # CategoryRepository (port: existsByNameAndType, add)
+│   │   └── repository/         # CategoryRepository (port: existsByNameAndType, add, getAll)
 │   ├── application/usecase/    # CategoryCreator (color resolution + orchestration)
 │   ├── infrastructure/
-│   │   ├── serialization/      # CategoryRecord (storage DTO; recordType = "category")
-│   │   └── repository/         # VaultCategoryRepository (EncryptedRecordStore adapter)
+│   │   └── repository/         # RoomCategoryRepository, CategoryEntity, CategoryDao
 │   └── presentation/
 │       ├── categorycreation/   # CreateCategoryViewModel, UiState, NavigationTarget, Screen
 │       └── categorieslist/     # CategoriesListScreen (landing; full listing in list-categories feature)
@@ -83,9 +71,7 @@ app/src/main/java/dev/raiseexception/odin/
 ├── shared/presentation/        # Routes (extended with CATEGORIES, CATEGORY_CREATE)
 └── di/                         # AppContainer (wires CategoryRepository, CategoryCreator, ViewModel)
 
-app/src/test/…            # JVM unit tests: Category.create, CategoryCreator, VaultCategoryRepository, ViewModel
-app/src/test/…/accounting/infrastructure/repository/FakeMasterKeyRepository.kt  # shared internal test helper
-app/src/androidTest/…     # Compose UI test for the create screen
+app/src/test/…            # JVM unit tests: Category.create, CategoryCreator, RoomCategoryRepository, ViewModel
 
 specs/accounting/categories/
 ├── spec.md
@@ -104,15 +90,13 @@ specs/accounting/categories/
 4. **Domain (`Category.create`) — the single validation authority:** validates
    name, type, description, and color format; returns the built `Category` or
    one `InvalidInput` carrying all offending field messages.
-5. **Infrastructure (`CategoryRepository` → `EncryptedRecordStore`):** the
-   category is mapped to `CategoryRecord` (with `recordType = "category"`
-   inside the plaintext), serialized, encrypted, and stored. Uniqueness decrypts
-   all records, filters by `recordType`, and compares name case-insensitively
-   and type exactly.
+5. **Infrastructure (`RoomCategoryRepository` → `CategoryDao`):** the category
+   is mapped to `CategoryEntity` and inserted into the Room database. Uniqueness
+   is checked via a SQL query with `COLLATE NOCASE` on name and exact match on type.
 6. Result flows back as `Outcome`: success → navigation event back to the
    categories stub; failure → `InvalidInput` → `ValidationError` (per field),
-   `DuplicateName` → name-field error with a message naming the type, crypto /
-   storage → general `Error`.
+   `DuplicateName` → name-field error with a message naming the type, storage →
+   general `Error`.
 
 ## Screen & States / Backend Interaction
 
@@ -127,25 +111,19 @@ specs/accounting/categories/
 
 ## Known Limitations
 
-- **In-memory storage** — categories do not survive app restart until Room
-  replaces the store.
-- **Silent record drop on deserialization failure** — a `SerializationException`
-  during decryption of a stored record causes that record to be silently
-  skipped. The data is not lost (still in the encrypted store) but is
-  unreachable until the schema is compatible again. Tracked in `TASKS.md`.
+(none currently)
 
 ## Quality Pillars
 
-- **Security:** Zero-knowledge preserved — category details are encrypted before
-  storage (AES-256-GCM via the crypto module); the entity type lives inside the
-  ciphertext, never as a plaintext discriminator. No plaintext, key, or password
-  is logged.
+- **Security:** Data is stored as plaintext in Room during development;
+  SQLCipher encryption at rest is a separate subsequent task. No plaintext
+  key or password is logged.
 - **Reliability:** Failures are typed `Outcome`/`DomainError` values; `Category.create`
   aggregates all field errors in one pass; the ViewModel ignores a second
   submission while `Loading` (double-tap safe). Color is always resolved before
-  domain validation, so `create` never receives a null color.
-- **Performance:** Crypto runs off the main thread on an injected dispatcher.
-  Uniqueness decrypts all records per create — O(n), negligible for a
-  single-user vault.
+  domain validation, so `create` never receives a null color. Room repos catch
+  `SQLiteException` and return `Outcome.Failure(StorageError(...))`.
+- **Performance:** Database operations run off the main thread on an injected
+  dispatcher. Uniqueness is a direct SQL query.
 - **Observability:** Deferred — no structured logging yet (tracked in `TASKS.md`);
   when added it must respect zero-knowledge (never log keys/plaintext).

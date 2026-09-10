@@ -49,12 +49,12 @@ the accounts list and categories list.
   follows the same pattern as the category detail stub and will be replaced
   when transaction viewing/editing is implemented.
 
-- **`reload()` on lifecycle resume** rather than a reactive data source. The
-  current vault-backed repository emits a cold flow (one-shot read, no change
-  notifications). The ViewModel re-fetches on `RESUMED` lifecycle state so
-  the screen reflects changes made on other screens. This becomes unnecessary
-  when the persistence layer migrates to Room (which provides reactive
-  queries).
+- **Reactive data via Room Flow** — `AccountLister.list()` returns a reactive
+  `Flow<Outcome<List<Account>>>` backed by Room's DAO. The ViewModel collects
+  the Flow and updates the UI state on each emission. Room re-emits whenever
+  the `accounts` or `transactions` table changes, so the home screen reflects
+  new incomes, expenses, or accounts without manual reload. The former
+  `reload()` on lifecycle resume is removed.
 
 ## Architecture & Files Summary
 
@@ -95,7 +95,7 @@ specs/home/summary/
 1. `HomeViewModel` initializes by collecting from `AccountLister.list()` with
    criteria requesting incomes and expenses.
 2. `AccountLister` delegates to `AccountRepository.getAll()`, which returns a
-   flow of all accounts with their transactions loaded.
+   reactive Room Flow of all accounts with their transactions loaded.
 3. On `Outcome.Success`, the ViewModel computes total balances per currency by
    grouping accounts and summing their `balance` property. It takes the first
    three accounts and sets `hasMoreAccounts` based on whether more exist.
@@ -105,8 +105,8 @@ specs/home/summary/
    the top `TRANSACTION_LIMIT`.
 5. The ViewModel emits `HomeUiState.Content` with the totals, capped accounts,
    and recent transactions.
-6. On lifecycle resume, `reload()` re-executes the same flow to pick up
-   changes made on other screens.
+6. Room re-emits whenever the underlying tables change, triggering a new
+   collection cycle that updates the UI automatically.
 
 ## Screen & States
 
@@ -128,29 +128,25 @@ Bottom navigation bar: Home (selected), Accounts, Categories.
 
 ## Known Limitations
 
-- **No reactive data updates.** The home screen reloads on lifecycle resume
-  but does not receive push updates when data changes in the background. This
-  is a limitation of the current vault-backed storage layer, not of the home
-  screen design.
-
 - **`RecentTransactionLister` loads all accounts with all transactions.** At
   current scale this is negligible. If the number of transactions grows
   large, a dedicated repository query returning only the N most recent
-  transactions across accounts would be more efficient.
+  transactions across accounts would be more efficient. Tracked in `TASKS.md`.
 
 - **Bottom navigation bar icons are placeholder text** ("H", "C", "K") rather
   than proper icons. The look-and-feel task will address visual polish.
 
 ## Quality Pillars
 
-- **Security:** No new security surface. The home screen reads data through
-  the existing encrypted vault path — no plaintext is persisted or logged.
+- **Security:** Data is stored as plaintext in Room during development;
+  SQLCipher encryption at rest is a separate subsequent task. No plaintext
+  is logged.
 - **Reliability:** All repository failures map to `HomeUiState.Error` with a
-  user-facing message. The `reload()` mechanism ensures stale data does not
-  persist across screen transitions.
+  user-facing message. Room's reactive Flow ensures the screen always reflects
+  the latest data without manual reload.
 - **Performance:** Acceptable at current scale. All accounts and transactions
-  are loaded in a single pass on the IO dispatcher. If data volume grows,
-  a paginated or query-limited approach at the repository level would be
-  needed.
+  are loaded in a single pass on the IO dispatcher. Room's `@Relation` eager
+  loading handles the join in two queries. If data volume grows, a SQL-based
+  balance aggregation query is tracked in `TASKS.md`.
 - **Observability:** Deferred — structured logging (Timber) is not yet
   integrated. Errors surface to the user via the Error state.
