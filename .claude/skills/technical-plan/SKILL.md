@@ -1,6 +1,6 @@
 ---
 name: technical-plan
-description: Plan-only workflow for technical changes that have no user-facing behavior change — refactors, infrastructure shifts, cross-cutting concerns, internal improvements. Produces a plan.md work order under specs/technical/<topic>/ and updates affected features' design.md files at merge. Use when the change is purely technical (no Given/When/Then scenarios in business language). Triggers on requests like "refactor", "migrate to Room", "add logging", "replace String with CharArray", or any work that touches internals across features without changing behavior.
+description: Workflow for technical changes that have no user-facing behavior change — refactors, infrastructure shifts, cross-cutting concerns, internal improvements. Produces a plan.md work order and a design.md durable reference under specs/technical/<topic>/, and updates affected features' design.md files at merge. Use when the change is purely technical (no Given/When/Then scenarios in business language). Triggers on requests like "refactor", "migrate to Room", "add logging", "replace String with CharArray", or any work that touches internals across features without changing behavior.
 ---
 
 # Technical Plan Workflow
@@ -14,10 +14,15 @@ This skill operationalizes that workflow. It produces a **plan-only** work order
 under `specs/technical/<topic>/plan.md` and ensures affected features' design
 docs are updated before merge.
 
-**One document per technical change:**
+**Two documents per technical change:**
 - **`plan.md`** — the WORK ORDER for the change. Same lifecycle as a feature
   plan: disposable, overwritten by the next change to this topic, frozen after
   ship. Git history keeps every prior work order.
+- **`design.md`** — the DURABLE REFERENCE for how the system works after the
+  change. Authoritative source for the technical decisions, schema, architecture,
+  and known limitations introduced by this change. Updated in place as the system
+  evolves (unlike `plan.md`, which is frozen). Written after implementation, not
+  before — it documents what was shipped, not what was planned.
 
 **The hydrate rule still applies:**
 - Before merge, every durable decision this change introduced MUST be promoted
@@ -117,7 +122,12 @@ Discovery (above) must be complete first.
 7. **Manual test** by the user — run the app and confirm no regressions in
    affected features. GATE on user approval.
 
-8. **Hydrate affected design.md files, then freeze plan.md** — the hydrate gate.
+8. **Write `design.md`, hydrate affected feature design docs, freeze `plan.md`.**
+   - **Write `design.md`:** create `specs/technical/<topic>/design.md` — the
+     durable reference for this technical change. Document the shipped state:
+     decisions & rationale, architecture & files, schema (if applicable), and
+     known limitations. Write in present tense. This is the authoritative source
+     for how this part of the system works; future features consult it.
    - **Hydrate:** work through the plan's "Design docs to update" checklist. For
      each affected feature, edit its `design.md` in place so every durable
      decision this change introduced is reflected there. `design.md` must match
@@ -140,8 +150,10 @@ Discovery (above) must be complete first.
 
 ## Checklist before merge (the hydrate gate)
 
+- `specs/technical/<topic>/design.md` exists and documents the shipped state
+  (decisions, architecture, schema, known limitations) in present tense.
 - Every item on the plan's "Design docs to update" checklist is reflected in the
-  corresponding `design.md`.
+  corresponding feature `design.md`.
 - Each updated `design.md` is in present tense — no history or changelog language.
 - Any Known Limitation this change resolved is GONE from Known Limitations —
   deleted and (if durable) rewritten as a present-tense Design Decision.

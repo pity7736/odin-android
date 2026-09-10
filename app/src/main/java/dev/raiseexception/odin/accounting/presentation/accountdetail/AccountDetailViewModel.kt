@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
@@ -35,32 +36,28 @@ class AccountDetailViewModel(
     private var cachedAccount: Account? = null
 
     init {
-        this.load()
+        this.observeAccount()
     }
 
-    fun reload() {
-        this.load()
-    }
-
-    private fun load() {
-        this.viewModelScope.launch(this.ioDispatcher) {
-            this@AccountDetailViewModel.mutableUiState.value = when (
-                val outcome = this@AccountDetailViewModel.accountFinder.find(
-                    this@AccountDetailViewModel.accountId,
-                    AccountCriteria(includeIncomes = true, includeExpenses = true)
-                )
-            ) {
-                is Outcome.Success -> {
-                    this@AccountDetailViewModel.cachedAccount = outcome.value
-                    this@AccountDetailViewModel.buildContentState(
-                        outcome.value,
-                        this@AccountDetailViewModel.activeFilter.value
-                    )
-                }
-
-                is Outcome.Failure -> when (outcome.error) {
-                    is AccountLookupError.NotFound -> AccountDetailUiState.NotFound
-                    else -> AccountDetailUiState.Error(outcome.error.externalMessage)
+    private fun observeAccount() {
+        val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
+        this.viewModelScope.launch {
+            this@AccountDetailViewModel.accountFinder.find(
+                this@AccountDetailViewModel.accountId,
+                criteria
+            ).flowOn(this@AccountDetailViewModel.ioDispatcher).collect { outcome ->
+                this@AccountDetailViewModel.mutableUiState.value = when (outcome) {
+                    is Outcome.Success -> {
+                        this@AccountDetailViewModel.cachedAccount = outcome.value
+                        this@AccountDetailViewModel.buildContentState(
+                            outcome.value,
+                            this@AccountDetailViewModel.activeFilter.value
+                        )
+                    }
+                    is Outcome.Failure -> when (outcome.error) {
+                        is AccountLookupError.NotFound -> AccountDetailUiState.NotFound
+                        else -> AccountDetailUiState.Error(outcome.error.externalMessage)
+                    }
                 }
             }
         }

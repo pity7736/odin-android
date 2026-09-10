@@ -221,7 +221,6 @@ private fun AccountDetailDestination(accountId: String, navController: NavHostCo
             navController.navigate(Routes.expenseCreate(accountId))
         },
         onFilterChanged = accountDetailViewModel::onFilterChanged,
-        onResume = accountDetailViewModel::reload
     )
 }
 
@@ -296,7 +295,6 @@ private fun HomeDestination(navController: NavHostController) {
         onNavigateToAccountCreate = { navController.navigate(Routes.ACCOUNT_CREATE) },
         onNavigateToAccounts = { navController.navigate(Routes.ACCOUNTS) },
         onNavigateToCategories = { navController.navigate(Routes.CATEGORIES) },
-        onResume = homeViewModel::reload,
     )
 }
 

@@ -53,12 +53,11 @@ class ExpenseCreatorTest {
 
     @Test
     fun `given valid input with existing category, when creating expense, then expense is saved`() = runTest {
-        coEvery {
+        every {
             accountRepository.findById("acc-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
-        } returns Outcome.Success(account)
+        } returns flowOf(Outcome.Success(account))
         every { categoryRepository.getAll() } returns flowOf(Outcome.Success(listOf(expenseCategory)))
         coEvery { expenseRepository.add(any()) } returns Outcome.Success(Unit)
-
         val result = expenseCreator.create(
             accountId = "acc-1",
             amount = "500.00",
@@ -66,7 +65,6 @@ class ExpenseCreatorTest {
             categoryInput = CategoryInput.Existing(expenseCategory.id),
             description = "Mercado"
         )
-
         assertTrue(result is Outcome.Success)
         coVerify { expenseRepository.add(any()) }
     }
@@ -74,13 +72,12 @@ class ExpenseCreatorTest {
     @Test
     fun `given valid input with new category, when creating expense, then category is created and expense is saved`() =
         runTest {
-            coEvery {
+            every {
                 accountRepository.findById("acc-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
-            } returns Outcome.Success(account)
+            } returns flowOf(Outcome.Success(account))
             coEvery { categoryCreator.create("Transporte", CategoryType.EXPENSE, "", null) } returns
                 Outcome.Success(expenseCategory)
             coEvery { expenseRepository.add(any()) } returns Outcome.Success(Unit)
-
             val result = expenseCreator.create(
                 accountId = "acc-1",
                 amount = "500.00",
@@ -88,7 +85,6 @@ class ExpenseCreatorTest {
                 categoryInput = CategoryInput.New("Transporte"),
                 description = ""
             )
-
             assertTrue(result is Outcome.Success)
             coVerify { categoryCreator.create("Transporte", CategoryType.EXPENSE, "", null) }
             coVerify { expenseRepository.add(any()) }
@@ -96,11 +92,10 @@ class ExpenseCreatorTest {
 
     @Test
     fun `given zero amount, when creating expense, then returns amount error`() = runTest {
-        coEvery {
+        every {
             accountRepository.findById("acc-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
-        } returns Outcome.Success(account)
+        } returns flowOf(Outcome.Success(account))
         every { categoryRepository.getAll() } returns flowOf(Outcome.Success(listOf(expenseCategory)))
-
         val result = expenseCreator.create(
             accountId = "acc-1",
             amount = "0",
@@ -108,7 +103,6 @@ class ExpenseCreatorTest {
             categoryInput = CategoryInput.Existing(expenseCategory.id),
             description = ""
         )
-
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error
         assertTrue(error is ExpenseCreationError.InvalidInput)
@@ -117,11 +111,10 @@ class ExpenseCreatorTest {
 
     @Test
     fun `given future date, when creating expense, then returns date error`() = runTest {
-        coEvery {
+        every {
             accountRepository.findById("acc-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
-        } returns Outcome.Success(account)
+        } returns flowOf(Outcome.Success(account))
         every { categoryRepository.getAll() } returns flowOf(Outcome.Success(listOf(expenseCategory)))
-
         val result = expenseCreator.create(
             accountId = "acc-1",
             amount = "500.00",
@@ -129,7 +122,6 @@ class ExpenseCreatorTest {
             categoryInput = CategoryInput.Existing(expenseCategory.id),
             description = ""
         )
-
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error
         assertTrue(error is ExpenseCreationError.InvalidInput)
@@ -138,11 +130,10 @@ class ExpenseCreatorTest {
 
     @Test
     fun `given missing required field, when creating expense, then returns field error`() = runTest {
-        coEvery {
+        every {
             accountRepository.findById("acc-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
-        } returns Outcome.Success(account)
+        } returns flowOf(Outcome.Success(account))
         every { categoryRepository.getAll() } returns flowOf(Outcome.Success(listOf(expenseCategory)))
-
         val result = expenseCreator.create(
             accountId = "acc-1",
             amount = "",
@@ -150,7 +141,6 @@ class ExpenseCreatorTest {
             categoryInput = CategoryInput.Existing(expenseCategory.id),
             description = ""
         )
-
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error
         assertTrue(error is ExpenseCreationError.InvalidInput)
@@ -161,11 +151,10 @@ class ExpenseCreatorTest {
 
     @Test
     fun `given category id not found, when creating expense, then returns category not found error`() = runTest {
-        coEvery {
+        every {
             accountRepository.findById("acc-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
-        } returns Outcome.Success(account)
+        } returns flowOf(Outcome.Success(account))
         every { categoryRepository.getAll() } returns flowOf(Outcome.Success(emptyList()))
-
         val result = expenseCreator.create(
             accountId = "acc-1",
             amount = "500.00",
@@ -173,7 +162,6 @@ class ExpenseCreatorTest {
             categoryInput = CategoryInput.Existing("non-existent-id"),
             description = ""
         )
-
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is ExpenseCreationError.CategoryNotFound)
     }
@@ -189,11 +177,10 @@ class ExpenseCreatorTest {
                 )
             )
             .build()
-        coEvery {
+        every {
             accountRepository.findById("acc-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
-        } returns Outcome.Success(smallBalanceAccount)
+        } returns flowOf(Outcome.Success(smallBalanceAccount))
         every { categoryRepository.getAll() } returns flowOf(Outcome.Success(listOf(expenseCategory)))
-
         val result = expenseCreator.create(
             accountId = "acc-1",
             amount = "200.00",
@@ -201,7 +188,6 @@ class ExpenseCreatorTest {
             categoryInput = CategoryInput.Existing(expenseCategory.id),
             description = ""
         )
-
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error
         assertTrue(error is ExpenseCreationError.InvalidInput)
@@ -211,11 +197,10 @@ class ExpenseCreatorTest {
     @Test
     fun `given category of wrong type, when creating expense, then returns category wrong type error`() = runTest {
         val incomeCategory = CategoryBuilder().type(CategoryType.INCOME).build()
-        coEvery {
+        every {
             accountRepository.findById("acc-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
-        } returns Outcome.Success(account)
+        } returns flowOf(Outcome.Success(account))
         every { categoryRepository.getAll() } returns flowOf(Outcome.Success(listOf(incomeCategory)))
-
         val result = expenseCreator.create(
             accountId = "acc-1",
             amount = "500.00",
@@ -223,7 +208,6 @@ class ExpenseCreatorTest {
             categoryInput = CategoryInput.Existing(incomeCategory.id),
             description = ""
         )
-
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is ExpenseCreationError.CategoryWrongType)
     }

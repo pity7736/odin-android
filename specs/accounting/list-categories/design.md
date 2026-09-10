@@ -20,21 +20,17 @@ instance to preserve cursor position across result-set changes.
   alternative: filtering inside the ViewModel — it would put logic in the wrong
   layer and couple the rules to the UI lifecycle.
 - **`getAll()` returns `Flow<Outcome<List<Category>>>`, not `Flow<List<Category>>`.** Errors
-  from the encrypted store (crypto failures) are wrapped in `Outcome.Failure` and
-  emitted by the flow instead of thrown as exceptions. This lets `CategoryLister`
-  and `CategoriesListViewModel` handle errors via explicit pattern matching on
+  from the storage layer are wrapped in `Outcome.Failure` and emitted by the flow
+  instead of thrown as exceptions. This lets `CategoryLister` and
+  `CategoriesListViewModel` handle errors via explicit pattern matching on
   `Outcome`, keeping the same contract used by every other repository operation.
   Rejected alternative: `Flow<List<Category>>` with a `catch(Exception)` in the
   ViewModel — a generic `catch` intercepts `CancellationException`, which breaks
   coroutine cancellation; the `Outcome` contract removes the need for any
-  `catch(Exception)` in the ViewModel at all. The same decision applies to
-  `AccountRepository.getAll()`, `AccountLister.list()`, and `AccountsListViewModel`.
-- **`getAll()` is a cold, one-shot `Flow`.** Each call to `getAll()` decrypts all
-  records, filters by `recordType`, and emits a single snapshot. It is not
-  reactive — a category added while the screen is open does not appear until the
-  screen is reopened. This matches the trade-off accepted by `AccountRepository`
-  and keeps the infrastructure simple. Rejected alternative: a hot shared flow
-  — it would require a store-level observable that does not exist yet.
+  `catch(Exception)` in the ViewModel at all.
+- **`getAll()` is reactive via Room** — Room's DAO returns a `Flow` that re-emits
+  whenever the underlying `categories` table changes. Categories added while the
+  screen is open appear automatically without navigation.
 - **Filter and name are captured in the pipeline, not read after emission.**
   `flatMapLatest` re-subscribes with the current `(filter, name)` pair. Each
   inner flow maps its results to `Triple(filter, name, categories)` so that
@@ -75,11 +71,11 @@ instance to preserve cursor position across result-set changes.
 ```
 app/src/main/java/dev/raiseexception/odin/accounting/
 ├── domain/
-│   └── repository/         # CategoryRepository (port: getAll added)
+│   └── repository/         # CategoryRepository (port: getAll)
 ├── application/
 │   └── usecase/            # CategoryLister (filter + search)
 ├── infrastructure/
-│   └── repository/         # VaultCategoryRepository (getAll implemented)
+│   └── repository/         # RoomCategoryRepository (getAll via CategoryDao)
 └── presentation/
     ├── categorieslist/     # CategoriesListUiState, CategoriesListNavigationTarget,
     │                       # CategoriesListViewModel, CategoriesListScreen
@@ -91,7 +87,7 @@ app/src/main/java/dev/raiseexception/odin/
 
 app/src/test/…/accounting/
 ├── application/usecase/    # CategoryListerTest
-├── infrastructure/         # VaultCategoryRepositoryTest (getAll tests added)
+├── infrastructure/         # RoomCategoryRepositoryTest
 └── presentation/
     └── categorieslist/     # CategoriesListViewModelTest
 
@@ -115,9 +111,9 @@ specs/accounting/list-categories/
    (when non-null) then a case-insensitive `contains` on name (when non-blank), and
    re-wraps the filtered list in `Outcome.Success`. On `Outcome.Failure`, propagates
    the failure as-is. Returns `Flow<Outcome<List<Category>>>`.
-4. **`VaultCategoryRepository.getAll()`:** decrypts all records, filters by
-   `recordType = "category"`, maps each `CategoryRecord` to `Category.restore(...)`,
-   emits the resulting list as a one-shot cold flow.
+4. **`RoomCategoryRepository.getAll()`:** queries the `categories` table via
+   `CategoryDao.getAll()`, which returns a reactive Room `Flow`. Re-emits whenever
+   the table changes.
 5. **Screen:** `SearchableContent` renders filter chips, search field (local
    state), and delegates the content area to `CategoryList` or `EmptyMessage`
    depending on the state variant. Filter chip and search field events call
@@ -140,29 +136,21 @@ specs/accounting/list-categories/
 
 ## Known Limitations
 
-- **Decryption on every search keystroke.** `getAll()` decrypts all records each
-  time `flatMapLatest` re-subscribes (i.e., on every filter or name change). For
-  a large vault this is O(n) crypto per keystroke. Mitigation: cache the decrypted
-  list in the ViewModel and filter in-memory; deferred until performance is a
-  measured problem.
-- **Snapshot-based listing.** Categories added while the screen is open do not
-  appear until the screen is reopened. Acceptable for the current use case; would
-  require a reactive store to fix.
 - **`CategoryDetailScreen` is a stub.** It shows the `categoryId` string. The
   full detail screen is a separate future feature.
 
 ## Quality Pillars
 
-- **Security:** No plaintext category data is held beyond the ViewModel's
-  lifetime. The decrypted list exists only in memory during the coroutine's
-  execution and is garbage-collected when the ViewModel is cleared.
+- **Security:** Data is stored as plaintext in Room during development;
+  SQLCipher encryption at rest is a separate subsequent task. No decrypted
+  category data is logged.
 - **Reliability:** All filtering and search logic is covered by unit tests
   (`CategoryListerTest`). ViewModel behavior (empty, content, filter, search,
   navigation, error) is covered by `CategoriesListViewModelTest` using Turbine.
   `./gradlew check` is the gate.
-- **Performance:** Crypto runs on an injected `ioDispatcher`, never on the main
-  thread. Filtering and search are in-memory operations on the already-decrypted
-  list. Deferred: in-memory caching to avoid per-keystroke decryption.
+- **Performance:** Room queries run on an injected `ioDispatcher`, never on the
+  main thread. Filtering and search are in-memory operations on the query result.
+  Room's reactive Flow re-emits only on table changes, not per keystroke.
 - **Observability:** Deferred — no structured logging yet (consistent with the
-  rest of the app; tracked in `TASKS.md`). When added it must never log decrypted
-  category data.
+  rest of the app; tracked in `TASKS.md`). When added it must never log
+  category data in plaintext.

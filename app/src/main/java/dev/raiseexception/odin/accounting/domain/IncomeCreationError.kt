@@ -27,11 +27,6 @@ sealed class IncomeCreationError(
         externalMessage: String
     ) : IncomeCreationError(internalMessage, externalMessage)
 
-    class CryptoFailure(
-        internalMessage: String,
-        externalMessage: String
-    ) : IncomeCreationError(internalMessage, externalMessage)
-
     class StorageFailure(
         internalMessage: String,
         externalMessage: String

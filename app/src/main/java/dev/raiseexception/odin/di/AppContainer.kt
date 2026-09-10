@@ -18,11 +18,10 @@ import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
 import dev.raiseexception.odin.accounting.domain.repository.ExpenseRepository
 import dev.raiseexception.odin.accounting.domain.repository.IncomeRepository
-import dev.raiseexception.odin.accounting.infrastructure.repository.VaultAccountRepository
-import dev.raiseexception.odin.accounting.infrastructure.repository.VaultCategoryRepository
-import dev.raiseexception.odin.accounting.infrastructure.repository.VaultExpenseRepository
-import dev.raiseexception.odin.accounting.infrastructure.repository.VaultIncomeRepository
-import dev.raiseexception.odin.accounting.infrastructure.repository.VaultTransactionRunner
+import dev.raiseexception.odin.accounting.infrastructure.repository.RoomAccountRepository
+import dev.raiseexception.odin.accounting.infrastructure.repository.RoomCategoryRepository
+import dev.raiseexception.odin.accounting.infrastructure.repository.RoomExpenseRepository
+import dev.raiseexception.odin.accounting.infrastructure.repository.RoomIncomeRepository
 import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAccountViewModel
 import dev.raiseexception.odin.accounting.presentation.accountdetail.AccountDetailViewModel
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListViewModel
@@ -45,8 +44,7 @@ import dev.raiseexception.odin.home.application.usecase.RecentTransactionLister
 import dev.raiseexception.odin.home.presentation.home.HomeViewModel
 import dev.raiseexception.odin.persistence.OdinDatabase
 import dev.raiseexception.odin.shared.domain.TransactionRunner
-import dev.raiseexception.odin.shared.infrastructure.vault.EncryptedRecordStore
-import dev.raiseexception.odin.shared.infrastructure.vault.InMemoryEncryptedRecordStore
+import dev.raiseexception.odin.shared.infrastructure.persistence.RoomTransactionRunner
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import java.security.SecureRandom
@@ -59,7 +57,7 @@ class AppContainer(context: Context) {
         context,
         OdinDatabase::class.java,
         "odin_db"
-    ).build()
+    ).fallbackToDestructiveMigration(dropAllTables = true).build()
     private val secureRandom: SecureRandom = SecureRandom()
     private val vaultCrypto: VaultCrypto = BouncyCastleVaultCrypto(secureRandom)
     private val masterKeyRepository: MasterKeyRepository = InMemoryMasterKeyRepository()
@@ -67,20 +65,19 @@ class AppContainer(context: Context) {
     private val userRegistrar: UserRegistrar = UserRegistrar(vaultCrypto, userRepository, masterKeyRepository)
     private val userAuthenticator: UserAuthenticator =
         UserAuthenticator(vaultCrypto, userRepository, masterKeyRepository)
-    private val encryptedRecordStore: EncryptedRecordStore =
-        InMemoryEncryptedRecordStore(vaultCrypto, masterKeyRepository)
-    private val accountRepository: AccountRepository = VaultAccountRepository(encryptedRecordStore)
+    private val accountRepository: AccountRepository = RoomAccountRepository(database.accountDao())
     private val accountCreator: AccountCreator = AccountCreator(accountRepository)
     private val accountLister: AccountLister = AccountLister(accountRepository)
     private val accountFinder: AccountFinder = AccountFinder(accountRepository)
     private val accountTransactionLister: AccountTransactionLister = AccountTransactionLister()
     private val recentTransactionLister: RecentTransactionLister = RecentTransactionLister()
-    private val categoryRepository: CategoryRepository = VaultCategoryRepository(encryptedRecordStore)
+    private val categoryRepository: CategoryRepository = RoomCategoryRepository(database.categoryDao())
     private val categoryCreator: CategoryCreator = CategoryCreator(categoryRepository)
     private val categoryLister: CategoryLister = CategoryLister(categoryRepository)
-    private val incomeRepository: IncomeRepository = VaultIncomeRepository(encryptedRecordStore)
-    private val expenseRepository: ExpenseRepository = VaultExpenseRepository(encryptedRecordStore)
-    private val transactionRunner: TransactionRunner = VaultTransactionRunner()
+    private val transactionDao = database.transactionDao()
+    private val incomeRepository: IncomeRepository = RoomIncomeRepository(transactionDao)
+    private val expenseRepository: ExpenseRepository = RoomExpenseRepository(transactionDao)
+    private val transactionRunner: TransactionRunner = RoomTransactionRunner(database)
     private val incomeCreator: IncomeCreator = IncomeCreator(
         accountRepository = accountRepository,
         incomeRepository = incomeRepository,
@@ -100,7 +97,7 @@ class AppContainer(context: Context) {
 
     fun loginViewModel(): LoginViewModel {
         if (BuildConfig.DEBUG) {
-            val seeder = DevDataSeeder(accountCreator, categoryCreator, incomeCreator)
+            val seeder = DevDataSeeder(accountCreator, categoryCreator, incomeCreator, accountLister)
             return LoginViewModel(userAuthenticator, seeder::seed)
         }
         return LoginViewModel(userAuthenticator)

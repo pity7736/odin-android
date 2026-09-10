@@ -12,11 +12,12 @@ import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
-import io.mockk.coEvery
-import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -59,7 +60,7 @@ class AccountDetailViewModelTest {
     @Test
     fun `given an existing account, when the screen loads, then uiState is Content with the account`() = runTest {
         val savings = AccountBuilder().id(accountId).build()
-        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(savings)
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(savings))
         val viewModel = buildViewModel()
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
@@ -72,10 +73,12 @@ class AccountDetailViewModelTest {
 
     @Test
     fun `given the account is not found, when the screen loads, then uiState is NotFound`() = runTest {
-        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Failure(
-            AccountLookupError.NotFound(
-                internalMessage = "Not found",
-                externalMessage = "Cuenta no encontrada"
+        every { accountFinder.find(accountId, criteria) } returns flowOf(
+            Outcome.Failure(
+                AccountLookupError.NotFound(
+                    internalMessage = "Not found",
+                    externalMessage = "Cuenta no encontrada"
+                )
             )
         )
         val viewModel = buildViewModel()
@@ -89,10 +92,12 @@ class AccountDetailViewModelTest {
 
     @Test
     fun `given a storage failure, when the screen loads, then uiState is Error with a Spanish message`() = runTest {
-        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Failure(
-            AccountLookupError.StorageFailure(
-                internalMessage = "Storage error",
-                externalMessage = "Error al cargar la cuenta"
+        every { accountFinder.find(accountId, criteria) } returns flowOf(
+            Outcome.Failure(
+                dev.raiseexception.odin.shared.domain.StorageError(
+                    internalMessage = "Storage error",
+                    externalMessage = "Error al cargar la cuenta"
+                )
             )
         )
         val viewModel = buildViewModel()
@@ -112,7 +117,7 @@ class AccountDetailViewModelTest {
             .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
             .withIncome(amount = "500.00", date = "2026-08-28")
             .build()
-        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(accountWithIncomes)
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(accountWithIncomes))
         val viewModel = buildViewModel()
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
@@ -129,7 +134,7 @@ class AccountDetailViewModelTest {
     @Test
     fun `given account, when loaded, then criteria includes both incomes and expenses`() = runTest {
         val savings = AccountBuilder().id(accountId).build()
-        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(savings)
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(savings))
         val viewModel = buildViewModel()
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
@@ -137,7 +142,7 @@ class AccountDetailViewModelTest {
             assertTrue(awaitItem() is AccountDetailUiState.Content)
             cancelAndIgnoreRemainingEvents()
         }
-        coVerify { accountFinder.find(accountId, AccountCriteria(includeIncomes = true, includeExpenses = true)) }
+        verify { accountFinder.find(accountId, AccountCriteria(includeIncomes = true, includeExpenses = true)) }
     }
 
     @Test
@@ -148,7 +153,7 @@ class AccountDetailViewModelTest {
             .withIncome(amount = "500.00", date = "2026-08-25", clock = clockAt("2026-08-25T10:00:00Z"))
             .withExpense(amount = "200.00", date = "2026-08-26", clock = clockAt("2026-08-26T10:00:00Z"))
             .build()
-        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(account)
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(account))
         val viewModel = buildViewModel()
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
@@ -170,7 +175,7 @@ class AccountDetailViewModelTest {
             .withIncome(amount = "500.00", date = "2026-08-25", clock = clockAt("2026-08-25T10:00:00Z"))
             .withExpense(amount = "200.00", date = "2026-08-26", clock = clockAt("2026-08-26T10:00:00Z"))
             .build()
-        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(account)
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(account))
         val viewModel = buildViewModel()
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
@@ -193,7 +198,7 @@ class AccountDetailViewModelTest {
             .withIncome(amount = "500.00", date = "2026-08-25", clock = clockAt("2026-08-25T10:00:00Z"))
             .withExpense(amount = "200.00", date = "2026-08-26", clock = clockAt("2026-08-26T10:00:00Z"))
             .build()
-        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(account)
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(account))
         val viewModel = buildViewModel()
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
@@ -216,7 +221,7 @@ class AccountDetailViewModelTest {
             .withIncome(amount = "500.00", date = "2026-08-25", clock = clockAt("2026-08-25T10:00:00Z"))
             .withExpense(amount = "200.00", date = "2026-08-26", clock = clockAt("2026-08-26T10:00:00Z"))
             .build()
-        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(account)
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(account))
         val viewModel = buildViewModel()
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
@@ -239,7 +244,7 @@ class AccountDetailViewModelTest {
             .id(accountId)
             .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
             .build()
-        coEvery { accountFinder.find(accountId, criteria) } returns Outcome.Success(account)
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(account))
         val viewModel = buildViewModel()
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
