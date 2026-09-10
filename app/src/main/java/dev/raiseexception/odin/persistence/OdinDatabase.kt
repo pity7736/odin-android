@@ -13,7 +13,7 @@ import dev.raiseexception.odin.accounts.infrastructure.repository.UserEntity
 
 @Database(
     entities = [UserEntity::class, AccountEntity::class, CategoryEntity::class, TransactionEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class OdinDatabase : RoomDatabase() {

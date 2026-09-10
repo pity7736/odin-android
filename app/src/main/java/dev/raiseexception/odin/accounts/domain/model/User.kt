@@ -2,7 +2,6 @@ package dev.raiseexception.odin.accounts.domain.model
 
 data class User(
     val id: String,
-    val salt: ByteArray,
     val wrappedMasterKey: ByteArray
 ) {
 
@@ -14,5 +13,5 @@ data class User(
 
     override fun hashCode(): Int = this.id.hashCode()
 
-    override fun toString(): String = "User(id=$id, salt=***, wrappedMasterKey=***)"
+    override fun toString(): String = "User(id=$id, wrappedMasterKey=***)"
 }

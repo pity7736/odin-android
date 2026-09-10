@@ -1,10 +1,12 @@
 package dev.raiseexception.odin.di
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import androidx.room.Room
 import dev.raiseexception.odin.BuildConfig
 import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
@@ -31,6 +33,7 @@ import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExp
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeViewModel
 import dev.raiseexception.odin.accounts.application.usecase.UserAuthenticator
 import dev.raiseexception.odin.accounts.application.usecase.UserRegistrar
+import dev.raiseexception.odin.accounts.domain.model.User
 import dev.raiseexception.odin.accounts.domain.repository.UserRepository
 import dev.raiseexception.odin.accounts.infrastructure.repository.RoomUserRepository
 import dev.raiseexception.odin.accounts.presentation.login.LoginViewModel
@@ -38,72 +41,99 @@ import dev.raiseexception.odin.accounts.presentation.registration.RegistrationVi
 import dev.raiseexception.odin.accounts.presentation.startup.StartupViewModel
 import dev.raiseexception.odin.crypto.domain.VaultCrypto
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
+import dev.raiseexception.odin.crypto.domain.repository.SaltRepository
 import dev.raiseexception.odin.crypto.infrastructure.BouncyCastleVaultCrypto
+import dev.raiseexception.odin.crypto.infrastructure.DataStoreSaltRepository
 import dev.raiseexception.odin.crypto.infrastructure.InMemoryMasterKeyRepository
 import dev.raiseexception.odin.home.application.usecase.RecentTransactionLister
 import dev.raiseexception.odin.home.presentation.home.HomeViewModel
-import dev.raiseexception.odin.persistence.OdinDatabase
+import dev.raiseexception.odin.persistence.DatabaseProvider
+import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.TransactionRunner
 import dev.raiseexception.odin.shared.infrastructure.persistence.RoomTransactionRunner
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import java.security.SecureRandom
 
+private val Context.saltDataStore: DataStore<Preferences> by preferencesDataStore(name = "odin_salt")
+
 @Suppress("TooManyFunctions")
 class AppContainer(context: Context) {
 
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
-    private val database: OdinDatabase = Room.databaseBuilder(
-        context,
-        OdinDatabase::class.java,
-        "odin_db"
-    ).fallbackToDestructiveMigration(dropAllTables = true).build()
+    private val databaseProvider: DatabaseProvider = DatabaseProvider(context)
     private val secureRandom: SecureRandom = SecureRandom()
     private val vaultCrypto: VaultCrypto = BouncyCastleVaultCrypto(secureRandom)
     private val masterKeyRepository: MasterKeyRepository = InMemoryMasterKeyRepository()
-    private val userRepository: UserRepository = RoomUserRepository(database.userDao())
-    private val userRegistrar: UserRegistrar = UserRegistrar(vaultCrypto, userRepository, masterKeyRepository)
-    private val userAuthenticator: UserAuthenticator =
-        UserAuthenticator(vaultCrypto, userRepository, masterKeyRepository)
-    private val accountRepository: AccountRepository = RoomAccountRepository(database.accountDao())
-    private val accountCreator: AccountCreator = AccountCreator(accountRepository)
-    private val accountLister: AccountLister = AccountLister(accountRepository)
-    private val accountFinder: AccountFinder = AccountFinder(accountRepository)
-    private val accountTransactionLister: AccountTransactionLister = AccountTransactionLister()
-    private val recentTransactionLister: RecentTransactionLister = RecentTransactionLister()
-    private val categoryRepository: CategoryRepository = RoomCategoryRepository(database.categoryDao())
-    private val categoryCreator: CategoryCreator = CategoryCreator(categoryRepository)
-    private val categoryLister: CategoryLister = CategoryLister(categoryRepository)
-    private val transactionDao = database.transactionDao()
-    private val incomeRepository: IncomeRepository = RoomIncomeRepository(transactionDao)
-    private val expenseRepository: ExpenseRepository = RoomExpenseRepository(transactionDao)
-    private val transactionRunner: TransactionRunner = RoomTransactionRunner(database)
-    private val incomeCreator: IncomeCreator = IncomeCreator(
-        accountRepository = accountRepository,
-        incomeRepository = incomeRepository,
-        categoryRepository = categoryRepository,
-        categoryCreator = categoryCreator,
-        transactionRunner = transactionRunner
+    private val saltRepository: SaltRepository = DataStoreSaltRepository(context.saltDataStore)
+    private val userRepository: UserRepository = DeferredUserRepository(databaseProvider)
+    private val userRegistrar: UserRegistrar = UserRegistrar(
+        vaultCrypto,
+        userRepository,
+        masterKeyRepository,
+        saltRepository,
+        databaseProvider
     )
-    private val expenseCreator: ExpenseCreator = ExpenseCreator(
-        accountRepository = accountRepository,
-        expenseRepository = expenseRepository,
-        categoryRepository = categoryRepository,
-        categoryCreator = categoryCreator,
-        transactionRunner = transactionRunner
+    private val userAuthenticator: UserAuthenticator = UserAuthenticator(
+        vaultCrypto,
+        userRepository,
+        masterKeyRepository,
+        saltRepository,
+        databaseProvider
     )
+    private val accountRepository: AccountRepository by lazy {
+        RoomAccountRepository(databaseProvider.requireDatabase().accountDao())
+    }
+    private val accountCreator by lazy { AccountCreator(accountRepository) }
+    private val accountLister by lazy { AccountLister(accountRepository) }
+    private val accountFinder by lazy { AccountFinder(accountRepository) }
+    private val accountTransactionLister by lazy { AccountTransactionLister() }
+    private val recentTransactionLister by lazy { RecentTransactionLister() }
+    private val categoryRepository: CategoryRepository by lazy {
+        RoomCategoryRepository(databaseProvider.requireDatabase().categoryDao())
+    }
+    private val categoryCreator by lazy { CategoryCreator(categoryRepository) }
+    private val categoryLister by lazy { CategoryLister(categoryRepository) }
+    private val incomeRepository: IncomeRepository by lazy {
+        RoomIncomeRepository(databaseProvider.requireDatabase().transactionDao())
+    }
+    private val expenseRepository: ExpenseRepository by lazy {
+        RoomExpenseRepository(databaseProvider.requireDatabase().transactionDao())
+    }
+    private val transactionRunner: TransactionRunner by lazy {
+        RoomTransactionRunner(databaseProvider.requireDatabase())
+    }
+    private val incomeCreator by lazy {
+        IncomeCreator(
+            accountRepository = accountRepository,
+            incomeRepository = incomeRepository,
+            categoryRepository = categoryRepository,
+            categoryCreator = categoryCreator,
+            transactionRunner = transactionRunner
+        )
+    }
+    private val expenseCreator by lazy {
+        ExpenseCreator(
+            accountRepository = accountRepository,
+            expenseRepository = expenseRepository,
+            categoryRepository = categoryRepository,
+            categoryCreator = categoryCreator,
+            transactionRunner = transactionRunner
+        )
+    }
 
     fun registrationViewModel(): RegistrationViewModel = RegistrationViewModel(userRegistrar)
 
     fun loginViewModel(): LoginViewModel {
         if (BuildConfig.DEBUG) {
-            val seeder = DevDataSeeder(accountCreator, categoryCreator, incomeCreator, accountLister)
-            return LoginViewModel(userAuthenticator, seeder::seed)
+            return LoginViewModel(userAuthenticator) {
+                DevDataSeeder(accountCreator, categoryCreator, incomeCreator, accountLister).seed()
+            }
         }
         return LoginViewModel(userAuthenticator)
     }
 
-    fun startupViewModel(): StartupViewModel = StartupViewModel(userRepository)
+    fun startupViewModel(): StartupViewModel = StartupViewModel(saltRepository)
 
     fun createAccountViewModel(): CreateAccountViewModel = CreateAccountViewModel(accountCreator)
 
@@ -137,4 +167,15 @@ class AppContainer(context: Context) {
                 CreateExpenseViewModel(accountId, expenseCreator, categoryLister, ioDispatcher)
             }
         }
+}
+
+private class DeferredUserRepository(
+    private val databaseProvider: DatabaseProvider
+) : UserRepository {
+
+    private val delegate by lazy { RoomUserRepository(databaseProvider.requireDatabase().userDao()) }
+
+    override suspend fun add(user: User): Outcome<Unit> = this.delegate.add(user)
+
+    override suspend fun get(): Outcome<User> = this.delegate.get()
 }

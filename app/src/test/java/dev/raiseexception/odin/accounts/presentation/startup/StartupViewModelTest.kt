@@ -1,7 +1,7 @@
 package dev.raiseexception.odin.accounts.presentation.startup
 
 import app.cash.turbine.test
-import dev.raiseexception.odin.accounts.domain.repository.UserRepository
+import dev.raiseexception.odin.crypto.domain.repository.SaltRepository
 import dev.raiseexception.odin.shared.presentation.Routes
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -19,7 +19,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class StartupViewModelTest {
 
-    private val userRepository = mockk<UserRepository>()
+    private val saltRepository = mockk<SaltRepository>()
     private val testDispatcher = StandardTestDispatcher()
 
     @Before
@@ -33,9 +33,9 @@ class StartupViewModelTest {
     }
 
     @Test
-    fun `given a registered user exists, when the app starts, then decides the login route`() = runTest {
-        coEvery { userRepository.exists() } returns true
-        val viewModel = StartupViewModel(userRepository)
+    fun `given salt exists, when startup checked, then routes to login`() = runTest {
+        coEvery { saltRepository.exists() } returns true
+        val viewModel = StartupViewModel(saltRepository)
 
         viewModel.state.test {
             assertEquals(StartupState.Deciding, awaitItem())
@@ -44,9 +44,9 @@ class StartupViewModelTest {
     }
 
     @Test
-    fun `given no registered user, when the app starts, then decides the registration route`() = runTest {
-        coEvery { userRepository.exists() } returns false
-        val viewModel = StartupViewModel(userRepository)
+    fun `given no salt, when startup checked, then routes to registration`() = runTest {
+        coEvery { saltRepository.exists() } returns false
+        val viewModel = StartupViewModel(saltRepository)
 
         viewModel.state.test {
             assertEquals(StartupState.Deciding, awaitItem())

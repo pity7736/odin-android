@@ -12,7 +12,6 @@ import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -42,13 +41,6 @@ class RoomUserRepositoryTest {
     }
 
     @Test
-    fun `given empty database, when exists called, then returns false`() = runTest {
-        val result = repository.exists()
-
-        assertFalse(result)
-    }
-
-    @Test
     fun `given empty database, when get called, then returns UserNotFound`() = runTest {
         val result = repository.get()
 
@@ -63,15 +55,6 @@ class RoomUserRepositoryTest {
         val result = repository.add(user)
 
         assertTrue(result is Outcome.Success)
-    }
-
-    @Test
-    fun `given user in database, when exists called, then returns true`() = runTest {
-        repository.add(buildUser("user-1"))
-
-        val result = repository.exists()
-
-        assertTrue(result)
     }
 
     @Test
@@ -97,7 +80,6 @@ class RoomUserRepositoryTest {
 
     private fun buildUser(id: String) = User(
         id = id,
-        salt = ByteArray(BYTE_ARRAY_SIZE) { it.toByte() },
         wrappedMasterKey = ByteArray(BYTE_ARRAY_SIZE) { (it + 1).toByte() }
     )
 }
