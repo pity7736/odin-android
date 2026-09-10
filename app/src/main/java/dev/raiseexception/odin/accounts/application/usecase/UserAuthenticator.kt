@@ -92,7 +92,7 @@ class UserAuthenticator(
     private fun userNotFoundFailure() = Outcome.Failure(
         LoginError.UserNotFound(
             internalMessage = "No salt stored — no user registered on this device",
-            externalMessage = "Algo salió mal. Intente de nuevo más tarde"
+            externalMessage = "No hay una cuenta registrada en este dispositivo"
         )
     )
 
