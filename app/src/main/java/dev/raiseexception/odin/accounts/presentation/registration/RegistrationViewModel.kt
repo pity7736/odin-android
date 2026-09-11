@@ -33,8 +33,12 @@ class RegistrationViewModel(
             val confirmation = SensitivePassword(rawPasswordConfirmation.toCharArray())
             val outcome = userRegistrar.register(password, confirmation)
             when (outcome) {
-                is Outcome.Success -> navigationChannel.send(NavigationTarget.Home)
-                is Outcome.Failure -> mutableUiState.value = mapError(outcome.error)
+                is Outcome.Success -> {
+                    navigationChannel.send(NavigationTarget.Home)
+                }
+                is Outcome.Failure -> {
+                    mutableUiState.value = mapError(outcome.error)
+                }
             }
         }
     }

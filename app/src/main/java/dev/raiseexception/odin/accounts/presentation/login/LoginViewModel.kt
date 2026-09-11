@@ -37,7 +37,9 @@ class LoginViewModel(
                     onLoginSuccess()
                     navigationChannel.send(NavigationTarget.Home)
                 }
-                is Outcome.Failure -> mutableUiState.value = mapError(outcome.error)
+                is Outcome.Failure -> {
+                    mutableUiState.value = mapError(outcome.error)
+                }
             }
         }
     }

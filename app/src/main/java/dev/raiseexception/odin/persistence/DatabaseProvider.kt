@@ -23,9 +23,10 @@ class DatabaseProvider(
         checkNotNull(this.database) { "Vault is locked. Call unlock() first." }
 
     override fun unlock(encryptionKey: ByteArray): Outcome<Unit> {
-        this.database?.close()
-        val keyCopy = encryptionKey.copyOf()
-        val factory = this.openHelperFactoryProvider(keyCopy)
+        if (this.database != null) return Outcome.Success(Unit)
+        val rawKeyHex = encryptionKey.joinToString("") { "%02x".format(it) }
+        val formattedKey = "x'$rawKeyHex'"
+        val factory = this.openHelperFactoryProvider(formattedKey.toByteArray())
         val builder = Room.databaseBuilder(this.context, OdinDatabase::class.java, "odin_db")
             .fallbackToDestructiveMigration(dropAllTables = true)
         if (factory != null) {
@@ -40,6 +41,11 @@ class DatabaseProvider(
             newDatabase.close()
             Outcome.Failure(
                 StorageError(internalMessage = "Failed to open encrypted database: wrong key or corrupt file")
+            )
+        } catch (@Suppress("SwallowedException") exception: UnsatisfiedLinkError) {
+            newDatabase.close()
+            Outcome.Failure(
+                StorageError(internalMessage = "SQLCipher native library not loaded")
             )
         }
     }

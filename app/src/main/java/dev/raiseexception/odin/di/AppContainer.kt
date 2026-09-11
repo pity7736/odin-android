@@ -173,7 +173,9 @@ private class DeferredUserRepository(
     private val databaseProvider: DatabaseProvider
 ) : UserRepository {
 
-    private val delegate by lazy { RoomUserRepository(databaseProvider.requireDatabase().userDao()) }
+    private val delegate by lazy {
+        RoomUserRepository(databaseProvider.requireDatabase().userDao())
+    }
 
     override suspend fun add(user: User): Outcome<Unit> = this.delegate.add(user)
 
