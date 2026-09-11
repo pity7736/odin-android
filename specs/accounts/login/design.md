@@ -16,11 +16,13 @@ whether to start on login (a vault exists) or registration (none exists).
 
 ## Design Decisions & Rationale
 
-- **Verification = re-derive keys, then unwrap the master key.** There is no
-  stored password verifier. `UserAuthenticator` calls `VaultCrypto.deriveKeys`
-  then `unwrapMasterKey`; AES-GCM's authentication tag *is* the check. This
-  reuses the exact artifacts registration produced (`salt`, `wrappedMasterKey`)
-  and needs no extra stored state.
+- **Verification = re-derive keys, unlock vault, then unwrap the master key.**
+  There is no stored password verifier. `UserAuthenticator` reads the salt from
+  DataStore (`saltRepository.get()`), derives keys via `VaultCrypto.deriveKeys`,
+  unlocks the vault (`vaultUnlocker.unlock(encryptionKey)` — opens the encrypted
+  Room database), reads the user record, then calls `unwrapMasterKey`; AES-GCM's
+  authentication tag *is* the check. `UserAuthenticator` depends on
+  `SaltRepository` and `VaultUnlocker` in addition to its existing dependencies.
 
 - **Login validates blank only and bypasses `Password.create()`.** The 12–100
   length rule and its registration-flavored errors belong to *registration*.
@@ -61,7 +63,8 @@ whether to start on login (a vault exists) or registration (none exists).
   responsibility (a suspend port is expected to be main-safe), not the use case's.
 
 - **Startup routing is splash-gated, with no placeholder nav route.**
-  `StartupViewModel` runs `userRepository.exists()` and exposes
+  `StartupViewModel` runs `saltRepository.exists()` (salt in DataStore means a
+  user is registered) and exposes
   `StartupState { Deciding, Decided(startRoute) }`. `MainActivity` holds the
   Android 12 system splash (`androidx.core:core-splashscreen`) while `Deciding`,
   then composes the `NavHost` with `startDestination` = the decided route.
@@ -142,15 +145,18 @@ specs/accounts/login/
 
 ## Data Flow
 
-1. On launch, `StartupViewModel` (init) runs `userRepository.exists()`; the
+1. On launch, `StartupViewModel` (init) runs `saltRepository.exists()`; the
    `NavHost` is not composed until it reports `Decided`. The system splash covers
    the wait; then the graph starts on `LOGIN` or `REGISTRATION`.
 2. On the login screen the user types a password and submits;
    `LoginViewModel.login(rawPassword)` emits `Loading` and calls
    `UserAuthenticator.authenticate` on `viewModelScope` (Main).
 3. `authenticate` rejects blank input up front (`EmptyPassword`), else reads the
-   user via `userRepository.get()`, then on `cpuDispatcher` runs
-   `deriveKeys(password, salt)` and `unwrapMasterKey(wrappedMasterKey, key)`.
+   salt from DataStore via `saltRepository.get()` (missing salt →
+   `UserNotFound`), then on `cpuDispatcher` runs `deriveKeys(password, salt)`,
+   `vaultUnlocker.unlock(encryptionKey)` (opens the encrypted database or no-op
+   if already open), reads the user via `userRepository.get()`, and calls
+   `unwrapMasterKey(wrappedMasterKey, encryptionKey)`.
 4. Success → `masterKeyRepository.store(masterKey)` and `Outcome.Success(user)`.
    Failure → a typed `LoginError` (`InvalidCredentials` / `CryptoFailure` /
    `UserNotFound`).
@@ -174,20 +180,6 @@ success until navigation fires), `ValidationError(passwordError)` (blank input),
 `Decided(startRoute)` selects the `NavHost` start destination.
 
 ## Known Limitations
-
-- **Login is logic-complete but NOT reachable end-to-end in the current build.**
-  With in-memory storage and no auto-lock, there is no user gesture that reaches
-  the login screen: a true cold start wipes the in-memory user (→ registration),
-  and any relaunch while the process is alive restores the saved nav back stack
-  (→ home), so `StartupViewModel`'s `LOGIN` decision is never honored by a real
-  user. The screen, verification, and routing decision are all correct and
-  unit-tested; what is missing is a durable trigger. The real trigger is "open the
-  app when a saved vault exists," which requires **persisting the user** so it
-  survives a fresh app open. Planned next: persist only the user (after the
-  account-creation feature). NOTE: this supersedes the frozen `plan.md`'s claim
-  that login is "reachable via Activity recreation while the process lives" —
-  manual testing disproved that (nav restores the back stack, and re-locking on a
-  config change like rotation would be undesirable anyway).
 
 - **No session / auto-lock.** The app does not re-lock when sent to the
   background; that (and unlock-on-return) is a separate future feature tied to

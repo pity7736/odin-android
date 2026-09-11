@@ -13,10 +13,10 @@ inline validation feedback.
 ## Design Decisions & Rationale
 
 - **`User` is an entity identified by a UUIDv7 string, not a value object.**
-  `equals`/`hashCode` use only `id`. The entity also carries `salt` and
-  `wrappedMasterKey` because those are created at registration time and belong
-  to the user's identity — they are not separate domain objects. `toString()`
-  redacts sensitive fields.
+  `equals`/`hashCode` use only `id`. The entity carries `wrappedMasterKey`
+  because it is created at registration time and belongs to the user's identity.
+  `toString()` redacts sensitive fields. Salt is stored separately in DataStore
+  (see `specs/technical/sqlcipher-encryption/design.md`).
 
 - **`Password` is a value object with a private constructor and a `create`
   factory returning `Outcome<Password>`.** This makes it impossible to hold an
@@ -32,6 +32,12 @@ inline validation feedback.
   ViewModel pattern-matches on the subtype to decide which `UiState` to emit
   (validation error vs general error). Rejected alternative: a generic error
   with a code enum — loses the exhaustive `when` compiler check.
+
+- **`UserRegistrar` depends on `SaltRepository` and `VaultUnlocker` in addition
+  to `VaultCrypto`, `UserRepository`, and `MasterKeyRepository`.** Salt is saved
+  to DataStore before the database opens; the vault is unlocked (database opened
+  with the derived encryption key) before the user record is persisted. If
+  registration fails after the salt is saved, the salt is deleted (rollback).
 
 - **`UserRegistrar` maps `CryptoError` to `RegistrationError.CryptoFailure` at
   the module boundary.** The `crypto` module's error types do not leak into the
@@ -74,8 +80,8 @@ inline validation feedback.
 - **`UserEntity` lives in the infrastructure layer; the domain model carries no
   Room annotations.** Mapping extensions (`toDomain()`, `toEntity()`) are
   defined in `UserEntity.kt` so the dependency flows infrastructure → domain,
-  never the other way. `ByteArray` columns (`salt`, `wrappedMasterKey`) are
-  stored as BLOB natively — no type converters needed.
+  never the other way. `ByteArray` column (`wrappedMasterKey`) is stored as
+  BLOB natively — no type converter needed.
 
 - **`OdinDatabase` is a cross-cutting schema registry at
   `dev.raiseexception.odin.persistence`.** It lives outside any feature package
@@ -197,12 +203,13 @@ specs/accounts/user-creation/
 1. User types password and confirmation, taps "Registrarse"
 2. `RegistrationScreen` calls `RegistrationViewModel.register(password, confirmation)`
 3. ViewModel emits `Loading`, launches coroutine on `Dispatchers.Main`
-4. `UserRegistrar.register()` checks `UserRepository.exists()`, validates
-   password via `Password.create()`, checks passwords match
-5. `performRegistration()` switches to `cpuDispatcher` (`Dispatchers.Default`),
-   calls `VaultCrypto` for salt generation, key derivation, master key
-   generation, and wrapping
-6. User entity is built and persisted via `UserRepository.add()`
+4. `UserRegistrar.register()` checks `saltRepository.exists()` (salt in
+   DataStore means already registered), validates password, checks match
+5. `performRegistration()` generates salt, saves it to DataStore via
+   `saltRepository.save()`, switches to `cpuDispatcher`, derives keys
+   (Argon2id), unlocks the vault (`vaultUnlocker.unlock(encryptionKey)` —
+   opens the encrypted Room database), generates and wraps the master key
+6. User entity `(id, wrappedMasterKey)` is persisted via `UserRepository.add()`
 7. Master key is stored in `MasterKeyRepository` for session use
 8. `Outcome<User>` returns to the ViewModel. On success, it sends
    `NavigationTarget.Home` into the `Channel` (UiState stays on `Loading`).
@@ -231,8 +238,8 @@ specs/accounts/user-creation/
 
 ## Known Limitations
 
-- **No login flow:** a registered user who reopens the app sees the registration
-  screen again (with an "already registered" guard). Login is a separate feature.
+None currently. Previous limitation "no login flow" is resolved — login is
+implemented (see `specs/accounts/login/design.md`).
 
 ## Quality Pillars
 

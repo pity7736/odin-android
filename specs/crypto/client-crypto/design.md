@@ -88,6 +88,20 @@ Mapping of spec (business) terms to technical terms:
   adapter is built (e.g., Rust), it creates another subclass — same 28 tests,
   zero duplication.
 
+- **`SaltRepository` is a port in `crypto/domain/repository/`.** The salt is a
+  cryptographic artifact — its storage contract belongs to the crypto module's
+  domain. `DataStoreSaltRepository` in `crypto/infrastructure/` adapts Android
+  Preferences DataStore. The salt is stored as a Base64-encoded string (DataStore
+  does not support raw `ByteArray`). `get()` returns `Outcome<ByteArray>` —
+  missing salt is `CryptoError.SaltNotFound`, I/O failure is `StorageError`.
+  `exists()` is used by `UserRegistrar` (already-registered guard) and
+  `StartupViewModel` (routing). See
+  `specs/technical/sqlcipher-encryption/design.md` for the full storage layout.
+
+- **`CryptoError.SaltNotFound` added to the sealed hierarchy.** Represents a
+  missing salt in DataStore. `UserAuthenticator` maps it to
+  `LoginError.UserNotFound` — no salt means no user has registered.
+
 - **`SecureRandom` injected via constructor.** Enables deterministic testing
   where needed (e.g., verifying nonce behavior) without compromising production
   randomness.
@@ -107,16 +121,20 @@ app/src/main/java/dev/raiseexception/odin/
 ├── crypto/
 │   ├── domain/
 │   │   ├── VaultCrypto.kt                     # port interface + DerivedKeys
-│   │   └── CryptoError.kt                     # sealed error hierarchy
+│   │   ├── CryptoError.kt                     # sealed error hierarchy (incl. SaltNotFound)
+│   │   └── repository/
+│   │       └── SaltRepository.kt              # port interface for salt storage
 │   └── infrastructure/
-│       └── BouncyCastleVaultCrypto.kt          # adapter implementation
+│       ├── BouncyCastleVaultCrypto.kt          # adapter implementation
+│       └── DataStoreSaltRepository.kt          # Preferences DataStore adapter for salt
 
 app/src/test/java/dev/raiseexception/odin/
 ├── crypto/
 │   ├── domain/
 │   │   └── VaultCryptoContractTest.kt          # 28 abstract contract tests
 │   └── infrastructure/
-│       └── BouncyCastleVaultCryptoTest.kt       # concrete subclass
+│       ├── BouncyCastleVaultCryptoTest.kt       # concrete subclass
+│       └── DataStoreSaltRepositoryTest.kt       # Robolectric
 
 specs/crypto/client-crypto/
 ├── spec.md

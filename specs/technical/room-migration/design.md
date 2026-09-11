@@ -8,8 +8,10 @@ Room; this change brings every remaining entity to the same storage layer. The
 former in-memory vault infrastructure (EncryptedRecordStore, serialization
 records, Vault*Repository classes) is deleted.
 
-Data is stored as plaintext columns in Room during development. SQLCipher
-encryption at rest is a separate subsequent task.
+The database is encrypted at rest with SQLCipher. `DatabaseProvider` opens the
+database with a `SupportOpenHelperFactory` using the user's password-derived
+encryption key in raw hex format. See
+`specs/technical/sqlcipher-encryption/design.md` for the full encryption design.
 
 ## Design Decisions & Rationale
 
@@ -57,6 +59,16 @@ encryption at rest is a separate subsequent task.
   `ExpenseCreator` to ensure category resolution and transaction insertion are
   atomic.
 
+- **`DatabaseProvider` wraps the Room database lifecycle.** It builds the database
+  with `SupportOpenHelperFactory` (SQLCipher) and exposes `requireDatabase()` for
+  DAOs. The database is opened once via `unlock()` (idempotent) and stays open
+  for the app's lifetime. `AppContainer` creates `DatabaseProvider` eagerly and
+  passes it to use cases as `VaultUnlocker`; post-auth repositories access it
+  via `by lazy` properties that call `requireDatabase()`.
+
+- **`UserEntity` no longer has a `salt` column.** Salt moved to Preferences
+  DataStore. The `users` table holds only `(id, wrappedMasterKey)`.
+
 - **`fallbackToDestructiveMigration` during development.** The database is created
   with `fallbackToDestructiveMigration(dropAllTables = true)` so schema changes
   don't require manual migration scripts during active development. This must be
@@ -81,7 +93,8 @@ encryption at rest is a separate subsequent task.
 ```
 app/src/main/java/dev/raiseexception/odin/
 ├── persistence/
-│   └── OdinDatabase.kt                    # Room database: users, accounts, categories, transactions
+│   ├── OdinDatabase.kt                    # Room database: users, accounts, categories, transactions
+│   └── DatabaseProvider.kt                # Opens SQLCipher DB, implements VaultUnlocker
 ├── shared/
 │   ├── domain/
 │   │   ├── TransactionRunner.kt           # Domain interface for atomic operations
@@ -104,6 +117,7 @@ app/src/main/java/dev/raiseexception/odin/
 ## Database Schema
 
 ```sql
+users (id PK, wrappedMasterKey BLOB)
 accounts (id PK, name, initialBalanceAmount, currency, type, description, createdAt)
 categories (id PK, name, type, description, color, createdAt)
 transactions (id PK, type, accountId FK→accounts, amount, currency, date,
@@ -121,5 +135,7 @@ transactions (id PK, type, accountId FK→accounts, amount, currency, date,
   validation on stale data. Tracked in `TASKS.md`.
 - **No delete cascade.** Foreign keys have no `onDelete` strategy. Must be
   addressed when delete features are implemented.
-- **Plaintext at rest.** Data is unencrypted in Room. SQLCipher migration is a
-  separate task tracked in `TASKS.md`.
+- **No database close/reopen support.** `DatabaseProvider` opens the database
+  once per app process. `by lazy` repositories cache DAOs from the initial
+  database instance. If a future feature needs to close and reopen (e.g.
+  password change re-keying), the caching strategy must be refactored.
