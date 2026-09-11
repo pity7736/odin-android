@@ -52,7 +52,6 @@ class RegistrationViewModelTest {
     fun `given valid password, when registering, then emits Loading and stays Loading`() = runTest {
         val user = User(
             id = "id",
-            salt = ByteArray(TEST_BYTE_ARRAY_SIZE) { it.toByte() },
             wrappedMasterKey = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + 1).toByte() }
         )
         coEvery { userRegistrar.register(any(), any()) } returns Outcome.Success(user)
@@ -69,7 +68,6 @@ class RegistrationViewModelTest {
     fun `given a registration in progress, when registering again, then ignores the second attempt`() = runTest {
         val user = User(
             id = "id",
-            salt = ByteArray(TEST_BYTE_ARRAY_SIZE) { it.toByte() },
             wrappedMasterKey = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + 1).toByte() }
         )
         coEvery { userRegistrar.register(any(), any()) } returns Outcome.Success(user)
@@ -173,7 +171,6 @@ class RegistrationViewModelTest {
     fun `given valid password, when registering, then emits navigation event to Home`() = runTest {
         val user = User(
             id = "id",
-            salt = ByteArray(TEST_BYTE_ARRAY_SIZE) { it.toByte() },
             wrappedMasterKey = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + 1).toByte() }
         )
         coEvery { userRegistrar.register(any(), any()) } returns Outcome.Success(user)

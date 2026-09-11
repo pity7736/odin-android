@@ -4,7 +4,7 @@ ACTIVITY  := $(PACKAGE)/.MainActivity
 ADB       := adb
 EMULATOR  := emulator
 
-.PHONY: run
+.PHONY: run clear
 
 run:
 	@if ! $(ADB) devices | grep -q emulator; then \
@@ -16,3 +16,6 @@ run:
 	fi
 	./gradlew installDebug
 	$(ADB) shell am start -n $(ACTIVITY)
+
+clear:
+	$(ADB) shell pm clear $(PACKAGE)

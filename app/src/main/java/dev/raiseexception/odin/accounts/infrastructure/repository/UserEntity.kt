@@ -7,7 +7,6 @@ import dev.raiseexception.odin.accounts.domain.model.User
 @Entity(tableName = "users")
 data class UserEntity(
     @PrimaryKey val id: String,
-    val salt: ByteArray,
     val wrappedMasterKey: ByteArray,
 ) {
 
@@ -22,12 +21,10 @@ data class UserEntity(
 
 fun UserEntity.toDomain(): User = User(
     id = id,
-    salt = salt,
     wrappedMasterKey = wrappedMasterKey,
 )
 
 fun User.toEntity(): UserEntity = UserEntity(
     id = id,
-    salt = salt,
     wrappedMasterKey = wrappedMasterKey,
 )

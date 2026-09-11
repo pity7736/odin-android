@@ -7,12 +7,15 @@ import dev.raiseexception.odin.crypto.domain.DerivedKeys
 import dev.raiseexception.odin.crypto.domain.SensitivePassword
 import dev.raiseexception.odin.crypto.domain.VaultCrypto
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
+import dev.raiseexception.odin.crypto.domain.repository.SaltRepository
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.domain.VaultUnlocker
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertArrayEquals
@@ -28,11 +31,14 @@ private const val WRAPPED_KEY_OFFSET = 3
 private const val MAX_PASSWORD_LENGTH = 100
 private const val OVER_MAX_PASSWORD_LENGTH = 101
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class UserRegistrarTest {
 
     private val vaultCrypto = mockk<VaultCrypto>()
     private val userRepository = mockk<UserRepository>()
     private val masterKeyRepository = mockk<MasterKeyRepository>(relaxUnitFun = true)
+    private val saltRepository = mockk<SaltRepository>()
+    private val vaultUnlocker = mockk<VaultUnlocker>()
     private lateinit var registrar: UserRegistrar
 
     private val salt = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + SALT_OFFSET).toByte() }
@@ -43,7 +49,14 @@ class UserRegistrarTest {
 
     @Before
     fun setUp() {
-        registrar = UserRegistrar(vaultCrypto, userRepository, masterKeyRepository, UnconfinedTestDispatcher())
+        registrar = UserRegistrar(
+            vaultCrypto,
+            userRepository,
+            masterKeyRepository,
+            saltRepository,
+            vaultUnlocker,
+            UnconfinedTestDispatcher()
+        )
     }
 
     @Test
@@ -54,6 +67,7 @@ class UserRegistrarTest {
 
         assertTrue(result is Outcome.Success)
         verify { vaultCrypto.generateSalt() }
+        coVerify { saltRepository.save(salt) }
         verify { vaultCrypto.deriveKeys(any(), eq(salt)) }
         verify { vaultCrypto.generateMasterKey() }
         verify { vaultCrypto.wrapMasterKey(masterKey, encryptionKey) }
@@ -62,7 +76,7 @@ class UserRegistrarTest {
     }
 
     @Test
-    fun `given valid password, when registering, then user contains id salt and wrapped key`() = runTest {
+    fun `given valid password, when registering, then user contains id and wrapped key`() = runTest {
         stubSuccessfulRegistration()
 
         val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
@@ -70,8 +84,54 @@ class UserRegistrarTest {
         assertTrue(result is Outcome.Success)
         val user = (result as Outcome.Success).value
         assertTrue(user.id.isNotEmpty())
-        assertArrayEquals(salt, user.salt)
         assertArrayEquals(wrappedMasterKey, user.wrappedMasterKey)
+    }
+
+    @Test
+    fun `given valid input, when register called, then salt saved to SaltRepository before database is unlocked`() =
+        runTest {
+            stubSuccessfulRegistration()
+
+            registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+            coVerify { saltRepository.save(salt) }
+        }
+
+    @Test
+    fun `given valid input, when register called, then vault unlocked with derived encryptionKey`() = runTest {
+        stubSuccessfulRegistration()
+
+        registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+        verify { vaultUnlocker.unlock(encryptionKey) }
+    }
+
+    @Test
+    fun `given valid input, when register called, then user saved without salt`() = runTest {
+        stubSuccessfulRegistration()
+
+        registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+        coVerify {
+            userRepository.add(
+                match { user ->
+                    user.wrappedMasterKey.contentEquals(wrappedMasterKey)
+                }
+            )
+        }
+    }
+
+    @Test
+    fun `given salt save fails, when register called, then returns StorageFailure`() = runTest {
+        coEvery { saltRepository.exists() } returns false
+        every { vaultCrypto.generateSalt() } returns salt
+        coEvery { saltRepository.save(salt) } returns Outcome.Failure(
+            dev.raiseexception.odin.shared.domain.StorageError(internalMessage = "DataStore failure")
+        )
+
+        val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+        assertTrue(result is Outcome.Failure)
     }
 
     @Test
@@ -95,7 +155,7 @@ class UserRegistrarTest {
 
     @Test
     fun `given password shorter than 12 chars, when registering, then returns invalid password`() = runTest {
-        coEvery { userRepository.exists() } returns false
+        coEvery { saltRepository.exists() } returns false
 
         val result = registrar.register(sensitivePassword("short"), sensitivePassword("short"))
 
@@ -106,7 +166,7 @@ class UserRegistrarTest {
     @Test
     fun `given password longer than 100 chars, when registering, then returns invalid password`() = runTest {
         val tooLong = "a".repeat(OVER_MAX_PASSWORD_LENGTH)
-        coEvery { userRepository.exists() } returns false
+        coEvery { saltRepository.exists() } returns false
 
         val result = registrar.register(sensitivePassword(tooLong), sensitivePassword(tooLong))
 
@@ -116,7 +176,7 @@ class UserRegistrarTest {
 
     @Test
     fun `given empty password, when registering, then returns invalid password`() = runTest {
-        coEvery { userRepository.exists() } returns false
+        coEvery { saltRepository.exists() } returns false
 
         val result = registrar.register(sensitivePassword(""), sensitivePassword(""))
 
@@ -126,7 +186,7 @@ class UserRegistrarTest {
 
     @Test
     fun `given mismatched passwords, when registering, then returns passwords do not match`() = runTest {
-        coEvery { userRepository.exists() } returns false
+        coEvery { saltRepository.exists() } returns false
 
         val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("differentPassword"))
 
@@ -136,8 +196,10 @@ class UserRegistrarTest {
 
     @Test
     fun `given deriveKeys fails, when registering, then returns crypto failure`() = runTest {
-        coEvery { userRepository.exists() } returns false
+        coEvery { saltRepository.exists() } returns false
+        coEvery { saltRepository.delete() } returns Unit
         every { vaultCrypto.generateSalt() } returns salt
+        coEvery { saltRepository.save(salt) } returns Outcome.Success(Unit)
         every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Failure(CryptoError.InvalidSalt())
 
         val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
@@ -148,9 +210,12 @@ class UserRegistrarTest {
 
     @Test
     fun `given wrapMasterKey fails, when registering, then returns crypto failure`() = runTest {
-        coEvery { userRepository.exists() } returns false
+        coEvery { saltRepository.exists() } returns false
+        coEvery { saltRepository.delete() } returns Unit
         every { vaultCrypto.generateSalt() } returns salt
+        coEvery { saltRepository.save(salt) } returns Outcome.Success(Unit)
         every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
+        every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
         every { vaultCrypto.generateMasterKey() } returns masterKey
         every {
             vaultCrypto.wrapMasterKey(masterKey, encryptionKey)
@@ -164,9 +229,12 @@ class UserRegistrarTest {
 
     @Test
     fun `given crypto succeeds but add fails, when registering, then returns storage failure`() = runTest {
-        coEvery { userRepository.exists() } returns false
+        coEvery { saltRepository.exists() } returns false
+        coEvery { saltRepository.delete() } returns Unit
         every { vaultCrypto.generateSalt() } returns salt
+        coEvery { saltRepository.save(salt) } returns Outcome.Success(Unit)
         every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
+        every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
         every { vaultCrypto.generateMasterKey() } returns masterKey
         every { vaultCrypto.wrapMasterKey(masterKey, encryptionKey) } returns Outcome.Success(wrappedMasterKey)
         coEvery { userRepository.add(any()) } returns Outcome.Failure(
@@ -184,7 +252,7 @@ class UserRegistrarTest {
 
     @Test
     fun `given user already exists, when registering, then returns already registered`() = runTest {
-        coEvery { userRepository.exists() } returns true
+        coEvery { saltRepository.exists() } returns true
 
         val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
 
@@ -194,7 +262,7 @@ class UserRegistrarTest {
 
     @Test
     fun `given user already exists, when registering, then already registered has correct message`() = runTest {
-        coEvery { userRepository.exists() } returns true
+        coEvery { saltRepository.exists() } returns true
 
         val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
 
@@ -217,7 +285,7 @@ class UserRegistrarTest {
 
     @Test
     fun `given an already registered user, when registering, then both passwords are wiped`() = runTest {
-        coEvery { userRepository.exists() } returns true
+        coEvery { saltRepository.exists() } returns true
         val password = sensitivePassword("validPassword1")
         val confirmation = sensitivePassword("validPassword1")
 
@@ -228,9 +296,11 @@ class UserRegistrarTest {
     }
 
     private fun stubSuccessfulRegistration() {
-        coEvery { userRepository.exists() } returns false
+        coEvery { saltRepository.exists() } returns false
         every { vaultCrypto.generateSalt() } returns salt
+        coEvery { saltRepository.save(salt) } returns Outcome.Success(Unit)
         every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
+        every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
         every { vaultCrypto.generateMasterKey() } returns masterKey
         every { vaultCrypto.wrapMasterKey(masterKey, encryptionKey) } returns Outcome.Success(wrappedMasterKey)
         coEvery { userRepository.add(any()) } returns Outcome.Success(Unit)

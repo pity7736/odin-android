@@ -23,8 +23,6 @@ class InMemoryUserRepository : UserRepository {
         return Outcome.Success(Unit)
     }
 
-    override suspend fun exists(): Boolean = storedUser != null
-
     override suspend fun get(): Outcome<User> {
         val user = this.storedUser
             ?: return Outcome.Failure(

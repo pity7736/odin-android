@@ -12,7 +12,7 @@ class RoomUserRepository(
 ) : UserRepository {
 
     override suspend fun add(user: User): Outcome<Unit> {
-        if (exists()) {
+        if (this.userDao.exists()) {
             return Outcome.Failure(
                 RegistrationError.StorageFailure(
                     internalMessage = "User already exists in storage",
@@ -21,7 +21,7 @@ class RoomUserRepository(
             )
         }
         return try {
-            userDao.insert(user.toEntity())
+            this.userDao.insert(user.toEntity())
             Outcome.Success(Unit)
         } catch (exception: SQLiteException) {
             Outcome.Failure(
@@ -32,8 +32,6 @@ class RoomUserRepository(
             )
         }
     }
-
-    override suspend fun exists(): Boolean = userDao.exists()
 
     override suspend fun get(): Outcome<User> {
         val entity = userDao.get()

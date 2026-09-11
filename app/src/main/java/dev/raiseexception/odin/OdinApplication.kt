@@ -10,6 +10,7 @@ class OdinApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        System.loadLibrary("sqlcipher")
         appContainer = AppContainer(this)
     }
 }

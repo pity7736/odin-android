@@ -32,7 +32,6 @@ class LoginViewModelTest {
 
     private val user = User(
         id = "id",
-        salt = ByteArray(TEST_BYTE_ARRAY_SIZE) { it.toByte() },
         wrappedMasterKey = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + 1).toByte() }
     )
 

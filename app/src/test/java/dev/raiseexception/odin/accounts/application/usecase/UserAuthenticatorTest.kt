@@ -8,8 +8,11 @@ import dev.raiseexception.odin.crypto.domain.DerivedKeys
 import dev.raiseexception.odin.crypto.domain.SensitivePassword
 import dev.raiseexception.odin.crypto.domain.VaultCrypto
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
+import dev.raiseexception.odin.crypto.domain.repository.SaltRepository
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.domain.VaultUnlocker
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -32,6 +35,8 @@ class UserAuthenticatorTest {
     private val vaultCrypto = mockk<VaultCrypto>()
     private val userRepository = mockk<UserRepository>()
     private val masterKeyRepository = mockk<MasterKeyRepository>(relaxUnitFun = true)
+    private val saltRepository = mockk<SaltRepository>()
+    private val vaultUnlocker = mockk<VaultUnlocker>()
     private lateinit var authenticator: UserAuthenticator
 
     private val salt = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + SALT_OFFSET).toByte() }
@@ -39,7 +44,7 @@ class UserAuthenticatorTest {
     private val masterKey = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + MASTER_KEY_OFFSET).toByte() }
     private val wrappedMasterKey = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + WRAPPED_KEY_OFFSET).toByte() }
     private val derivedKeys = DerivedKeys(authHash = "authHash", encryptionKey = encryptionKey)
-    private val storedUser = User(id = "user-1", salt = salt, wrappedMasterKey = wrappedMasterKey)
+    private val storedUser = User(id = "user-1", wrappedMasterKey = wrappedMasterKey)
 
     @Before
     fun setUp() {
@@ -47,6 +52,8 @@ class UserAuthenticatorTest {
             vaultCrypto,
             userRepository,
             masterKeyRepository,
+            saltRepository,
+            vaultUnlocker,
             UnconfinedTestDispatcher()
         )
     }
@@ -54,9 +61,7 @@ class UserAuthenticatorTest {
     @Test
     fun `given a correct password, when authenticating, then stores the master key and returns the user`() =
         runTest {
-            coEvery { userRepository.get() } returns Outcome.Success(storedUser)
-            every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
-            every { vaultCrypto.unwrapMasterKey(wrappedMasterKey, encryptionKey) } returns Outcome.Success(masterKey)
+            stubSuccessfulAuthentication()
 
             val result = authenticator.authenticate(sensitivePassword("validPassword1"))
 
@@ -67,10 +72,49 @@ class UserAuthenticatorTest {
         }
 
     @Test
+    fun `given valid password, when authenticate called, then salt read from SaltRepository`() = runTest {
+        stubSuccessfulAuthentication()
+
+        authenticator.authenticate(sensitivePassword("validPassword1"))
+
+        coVerify { saltRepository.get() }
+    }
+
+    @Test
+    fun `given valid password, when authenticate called, then vault unlocked with derived encryptionKey`() = runTest {
+        stubSuccessfulAuthentication()
+
+        authenticator.authenticate(sensitivePassword("validPassword1"))
+
+        verify { vaultUnlocker.unlock(encryptionKey) }
+    }
+
+    @Test
+    fun `given valid password, when authenticate called, then wrappedMasterKey read from UserRepository`() = runTest {
+        stubSuccessfulAuthentication()
+
+        authenticator.authenticate(sensitivePassword("validPassword1"))
+
+        coVerify { userRepository.get() }
+    }
+
+    @Test
+    fun `given no salt stored, when authenticate called, then returns UserNotFound`() = runTest {
+        coEvery { saltRepository.get() } returns Outcome.Failure(CryptoError.SaltNotFound())
+
+        val result = authenticator.authenticate(sensitivePassword("validPassword1"))
+
+        assertTrue(result is Outcome.Failure)
+        assertTrue((result as Outcome.Failure).error is LoginError.UserNotFound)
+    }
+
+    @Test
     fun `given an incorrect password, when authenticating, then returns invalid credentials and stores nothing`() =
         runTest {
-            coEvery { userRepository.get() } returns Outcome.Success(storedUser)
+            coEvery { saltRepository.get() } returns Outcome.Success(salt)
             every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
+            every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
+            coEvery { userRepository.get() } returns Outcome.Success(storedUser)
             every { vaultCrypto.unwrapMasterKey(wrappedMasterKey, encryptionKey) } returns Outcome.Failure(
                 CryptoError.DecryptionFailed()
             )
@@ -95,7 +139,7 @@ class UserAuthenticatorTest {
 
     @Test
     fun `given key derivation fails, when authenticating, then returns crypto failure`() = runTest {
-        coEvery { userRepository.get() } returns Outcome.Success(storedUser)
+        coEvery { saltRepository.get() } returns Outcome.Success(salt)
         every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Failure(CryptoError.InvalidSalt())
 
         val result = authenticator.authenticate(sensitivePassword("validPassword1"))
@@ -107,8 +151,10 @@ class UserAuthenticatorTest {
     @Test
     fun `given a non tag unwrap failure, when authenticating, then returns crypto failure`() =
         runTest {
-            coEvery { userRepository.get() } returns Outcome.Success(storedUser)
+            coEvery { saltRepository.get() } returns Outcome.Success(salt)
             every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
+            every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
+            coEvery { userRepository.get() } returns Outcome.Success(storedUser)
             every { vaultCrypto.unwrapMasterKey(wrappedMasterKey, encryptionKey) } returns Outcome.Failure(
                 CryptoError.InvalidKeySize()
             )
@@ -121,6 +167,9 @@ class UserAuthenticatorTest {
 
     @Test
     fun `given no registered user, when authenticating, then returns user not found`() = runTest {
+        coEvery { saltRepository.get() } returns Outcome.Success(salt)
+        every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
+        every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
         coEvery { userRepository.get() } returns Outcome.Failure(
             LoginError.UserNotFound(
                 internalMessage = "No user stored on this device",
@@ -136,9 +185,7 @@ class UserAuthenticatorTest {
 
     @Test
     fun `given a valid authentication, when completed, then password is wiped`() = runTest {
-        coEvery { userRepository.get() } returns Outcome.Success(storedUser)
-        every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
-        every { vaultCrypto.unwrapMasterKey(wrappedMasterKey, encryptionKey) } returns Outcome.Success(masterKey)
+        stubSuccessfulAuthentication()
         val password = sensitivePassword("validPassword1")
 
         authenticator.authenticate(password)
@@ -153,6 +200,14 @@ class UserAuthenticatorTest {
         authenticator.authenticate(password)
 
         assertTrue(password.isBlank())
+    }
+
+    private fun stubSuccessfulAuthentication() {
+        coEvery { saltRepository.get() } returns Outcome.Success(salt)
+        every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
+        every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
+        coEvery { userRepository.get() } returns Outcome.Success(storedUser)
+        every { vaultCrypto.unwrapMasterKey(wrappedMasterKey, encryptionKey) } returns Outcome.Success(masterKey)
     }
 
     private fun sensitivePassword(raw: String) = SensitivePassword(raw.toCharArray())
