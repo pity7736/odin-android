@@ -26,12 +26,6 @@ Tasks are listed in priority order.
 
 - [x] Summary view showing total balance across accounts, per-account balances, and recent transactions
 
-### Auth
-
-- [x] User registration (password-based key setup, local vault creation)
-- [x] User login (password verification via master key unwrap)
-- [ ] Session management (lock on background, unlock on return)
-
 ### Security
 
 - [x] Raw passwords are held as immutable `String` and cannot be wiped from memory. `RegistrationViewModel.register` and `LoginViewModel.login` receive the password as a `String` and pass it down through the use cases to `VaultCrypto`; a `String` is immutable, so the plaintext lingers on the heap until GC with no way to zero it. For a zero-knowledge app the in-memory plaintext window should be as short as possible. Spans the whole password call chain (ViewModel → use case → crypto), not a single function — own PR
@@ -40,7 +34,6 @@ Tasks are listed in priority order.
 
 - [x] Near-term: persist ONLY the user (survive process death) to unblock login end-to-end — login is logic-complete but currently unreachable because the in-memory user is wiped on cold start, so `StartupViewModel` never routes to login. Planned after the account-creation feature
 - [x] Room database for user data (replace in-memory repositories)
-- [ ] Android Keystore integration for master key at rest. Make the storage contract honest about failure: `MasterKeyRepository.store()` currently returns `Unit` and cannot report an error, but a Keystore-backed write can fail — change it to `Outcome<Unit>`, add a `StorageFailure` variant to both `LoginError` and `RegistrationError`, and handle the outcome in `UserAuthenticator` and `UserRegistrar` (otherwise a failed store returns Success while the session has no master key — the user appears logged in / registered but the app is in a broken half-state)
 - [ ] Replace `fallbackToDestructiveMigration` with proper Room migrations before MVP. Current config silently drops all tables on any schema version bump, destroying user data without warning
 - [x] SQLCipher migration (encrypt the Room database at rest)
 
@@ -48,6 +41,13 @@ Tasks are listed in priority order.
 
 - [ ] UI polish across all screens (visual consistency, spacing, typography)
 - [ ] `AccountsListScreen` renders the raw UUID as user-visible secondary text on every account row. No user scenario calls for seeing internal identifiers; useful information such as balance, currency, or type should appear instead.
+
+### Auth
+
+- [x] User registration (password-based key setup, local vault creation)
+- [x] User login (password verification via master key unwrap)
+- [ ] Session management: lock when the app goes to background, require password to unlock on return. Clear in-memory master key and close the SQLCipher database on lock; re-derive keys from password and restore the session on unlock
+- [ ] Biometric unlock (opt-in): user setting to enable biometric authentication as a convenience alternative to password on unlock. When enabled, wrap the master key and encryption key with an Android Keystore AES key (biometric-bound) and persist the blob. On return from background, show biometric prompt; on success unwrap and restore session, on failure fall back to password. Make `MasterKeyRepository.store()` return `Outcome<Unit>` and add `StorageFailure` to `LoginError` so Keystore write failures are handled honestly
 
 ### Reporting
 
