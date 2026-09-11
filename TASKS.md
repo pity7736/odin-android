@@ -42,7 +42,7 @@ Tasks are listed in priority order.
 - [x] Room database for user data (replace in-memory repositories)
 - [ ] Android Keystore integration for master key at rest. Make the storage contract honest about failure: `MasterKeyRepository.store()` currently returns `Unit` and cannot report an error, but a Keystore-backed write can fail — change it to `Outcome<Unit>`, add a `StorageFailure` variant to both `LoginError` and `RegistrationError`, and handle the outcome in `UserAuthenticator` and `UserRegistrar` (otherwise a failed store returns Success while the session has no master key — the user appears logged in / registered but the app is in a broken half-state)
 - [ ] Replace `fallbackToDestructiveMigration` with proper Room migrations before MVP. Current config silently drops all tables on any schema version bump, destroying user data without warning
-- [ ] SQLCipher migration (encrypt the Room database at rest)
+- [x] SQLCipher migration (encrypt the Room database at rest)
 
 ### Look and Feel
 
