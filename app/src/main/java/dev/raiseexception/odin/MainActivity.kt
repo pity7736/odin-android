@@ -365,7 +365,6 @@ private fun CategoryDetailDestination(categoryId: String, navController: NavHost
     val uiState by categoryDetailViewModel.uiState.collectAsStateWithLifecycle()
     CategoryDetailScreen(
         uiState = uiState,
-        onNavigateBack = { navController.popBackStack() },
         onNavigateToHome = {
             navController.navigate(Routes.HOME) {
                 popUpTo(Routes.HOME) { inclusive = true }
