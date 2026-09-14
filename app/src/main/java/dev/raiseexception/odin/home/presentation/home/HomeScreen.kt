@@ -1,7 +1,8 @@
-@file:Suppress("TooManyFunctions")
+@file:Suppress("TooManyFunctions", "LongMethod")
 
 package dev.raiseexception.odin.home.presentation.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,14 +13,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -27,17 +36,35 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.raiseexception.odin.accounting.domain.model.Account
+import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.home.application.usecase.RecentTransaction
+import dev.raiseexception.odin.shared.presentation.BottomBarTab
+import dev.raiseexception.odin.shared.presentation.OdinBottomBar
+import dev.raiseexception.odin.shared.presentation.capitalizeFirst
+import dev.raiseexception.odin.shared.presentation.formatMoney
+import dev.raiseexception.odin.ui.theme.ExpenseBadge
+import dev.raiseexception.odin.ui.theme.ExpenseDark
+import dev.raiseexception.odin.ui.theme.ExpenseRed
+import dev.raiseexception.odin.ui.theme.IncomeBadge
+import dev.raiseexception.odin.ui.theme.IncomeGreen
+import dev.raiseexception.odin.ui.theme.OrangePrimary
+import dev.raiseexception.odin.ui.theme.Slate100
+import dev.raiseexception.odin.ui.theme.Slate400
+import dev.raiseexception.odin.ui.theme.Slate50
+import dev.raiseexception.odin.ui.theme.Slate500
+import dev.raiseexception.odin.ui.theme.Slate600
+import dev.raiseexception.odin.ui.theme.Slate800
+import dev.raiseexception.odin.ui.theme.Slate900
+import dev.raiseexception.odin.ui.theme.SoraFamily
 import kotlinx.coroutines.flow.Flow
-
-private val IncomeGreen = Color(0xFF2E7D32)
 
 @Suppress("LongParameterList")
 @Composable
@@ -66,7 +93,9 @@ fun HomeScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
-            BottomNavigationBar(
+            OdinBottomBar(
+                selectedTab = BottomBarTab.HOME,
+                onNavigateToHome = {},
                 onNavigateToAccounts = onNavigateToAccounts,
                 onNavigateToCategories = onNavigateToCategories,
             )
@@ -109,34 +138,47 @@ fun HomeScreen(
 @Composable
 private fun LoadingContent(modifier: Modifier = Modifier) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
+        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
     }
 }
 
 @Composable
 private fun EmptyContent(onCreateAccount: () -> Unit, modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.padding(24.dp),
+        modifier = modifier.padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
             text = "Saldo total: $0",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.testTag("total_balance_zero")
+            style = MaterialTheme.typography.headlineLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.testTag("total_balance_zero"),
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "No tienes cuentas registradas",
             style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.testTag("empty_accounts_message")
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag("empty_accounts_message"),
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = onCreateAccount,
-            modifier = Modifier.testTag("create_first_account_action")
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .testTag("create_first_account_action"),
         ) {
-            Text("Crear mi primera cuenta")
+            Text(
+                text = "Crear mi primera cuenta",
+                style = MaterialTheme.typography.titleMedium,
+            )
         }
     }
 }
@@ -153,22 +195,13 @@ private fun SummaryContent(
     onSeeAllAccounts: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(modifier = modifier.padding(horizontal = 16.dp)) {
-        item(key = "header") {
-            Text(
-                text = "Inicio",
-                style = MaterialTheme.typography.headlineLarge,
-                modifier = Modifier
-                    .padding(vertical = 16.dp)
-                    .testTag("home_title")
-            )
-        }
+    LazyColumn(modifier = modifier.padding(horizontal = 20.dp)) {
         item(key = "total_balances") {
-            TotalBalancesSection(
+            BalanceCard(
                 totalBalances = totalBalances,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp)
+                    .padding(top = 8.dp, bottom = 24.dp),
             )
         }
         item(key = "accounts_header") {
@@ -177,16 +210,37 @@ private fun SummaryContent(
                 onSeeAllAccounts = onSeeAllAccounts,
             )
         }
-        items(accounts, key = { it.id }) { account ->
-            AccountRow(account = account, onClick = { onAccountSelected(account.id) })
-            HorizontalDivider()
+        item(key = "accounts_card") {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .then(
+                        Modifier.background(
+                            color = MaterialTheme.colorScheme.surface,
+                            shape = RoundedCornerShape(14.dp),
+                        )
+                    ),
+            ) {
+                accounts.forEachIndexed { index, account ->
+                    AccountRow(account = account, onClick = { onAccountSelected(account.id) })
+                    if (index < accounts.lastIndex) {
+                        HorizontalDivider(
+                            color = Slate100,
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                    }
+                }
+            }
         }
         item(key = "transactions_header") {
             Text(
                 text = "Actividad reciente",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                style = MaterialTheme.typography.titleLarge,
+                fontFamily = SoraFamily,
+                color = Slate900,
+                modifier = Modifier.padding(top = 24.dp, bottom = 12.dp),
             )
         }
         if (recentTransactions.isEmpty()) {
@@ -194,13 +248,63 @@ private fun SummaryContent(
                 EmptyTransactionsMessage()
             }
         } else {
-            items(recentTransactions, key = { it.transaction.id }) { recentTransaction ->
-                RecentTransactionRow(
-                    recentTransaction = recentTransaction,
-                    onClick = { onTransactionSelected(recentTransaction.transaction.id) },
-                )
-                HorizontalDivider()
+            item(key = "transactions_card") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surface),
+                ) {
+                    recentTransactions.forEachIndexed { index, recentTransaction ->
+                        RecentTransactionRow(
+                            recentTransaction = recentTransaction,
+                            onClick = { onTransactionSelected(recentTransaction.transaction.id) },
+                        )
+                        if (index < recentTransactions.lastIndex) {
+                            HorizontalDivider(
+                                color = Slate100,
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                            )
+                        }
+                    }
+                }
             }
+        }
+        item(key = "bottom_spacer") {
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun BalanceCard(totalBalances: List<Money>, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(Slate800)
+            .padding(24.dp),
+    ) {
+        Text(
+            text = "SALDO TOTAL",
+            style = MaterialTheme.typography.labelLarge,
+            color = Slate400,
+            letterSpacing = 1.sp,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        totalBalances.forEach { balance ->
+            Text(
+                text = formatMoney(balance),
+                style = MaterialTheme.typography.displayLarge,
+                color = Slate50,
+                modifier = Modifier.testTag("total_balance_${balance.currency.name}"),
+            )
+            Text(
+                text = balance.currency.name,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = Slate500,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }
@@ -211,21 +315,29 @@ private fun AccountsSectionHeader(
     onSeeAllAccounts: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = "Cuentas",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleLarge,
+            fontFamily = SoraFamily,
+            color = Slate900,
         )
         if (hasMoreAccounts) {
             TextButton(
                 onClick = onSeeAllAccounts,
-                modifier = Modifier.testTag("see_all_accounts_action")
+                modifier = Modifier.testTag("see_all_accounts_action"),
             ) {
-                Text("Ver todas")
+                Text(
+                    text = "Ver todas",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = OrangePrimary,
+                )
             }
         }
     }
@@ -236,24 +348,11 @@ private fun EmptyTransactionsMessage() {
     Text(
         text = "No hay movimientos recientes",
         style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .padding(vertical = 8.dp)
-            .testTag("empty_transactions_message")
+            .testTag("empty_transactions_message"),
     )
-}
-
-@Composable
-private fun TotalBalancesSection(totalBalances: List<Money>, modifier: Modifier = Modifier) {
-    Column(modifier = modifier) {
-        totalBalances.forEach { balance ->
-            Text(
-                text = "${balance.amount.toPlainString()} ${balance.currency.name}",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.testTag("total_balance_${balance.currency.name}")
-            )
-        }
-    }
 }
 
 @Composable
@@ -262,18 +361,45 @@ private fun AccountRow(account: Account, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Slate100),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = when (account.type) {
+                    AccountType.SAVINGS -> Icons.Outlined.CreditCard
+                    AccountType.CASH -> Icons.Filled.Payments
+                },
+                contentDescription = null,
+                tint = Slate600,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = capitalizeFirst(account.name),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = Slate800,
+            )
+            Text(
+                text = accountTypeLabel(account.type),
+                style = MaterialTheme.typography.bodySmall,
+                color = Slate400,
+            )
+        }
         Text(
-            text = account.name,
+            text = formatMoney(account.balance),
             style = MaterialTheme.typography.bodyLarge,
-        )
-        Text(
-            text = "${account.balance.amount.toPlainString()} ${account.currency.name}",
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
+            color = Slate800,
         )
     }
 }
@@ -281,35 +407,64 @@ private fun AccountRow(account: Account, onClick: () -> Unit) {
 @Composable
 private fun RecentTransactionRow(recentTransaction: RecentTransaction, onClick: () -> Unit) {
     val isIncome = recentTransaction.transaction is Income
-    val amountColor = if (isIncome) IncomeGreen else MaterialTheme.colorScheme.error
+    val iconBackground = if (isIncome) IncomeBadge else ExpenseBadge
+    val iconTint = if (isIncome) IncomeGreen else ExpenseDark
+    val amountColor = if (isIncome) IncomeGreen else ExpenseRed
     val amountPrefix = if (isIncome) "+" else "-"
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(iconBackground),
+            contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = "$amountPrefix${recentTransaction.transaction.amount.amount.toPlainString()}",
-                style = MaterialTheme.typography.bodyLarge,
-                color = amountColor,
-                fontWeight = FontWeight.Medium,
-            )
-            Text(
-                text = recentTransaction.transaction.date.toString(),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Icon(
+                imageVector = if (isIncome) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(16.dp),
             )
         }
-        Text(
-            text = recentTransaction.accountName,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = capitalizeFirst(
+                    recentTransaction.transaction.description.ifBlank {
+                        if (isIncome) "Ingreso" else "Gasto"
+                    }
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = Slate800,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = capitalizeFirst(recentTransaction.accountName),
+                style = MaterialTheme.typography.bodySmall,
+                color = Slate400,
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = "$amountPrefix${formatMoney(recentTransaction.transaction.amount)}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = amountColor,
+            )
+            Text(
+                text = formatDate(recentTransaction.transaction.date),
+                style = MaterialTheme.typography.labelSmall,
+                color = Slate400,
+            )
+        }
     }
 }
 
@@ -324,32 +479,15 @@ private fun ErrorContent(message: String, modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-private fun BottomNavigationBar(
-    onNavigateToAccounts: () -> Unit,
-    onNavigateToCategories: () -> Unit,
-) {
-    NavigationBar {
-        NavigationBarItem(
-            selected = true,
-            onClick = {},
-            icon = { Text("H") },
-            label = { Text("Inicio") },
-            modifier = Modifier.testTag("nav_home"),
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = onNavigateToAccounts,
-            icon = { Text("C") },
-            label = { Text("Cuentas") },
-            modifier = Modifier.testTag("nav_accounts"),
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = onNavigateToCategories,
-            icon = { Text("K") },
-            label = { Text("Categorías") },
-            modifier = Modifier.testTag("nav_categories"),
-        )
-    }
+private fun accountTypeLabel(type: AccountType): String = when (type) {
+    AccountType.SAVINGS -> "Ahorro"
+    AccountType.CASH -> "Efectivo"
+}
+
+private fun formatDate(date: kotlinx.datetime.LocalDate): String {
+    val months = arrayOf(
+        "ene", "feb", "mar", "abr", "may", "jun",
+        "jul", "ago", "sep", "oct", "nov", "dic"
+    )
+    return "${date.dayOfMonth} ${months[date.monthNumber - 1]} ${date.year}"
 }

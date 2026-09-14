@@ -181,7 +181,18 @@ private fun AccountsListDestination(navController: NavHostController) {
         onAccountSelected = accountsListViewModel::onAccountSelected,
         onNavigateToAccountDetail = { accountId ->
             navController.navigate(Routes.accountDetail(accountId))
-        }
+        },
+        onNavigateToHome = {
+            navController.navigate(Routes.HOME) {
+                popUpTo(Routes.HOME) { inclusive = true }
+            }
+        },
+        onNavigateToAccounts = {},
+        onNavigateToCategories = {
+            navController.navigate(Routes.CATEGORIES) {
+                popUpTo(Routes.HOME)
+            }
+        },
     )
 }
 
@@ -221,6 +232,21 @@ private fun AccountDetailDestination(accountId: String, navController: NavHostCo
             navController.navigate(Routes.expenseCreate(accountId))
         },
         onFilterChanged = accountDetailViewModel::onFilterChanged,
+        onNavigateToHome = {
+            navController.navigate(Routes.HOME) {
+                popUpTo(Routes.HOME) { inclusive = true }
+            }
+        },
+        onNavigateToAccounts = {
+            navController.navigate(Routes.ACCOUNTS) {
+                popUpTo(Routes.HOME)
+            }
+        },
+        onNavigateToCategories = {
+            navController.navigate(Routes.CATEGORIES) {
+                popUpTo(Routes.HOME)
+            }
+        },
     )
 }
 
@@ -314,6 +340,17 @@ private fun CategoriesListDestination(navController: NavHostController) {
         onCategorySelected = categoriesListViewModel::onCategorySelected,
         onNavigateToCategoryDetail = { categoryId ->
             navController.navigate(Routes.categoryDetail(categoryId))
-        }
+        },
+        onNavigateToHome = {
+            navController.navigate(Routes.HOME) {
+                popUpTo(Routes.HOME) { inclusive = true }
+            }
+        },
+        onNavigateToAccounts = {
+            navController.navigate(Routes.ACCOUNTS) {
+                popUpTo(Routes.HOME)
+            }
+        },
+        onNavigateToCategories = {},
     )
 }

@@ -1,57 +1,71 @@
 package dev.raiseexception.odin.ui.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
-
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
+import androidx.compose.ui.graphics.Color
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
+    primary = Slate800,
+    onPrimary = Slate50,
+    primaryContainer = Slate100,
+    onPrimaryContainer = Slate900,
+    secondary = OrangePrimary,
     onSecondary = Color.White,
+    secondaryContainer = OrangeSubtle,
+    onSecondaryContainer = OrangeActive,
+    tertiary = Slate600,
     onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-     */
+    background = Slate50,
+    onBackground = Slate900,
+    surface = Color.White,
+    onSurface = Slate900,
+    surfaceVariant = Slate100,
+    onSurfaceVariant = Slate600,
+    outline = Slate200,
+    outlineVariant = Slate100,
+    error = ExpenseRed,
+    onError = Color.White,
+    errorContainer = ExpenseBadge,
+    onErrorContainer = ExpenseDark,
+)
+
+private val DarkColorScheme = darkColorScheme(
+    primary = Slate50,
+    onPrimary = Slate900,
+    primaryContainer = Slate800,
+    onPrimaryContainer = Slate50,
+    secondary = OrangePrimary,
+    onSecondary = Slate900,
+    secondaryContainer = OrangeActive,
+    onSecondaryContainer = OrangeSubtle,
+    tertiary = Slate400,
+    onTertiary = Slate900,
+    background = Slate900,
+    onBackground = Slate50,
+    surface = Slate800,
+    onSurface = Slate50,
+    surfaceVariant = Slate800,
+    onSurfaceVariant = Slate400,
+    outline = Slate500,
+    outlineVariant = Slate600,
+    error = ExpenseRed,
+    onError = Slate900,
+    errorContainer = ExpenseDark,
+    onErrorContainer = ExpenseBadge,
 )
 
 @Composable
 fun OdinTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = OdinTypography,
         content = content
     )
 }
