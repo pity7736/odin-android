@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -28,6 +29,7 @@ class CategoryDetailViewModelTest {
     private val categoryFinder = mockk<CategoryFinder>()
     private val testDispatcher = StandardTestDispatcher()
     private val categoryId = "test-category-id"
+    private val bogotaTimeZone = TimeZone.of("America/Bogota")
 
     @Before
     fun setUp() {
@@ -40,7 +42,7 @@ class CategoryDetailViewModelTest {
     }
 
     private fun buildViewModel() =
-        CategoryDetailViewModel(categoryId, categoryFinder, testDispatcher)
+        CategoryDetailViewModel(categoryId, categoryFinder, testDispatcher, bogotaTimeZone)
 
     @Test
     fun `given an existing category, when loaded, then emits loading then content`() = runTest {
@@ -83,6 +85,26 @@ class CategoryDetailViewModelTest {
             testDispatcher.scheduler.advanceUntilIdle()
             val state = awaitItem() as CategoryDetailUiState.Content
             assertEquals("", state.description)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given a category created late at night locally, when loaded, then shows the local date not utc`() = runTest {
+        val category = CategoryBuilder()
+            .id(categoryId)
+            .name("Cena")
+            .type(CategoryType.EXPENSE)
+            .description("")
+            .createdAt(Instant.parse("2026-09-15T04:00:00Z"))
+            .build()
+        every { categoryFinder.find(categoryId) } returns flowOf(Outcome.Success(category))
+        val viewModel = buildViewModel()
+        viewModel.uiState.test {
+            assertEquals(CategoryDetailUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = awaitItem() as CategoryDetailUiState.Content
+            assertEquals("14 de septiembre de 2026", state.formattedCreatedAt)
             cancelAndIgnoreRemainingEvents()
         }
     }

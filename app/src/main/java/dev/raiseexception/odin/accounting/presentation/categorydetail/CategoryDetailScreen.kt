@@ -34,6 +34,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
+import dev.raiseexception.odin.shared.presentation.BottomBarTab
+import dev.raiseexception.odin.shared.presentation.OdinBottomBar
 import dev.raiseexception.odin.ui.theme.Slate400
 import dev.raiseexception.odin.ui.theme.Slate50
 import dev.raiseexception.odin.ui.theme.Slate600
@@ -46,14 +48,26 @@ private val categoryTypeLabels = mapOf(
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 fun CategoryDetailScreen(
     uiState: CategoryDetailUiState,
     onNavigateBack: () -> Unit,
+    onNavigateToHome: () -> Unit,
+    onNavigateToAccounts: () -> Unit,
+    onNavigateToCategories: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        bottomBar = {
+            OdinBottomBar(
+                selectedTab = BottomBarTab.CATEGORIES,
+                onNavigateToHome = onNavigateToHome,
+                onNavigateToAccounts = onNavigateToAccounts,
+                onNavigateToCategories = onNavigateToCategories,
+            )
+        },
         topBar = {
             TopAppBar(
                 title = {

@@ -366,5 +366,20 @@ private fun CategoryDetailDestination(categoryId: String, navController: NavHost
     CategoryDetailScreen(
         uiState = uiState,
         onNavigateBack = { navController.popBackStack() },
+        onNavigateToHome = {
+            navController.navigate(Routes.HOME) {
+                popUpTo(Routes.HOME) { inclusive = true }
+            }
+        },
+        onNavigateToAccounts = {
+            navController.navigate(Routes.ACCOUNTS) {
+                popUpTo(Routes.HOME)
+            }
+        },
+        onNavigateToCategories = {
+            navController.navigate(Routes.CATEGORIES) {
+                popUpTo(Routes.HOME)
+            }
+        },
     )
 }

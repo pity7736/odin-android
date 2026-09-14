@@ -25,7 +25,10 @@ class CategoryDetailScreenTest {
                     color = "#E57373",
                     formattedCreatedAt = "14 de septiembre de 2026"
                 ),
-                onNavigateBack = {}
+                onNavigateBack = {},
+                onNavigateToHome = {},
+                onNavigateToAccounts = {},
+                onNavigateToCategories = {},
             )
         }
         composeTestRule.onNodeWithText("Alimentación").assertIsDisplayed()
@@ -46,7 +49,10 @@ class CategoryDetailScreenTest {
                     color = "#4CAF50",
                     formattedCreatedAt = "15 de enero de 2026"
                 ),
-                onNavigateBack = {}
+                onNavigateBack = {},
+                onNavigateToHome = {},
+                onNavigateToAccounts = {},
+                onNavigateToCategories = {},
             )
         }
         composeTestRule.onNodeWithText("Salario").assertIsDisplayed()
@@ -59,7 +65,10 @@ class CategoryDetailScreenTest {
         composeTestRule.setContent {
             CategoryDetailScreen(
                 uiState = CategoryDetailUiState.NotFound,
-                onNavigateBack = {}
+                onNavigateBack = {},
+                onNavigateToHome = {},
+                onNavigateToAccounts = {},
+                onNavigateToCategories = {},
             )
         }
         composeTestRule.onNodeWithText("Categoría no encontrada").assertIsDisplayed()
@@ -70,7 +79,10 @@ class CategoryDetailScreenTest {
         composeTestRule.setContent {
             CategoryDetailScreen(
                 uiState = CategoryDetailUiState.Error(message = "Error al acceder a los datos"),
-                onNavigateBack = {}
+                onNavigateBack = {},
+                onNavigateToHome = {},
+                onNavigateToAccounts = {},
+                onNavigateToCategories = {},
             )
         }
         composeTestRule.onNodeWithText("Error al acceder a los datos").assertIsDisplayed()
@@ -81,7 +93,10 @@ class CategoryDetailScreenTest {
         composeTestRule.setContent {
             CategoryDetailScreen(
                 uiState = CategoryDetailUiState.Loading,
-                onNavigateBack = {}
+                onNavigateBack = {},
+                onNavigateToHome = {},
+                onNavigateToAccounts = {},
+                onNavigateToCategories = {},
             )
         }
         composeTestRule.onNodeWithTag("loading_indicator").assertIsDisplayed()
