@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CreditCard
@@ -149,35 +150,65 @@ private fun EmptyContent(onCreateAccount: () -> Unit, modifier: Modifier = Modif
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .clip(RoundedCornerShape(40.dp))
+                .background(Slate100),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.CreditCard,
+                contentDescription = null,
+                tint = Slate400,
+                modifier = Modifier.size(36.dp),
+            )
+        }
+        Spacer(modifier = Modifier.height(24.dp))
         Text(
-            text = "Saldo total: $0",
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.onBackground,
+            text = "SALDO TOTAL",
+            style = MaterialTheme.typography.labelLarge,
+            color = Slate400,
+            letterSpacing = 1.sp,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "$0",
+            style = MaterialTheme.typography.displayLarge,
+            fontFamily = SoraFamily,
+            fontWeight = FontWeight.Bold,
+            color = Slate900,
             modifier = Modifier.testTag("total_balance_zero"),
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "No tienes cuentas registradas",
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = Slate500,
             modifier = Modifier.testTag("empty_accounts_message"),
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(28.dp))
         Button(
             onClick = onCreateAccount,
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
+                containerColor = OrangePrimary,
+                contentColor = androidx.compose.ui.graphics.Color.White,
             ),
             modifier = Modifier
-                .fillMaxWidth()
                 .height(52.dp)
                 .testTag("create_first_account_action"),
         ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Crear mi primera cuenta",
                 style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
             )
         }
     }
