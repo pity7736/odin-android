@@ -39,8 +39,8 @@ Tasks are listed in priority order.
 
 ### Look and Feel
 
-- [ ] UI polish across all screens (visual consistency, spacing, typography)
-- [ ] `AccountsListScreen` renders the raw UUID as user-visible secondary text on every account row. No user scenario calls for seeing internal identifiers; useful information such as balance, currency, or type should appear instead.
+- [x] UI polish across all screens (visual consistency, spacing, typography)
+- [x] `AccountsListScreen` renders the raw UUID as user-visible secondary text on every account row. No user scenario calls for seeing internal identifiers; useful information such as balance, currency, or type should appear instead.
 
 ### Auth
 
