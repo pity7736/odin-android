@@ -3,6 +3,7 @@ package dev.raiseexception.odin.accounting.infrastructure.repository
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import dev.raiseexception.odin.accounting.domain.CategoryLookupError
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.persistence.OdinDatabase
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -101,5 +102,34 @@ class RoomCategoryRepositoryTest {
         val result = repository.getAll().first()
         assertTrue(result is Outcome.Success)
         assertTrue((result as Outcome.Success).value.isEmpty())
+    }
+
+    @Test
+    fun `given an existing category, when finding by id, then returns it`() = runTest {
+        val category = CategoryBuilder()
+            .id("cat-001")
+            .name("Transporte")
+            .type(CategoryType.EXPENSE)
+            .description("Buses y taxis")
+            .color("#42A5F5")
+            .createdAt(Instant.parse("2026-09-01T12:00:00Z"))
+            .build()
+        repository.add(category)
+        val result = repository.findById("cat-001").first()
+        assertTrue(result is Outcome.Success)
+        val restored = (result as Outcome.Success).value
+        assertEquals("cat-001", restored.id)
+        assertEquals("Transporte", restored.name)
+        assertEquals(CategoryType.EXPENSE, restored.type)
+        assertEquals("Buses y taxis", restored.description)
+        assertEquals("#42A5F5", restored.color)
+        assertEquals(Instant.parse("2026-09-01T12:00:00Z"), restored.createdAt)
+    }
+
+    @Test
+    fun `given no matching category, when finding by id, then returns not found`() = runTest {
+        val result = repository.findById("nonexistent").first()
+        assertTrue(result is Outcome.Failure)
+        assertTrue((result as Outcome.Failure).error is CategoryLookupError.NotFound)
     }
 }

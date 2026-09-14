@@ -57,6 +57,7 @@ import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
 import dev.raiseexception.odin.shared.presentation.BottomBarTab
 import dev.raiseexception.odin.shared.presentation.OdinBottomBar
+import dev.raiseexception.odin.shared.presentation.SPANISH_MONTHS
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
 import dev.raiseexception.odin.shared.presentation.formatMoney
 import dev.raiseexception.odin.ui.theme.ExpenseBadge
@@ -83,11 +84,6 @@ import kotlinx.datetime.toLocalDateTime
 private val accountTypeLabels = mapOf(
     AccountType.SAVINGS to "Ahorros",
     AccountType.CASH to "Efectivo",
-)
-
-private val spanishMonths = arrayOf(
-    "enero", "febrero", "marzo", "abril", "mayo", "junio",
-    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 )
 
 @Suppress("LongParameterList")
@@ -525,7 +521,7 @@ private fun AccountDetailMessage(message: String, modifier: Modifier = Modifier)
 private fun formatTransactionDate(date: LocalDate): String {
     val currentYear = Clock.System.now()
         .toLocalDateTime(TimeZone.currentSystemDefault()).year
-    val monthName = spanishMonths[date.monthNumber - 1]
+    val monthName = SPANISH_MONTHS[date.monthNumber - 1]
     return if (date.year == currentYear) {
         "${date.dayOfMonth} de $monthName"
     } else {

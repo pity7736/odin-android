@@ -6,11 +6,17 @@ import kotlinx.datetime.Instant
 import java.util.UUID
 
 class CategoryBuilder {
+    private var id: String? = null
     private var name = "Alimentación"
     private var type = CategoryType.EXPENSE
     private var description = ""
     private var color = "#E57373"
     private var createdAt = Instant.parse("2026-01-01T00:00:00Z")
+
+    fun id(id: String): CategoryBuilder {
+        this.id = id
+        return this
+    }
 
     fun name(name: String): CategoryBuilder {
         this.name = name
@@ -38,7 +44,7 @@ class CategoryBuilder {
     }
 
     fun build(): Category = Category.restore(
-        UUID.randomUUID().toString(),
+        this.id ?: UUID.randomUUID().toString(),
         this.name,
         this.type,
         this.description,
