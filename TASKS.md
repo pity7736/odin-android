@@ -39,8 +39,8 @@ Tasks are listed in priority order.
 
 ### Look and Feel
 
-- [ ] UI polish across all screens (visual consistency, spacing, typography)
-- [ ] `AccountsListScreen` renders the raw UUID as user-visible secondary text on every account row. No user scenario calls for seeing internal identifiers; useful information such as balance, currency, or type should appear instead.
+- [x] UI polish across all screens (visual consistency, spacing, typography)
+- [x] `AccountsListScreen` renders the raw UUID as user-visible secondary text on every account row. No user scenario calls for seeing internal identifiers; useful information such as balance, currency, or type should appear instead.
 
 ### Auth
 
@@ -76,6 +76,7 @@ migration path.
 - [ ] Income and expense date validation allows dates before the account's creation date. `Account.createIncome()` and `Account.createExpense()` only check that the date is not in the future but do not reject dates earlier than the account's `createdAt`
 - [ ] Backtick `given … when … then …` method names contain spaces, which DEX forbids before version 040 (min API 30), so `connectedAndroidTest` fails to build the `androidTest` APK (affects `RegistrationScreenTest` and `LoginScreenTest`; the JVM unit suite is unaffected). Decide between renaming `androidTest` method names to a space-free form (recommended, keeps `minSdk 26`) vs raising `minSdk` to 30; then update `docs/05` §3.1 with the instrumented-test carve-out
 - [ ] App briefly flashes a content screen (e.g. account details) before navigating to login/registration on cold start. `StartupViewModel` check is async and the default navigation route renders before it resolves
+- [ ] Submitting the income or expense creation form with an empty category field shows a blank error page instead of inline validation errors. `IncomeCreator.resolveNewCategory` and `ExpenseCreator.resolveNewCategory` receive an empty category name, which fails with `CategoryCreationError.InvalidInput`; the `else` branch maps it to `StorageFailure`, and the ViewModel renders the `Error` state (blank page) instead of `ValidationError` (form with field errors)
 
 ### Improvements / Refactorings
 
