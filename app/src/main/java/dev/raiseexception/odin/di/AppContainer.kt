@@ -13,6 +13,7 @@ import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.application.usecase.AccountTransactionLister
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
+import dev.raiseexception.odin.accounting.application.usecase.CategoryFinder
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
@@ -29,6 +30,7 @@ import dev.raiseexception.odin.accounting.presentation.accountdetail.AccountDeta
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListViewModel
 import dev.raiseexception.odin.accounting.presentation.categorieslist.CategoriesListViewModel
 import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryViewModel
+import dev.raiseexception.odin.accounting.presentation.categorydetail.CategoryDetailViewModel
 import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExpenseViewModel
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeViewModel
 import dev.raiseexception.odin.accounts.application.usecase.UserAuthenticator
@@ -93,6 +95,7 @@ class AppContainer(context: Context) {
         RoomCategoryRepository(databaseProvider.requireDatabase().categoryDao())
     }
     private val categoryCreator by lazy { CategoryCreator(categoryRepository) }
+    private val categoryFinder by lazy { CategoryFinder(categoryRepository) }
     private val categoryLister by lazy { CategoryLister(categoryRepository) }
     private val incomeRepository: IncomeRepository by lazy {
         RoomIncomeRepository(databaseProvider.requireDatabase().transactionDao())
@@ -153,6 +156,13 @@ class AppContainer(context: Context) {
 
     fun categoriesListViewModel(): CategoriesListViewModel =
         CategoriesListViewModel(categoryLister, ioDispatcher)
+
+    fun categoryDetailViewModelFactory(categoryId: String): ViewModelProvider.Factory =
+        viewModelFactory {
+            initializer {
+                CategoryDetailViewModel(categoryId, categoryFinder, ioDispatcher)
+            }
+        }
 
     fun createIncomeViewModelFactory(accountId: String): ViewModelProvider.Factory =
         viewModelFactory {

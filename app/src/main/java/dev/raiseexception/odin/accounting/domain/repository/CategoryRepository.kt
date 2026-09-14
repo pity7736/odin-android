@@ -8,5 +8,6 @@ import kotlinx.coroutines.flow.Flow
 interface CategoryRepository {
     suspend fun existsByNameAndType(name: String, type: CategoryType): Outcome<Boolean>
     suspend fun add(category: Category): Outcome<Unit>
+    fun findById(id: String): Flow<Outcome<Category>>
     fun getAll(): Flow<Outcome<List<Category>>>
 }

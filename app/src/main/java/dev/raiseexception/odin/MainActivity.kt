@@ -34,6 +34,7 @@ import dev.raiseexception.odin.accounting.presentation.categorieslist.Categories
 import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryScreen
 import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryViewModel
 import dev.raiseexception.odin.accounting.presentation.categorydetail.CategoryDetailScreen
+import dev.raiseexception.odin.accounting.presentation.categorydetail.CategoryDetailViewModel
 import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExpenseScreen
 import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExpenseViewModel
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeScreen
@@ -123,7 +124,7 @@ private fun AppNavHost(startRoute: String) {
             }
             composable(Routes.CATEGORY_DETAIL) { backStackEntry ->
                 val categoryId = backStackEntry.arguments?.getString("categoryId") ?: ""
-                CategoryDetailScreen(categoryId = categoryId)
+                CategoryDetailDestination(categoryId, navController)
             }
         }
     }
@@ -352,5 +353,18 @@ private fun CategoriesListDestination(navController: NavHostController) {
             }
         },
         onNavigateToCategories = {},
+    )
+}
+
+@Composable
+private fun CategoryDetailDestination(categoryId: String, navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val categoryDetailViewModel: CategoryDetailViewModel = viewModel(
+        factory = application.appContainer.categoryDetailViewModelFactory(categoryId)
+    )
+    val uiState by categoryDetailViewModel.uiState.collectAsStateWithLifecycle()
+    CategoryDetailScreen(
+        uiState = uiState,
+        onNavigateBack = { navController.popBackStack() },
     )
 }

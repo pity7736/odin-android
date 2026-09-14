@@ -14,6 +14,9 @@ interface CategoryDao {
     @Query("SELECT EXISTS(SELECT 1 FROM categories WHERE LOWER(name) = LOWER(:name) AND type = :type)")
     suspend fun existsByNameAndType(name: String, type: String): Boolean
 
+    @Query("SELECT * FROM categories WHERE id = :id")
+    fun findById(id: String): Flow<CategoryEntity?>
+
     @Query("SELECT * FROM categories")
     fun getAll(): Flow<List<CategoryEntity>>
 }
