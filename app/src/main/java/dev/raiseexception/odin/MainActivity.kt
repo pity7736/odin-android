@@ -236,6 +236,7 @@ private fun AccountDetailDestination(accountId: String, navController: NavHostCo
         onNavigateToTransactionDetail = { transactionId ->
             navController.navigate(Routes.transactionDetail(transactionId))
         },
+        onTransactionSelected = accountDetailViewModel::onTransactionSelected,
         onFilterChanged = accountDetailViewModel::onFilterChanged,
         onNavigateToHome = {
             navController.navigate(Routes.HOME) {

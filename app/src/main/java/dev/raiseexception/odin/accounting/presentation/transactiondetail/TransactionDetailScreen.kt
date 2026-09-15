@@ -28,7 +28,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.raiseexception.odin.shared.presentation.BottomBarTab
 import dev.raiseexception.odin.shared.presentation.OdinBottomBar
 import dev.raiseexception.odin.ui.theme.ExpenseBadge
 import dev.raiseexception.odin.ui.theme.ExpenseDark
@@ -53,7 +52,7 @@ fun TransactionDetailScreen(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
             OdinBottomBar(
-                selectedTab = BottomBarTab.HOME,
+                selectedTab = null,
                 onNavigateToHome = onNavigateToHome,
                 onNavigateToAccounts = onNavigateToAccounts,
                 onNavigateToCategories = onNavigateToCategories,
