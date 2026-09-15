@@ -93,6 +93,8 @@ fun AccountDetailScreen(
     navigationEvent: Flow<AccountDetailNavigationTarget>,
     onCreateIncome: () -> Unit,
     onCreateExpense: () -> Unit,
+    onNavigateToTransactionDetail: (String) -> Unit,
+    onTransactionSelected: (String) -> Unit,
     onFilterChanged: (TransactionFilter) -> Unit,
     onNavigateToHome: () -> Unit,
     onNavigateToAccounts: () -> Unit,
@@ -104,6 +106,8 @@ fun AccountDetailScreen(
             when (target) {
                 is AccountDetailNavigationTarget.CreateIncome -> onCreateIncome()
                 is AccountDetailNavigationTarget.CreateExpense -> onCreateExpense()
+                is AccountDetailNavigationTarget.TransactionDetail ->
+                    onNavigateToTransactionDetail(target.transactionId)
             }
         }
     }
@@ -146,6 +150,7 @@ fun AccountDetailScreen(
                     account = uiState.account,
                     transactions = uiState.transactions,
                     activeFilter = uiState.activeFilter,
+                    onTransactionSelected = onTransactionSelected,
                     onFilterChanged = onFilterChanged,
                     modifier = Modifier
                         .fillMaxSize()
@@ -192,6 +197,7 @@ private fun AccountDetailContent(
     account: Account,
     transactions: List<AccountTransaction>,
     activeFilter: TransactionFilter,
+    onTransactionSelected: (String) -> Unit,
     onFilterChanged: (TransactionFilter) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -237,7 +243,10 @@ private fun AccountDetailContent(
                             .background(MaterialTheme.colorScheme.surface),
                     ) {
                         transactionsForDate.forEachIndexed { index, transaction ->
-                            TransactionRow(transaction = transaction)
+                            TransactionRow(
+                                transaction = transaction,
+                                onClick = { onTransactionSelected(transaction.transaction.id) },
+                            )
                             if (index < transactionsForDate.lastIndex) {
                                 HorizontalDivider(
                                     color = Slate100,
@@ -387,7 +396,7 @@ private fun DateHeader(date: LocalDate, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TransactionRow(transaction: AccountTransaction) {
+private fun TransactionRow(transaction: AccountTransaction, onClick: () -> Unit) {
     val isIncome = transaction.transaction is Income
     val iconBackground = if (isIncome) IncomeBadge else ExpenseBadge
     val iconTint = if (isIncome) IncomeGreen else ExpenseDark
@@ -396,6 +405,7 @@ private fun TransactionRow(transaction: AccountTransaction) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

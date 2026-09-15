@@ -40,6 +40,7 @@ import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExp
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeScreen
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeViewModel
 import dev.raiseexception.odin.accounting.presentation.transactiondetail.TransactionDetailScreen
+import dev.raiseexception.odin.accounting.presentation.transactiondetail.TransactionDetailViewModel
 import dev.raiseexception.odin.accounts.presentation.login.LoginScreen
 import dev.raiseexception.odin.accounts.presentation.login.LoginViewModel
 import dev.raiseexception.odin.accounts.presentation.registration.RegistrationScreen
@@ -96,7 +97,7 @@ private fun AppNavHost(startRoute: String) {
             }
             composable(Routes.TRANSACTION_DETAIL) { backStackEntry ->
                 val transactionId = backStackEntry.arguments?.getString("transactionId") ?: ""
-                TransactionDetailScreen(transactionId = transactionId)
+                TransactionDetailDestination(transactionId, navController)
             }
             composable(Routes.ACCOUNTS) {
                 AccountsListDestination(navController)
@@ -232,6 +233,10 @@ private fun AccountDetailDestination(accountId: String, navController: NavHostCo
         onCreateExpense = {
             navController.navigate(Routes.expenseCreate(accountId))
         },
+        onNavigateToTransactionDetail = { transactionId ->
+            navController.navigate(Routes.transactionDetail(transactionId))
+        },
+        onTransactionSelected = accountDetailViewModel::onTransactionSelected,
         onFilterChanged = accountDetailViewModel::onFilterChanged,
         onNavigateToHome = {
             navController.navigate(Routes.HOME) {
@@ -353,6 +358,33 @@ private fun CategoriesListDestination(navController: NavHostController) {
             }
         },
         onNavigateToCategories = {},
+    )
+}
+
+@Composable
+private fun TransactionDetailDestination(transactionId: String, navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val transactionDetailViewModel: TransactionDetailViewModel = viewModel(
+        factory = application.appContainer.transactionDetailViewModelFactory(transactionId)
+    )
+    val uiState by transactionDetailViewModel.uiState.collectAsStateWithLifecycle()
+    TransactionDetailScreen(
+        uiState = uiState,
+        onNavigateToHome = {
+            navController.navigate(Routes.HOME) {
+                popUpTo(Routes.HOME) { inclusive = true }
+            }
+        },
+        onNavigateToAccounts = {
+            navController.navigate(Routes.ACCOUNTS) {
+                popUpTo(Routes.HOME)
+            }
+        },
+        onNavigateToCategories = {
+            navController.navigate(Routes.CATEGORIES) {
+                popUpTo(Routes.HOME)
+            }
+        },
     )
 }
 

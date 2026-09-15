@@ -26,7 +26,7 @@ enum class BottomBarTab { HOME, ACCOUNTS, CATEGORIES }
 
 @Composable
 fun OdinBottomBar(
-    selectedTab: BottomBarTab,
+    selectedTab: BottomBarTab?,
     onNavigateToHome: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
