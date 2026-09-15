@@ -239,6 +239,27 @@ class AccountDetailViewModelTest {
     }
 
     @Test
+    fun `given content state, when a transaction is selected, then emits transaction detail navigation`() = runTest {
+        val savings = AccountBuilder().id(accountId).build()
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(savings))
+        val viewModel = buildViewModel()
+        viewModel.uiState.test {
+            assertEquals(AccountDetailUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertTrue(awaitItem() is AccountDetailUiState.Content)
+            cancelAndIgnoreRemainingEvents()
+        }
+        viewModel.onTransactionSelected("tx-123")
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.navigationEvent.test {
+            val target = awaitItem()
+            assertTrue(target is AccountDetailNavigationTarget.TransactionDetail)
+            assertEquals("tx-123", (target as AccountDetailNavigationTarget.TransactionDetail).transactionId)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `given account with no transactions, when loaded, then content has empty transactions`() = runTest {
         val account = AccountBuilder()
             .id(accountId)

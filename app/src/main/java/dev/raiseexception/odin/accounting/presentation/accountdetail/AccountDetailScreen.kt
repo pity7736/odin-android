@@ -93,6 +93,7 @@ fun AccountDetailScreen(
     navigationEvent: Flow<AccountDetailNavigationTarget>,
     onCreateIncome: () -> Unit,
     onCreateExpense: () -> Unit,
+    onNavigateToTransactionDetail: (String) -> Unit,
     onFilterChanged: (TransactionFilter) -> Unit,
     onNavigateToHome: () -> Unit,
     onNavigateToAccounts: () -> Unit,
@@ -104,6 +105,8 @@ fun AccountDetailScreen(
             when (target) {
                 is AccountDetailNavigationTarget.CreateIncome -> onCreateIncome()
                 is AccountDetailNavigationTarget.CreateExpense -> onCreateExpense()
+                is AccountDetailNavigationTarget.TransactionDetail ->
+                    onNavigateToTransactionDetail(target.transactionId)
             }
         }
     }

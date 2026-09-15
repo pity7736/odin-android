@@ -85,6 +85,14 @@ class AccountDetailViewModel(
         }
     }
 
+    fun onTransactionSelected(transactionId: String) {
+        this.viewModelScope.launch {
+            this@AccountDetailViewModel.navigationChannel.send(
+                AccountDetailNavigationTarget.TransactionDetail(transactionId)
+            )
+        }
+    }
+
     private fun buildContentState(account: Account, filter: TransactionFilter): AccountDetailUiState.Content {
         val transactions = this.accountTransactionLister.list(
             transactions = account.transactions,
