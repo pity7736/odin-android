@@ -286,6 +286,13 @@ and description (hidden when empty), each with an uppercase Spanish label in
 - Add `onTransactionSelected(transactionId: String)` to
   `AccountDetailViewModel` — sends `TransactionDetail(transactionId)` to the
   navigation channel, following the same pattern as `onCreateIncome`/`onCreateExpense`.
+- Add `onTransactionSelected: (String) -> Unit` callback parameter to
+  `AccountDetailScreen` and thread it through `AccountDetailContent` down to
+  `TransactionRow`. Add a `clickable` modifier and an `onClick` parameter to
+  `TransactionRow` so tapping a transaction triggers the callback with the
+  transaction ID.
+- Handle `AccountDetailNavigationTarget.TransactionDetail` in the
+  `LaunchedEffect` navigation collector, calling `onNavigateToTransactionDetail`.
 
 ### Phase 8: DI and Navigation wiring
 
@@ -313,7 +320,7 @@ manual testing.
 - [ ] `UiState.Content` holds pre-formatted display strings, not raw domain objects
 - [ ] Amount formatting: sign prefix + `formatMoney`, color based on transaction type
 - [ ] Date formatting: `formatFullSpanishDate` (reuses existing shared utility)
-- [ ] Bottom bar selected tab: HOME (transaction details is reached from the home screen)
+- [ ] Bottom bar has no tab selected (reachable from both home and account detail)
 - [ ] No top bar with back button (consistent with other detail screens)
 - [ ] Account detail screen gains transaction selection navigation (new `TransactionDetail` navigation target + `onTransactionSelected` event)
 - [ ] NotFound state is defensive — currently unreachable since transactions cannot be deleted
