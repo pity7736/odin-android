@@ -8,12 +8,20 @@ import dev.raiseexception.odin.accounting.infrastructure.repository.CategoryDao
 import dev.raiseexception.odin.accounting.infrastructure.repository.CategoryEntity
 import dev.raiseexception.odin.accounting.infrastructure.repository.TransactionDao
 import dev.raiseexception.odin.accounting.infrastructure.repository.TransactionEntity
+import dev.raiseexception.odin.accounting.infrastructure.repository.TransferDao
+import dev.raiseexception.odin.accounting.infrastructure.repository.TransferEntity
 import dev.raiseexception.odin.accounts.infrastructure.repository.UserDao
 import dev.raiseexception.odin.accounts.infrastructure.repository.UserEntity
 
 @Database(
-    entities = [UserEntity::class, AccountEntity::class, CategoryEntity::class, TransactionEntity::class],
-    version = 3,
+    entities = [
+        UserEntity::class,
+        AccountEntity::class,
+        CategoryEntity::class,
+        TransactionEntity::class,
+        TransferEntity::class,
+    ],
+    version = 4,
     exportSchema = false
 )
 abstract class OdinDatabase : RoomDatabase() {
@@ -21,4 +29,5 @@ abstract class OdinDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao
     abstract fun categoryDao(): CategoryDao
     abstract fun transactionDao(): TransactionDao
+    abstract fun transferDao(): TransferDao
 }

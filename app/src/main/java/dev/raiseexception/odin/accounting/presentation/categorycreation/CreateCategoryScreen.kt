@@ -160,7 +160,7 @@ private fun TypePicker(
             modifier = Modifier.padding(bottom = 6.dp),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (type in CategoryType.entries) {
+            for (type in CategoryType.entries.filter { it != CategoryType.TRANSFER }) {
                 FilterChipItem(
                     label = typeLabel(type),
                     selected = selectedType == type,
@@ -311,4 +311,5 @@ private fun GeneralMessage(uiState: CreateCategoryUiState) {
 private fun typeLabel(type: CategoryType): String = when (type) {
     CategoryType.INCOME -> "Ingreso"
     CategoryType.EXPENSE -> "Gasto"
+    CategoryType.TRANSFER -> "Transferencia"
 }

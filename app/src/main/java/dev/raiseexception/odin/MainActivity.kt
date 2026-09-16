@@ -41,6 +41,8 @@ import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateInco
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeViewModel
 import dev.raiseexception.odin.accounting.presentation.transactiondetail.TransactionDetailScreen
 import dev.raiseexception.odin.accounting.presentation.transactiondetail.TransactionDetailViewModel
+import dev.raiseexception.odin.accounting.presentation.transfercreation.CreateTransferScreen
+import dev.raiseexception.odin.accounting.presentation.transfercreation.CreateTransferViewModel
 import dev.raiseexception.odin.accounts.presentation.login.LoginScreen
 import dev.raiseexception.odin.accounts.presentation.login.LoginViewModel
 import dev.raiseexception.odin.accounts.presentation.registration.RegistrationScreen
@@ -116,6 +118,10 @@ private fun AppNavHost(startRoute: String) {
             composable(Routes.EXPENSE_CREATE) { backStackEntry ->
                 val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
                 CreateExpenseDestination(accountId, navController)
+            }
+            composable(Routes.TRANSFER_CREATE) { backStackEntry ->
+                val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
+                CreateTransferDestination(accountId, navController)
             }
             composable(Routes.CATEGORIES) {
                 CategoriesListDestination(navController)
@@ -233,6 +239,9 @@ private fun AccountDetailDestination(accountId: String, navController: NavHostCo
         onCreateExpense = {
             navController.navigate(Routes.expenseCreate(accountId))
         },
+        onCreateTransfer = {
+            navController.navigate(Routes.transferCreate(accountId))
+        },
         onNavigateToTransactionDetail = { transactionId ->
             navController.navigate(Routes.transactionDetail(transactionId))
         },
@@ -283,6 +292,21 @@ private fun CreateExpenseDestination(accountId: String, navController: NavHostCo
         onSave = createExpenseViewModel::save,
         navigationEvent = createExpenseViewModel.navigationEvent,
         onNavigateBack = { navController.popBackStack() }
+    )
+}
+
+@Composable
+private fun CreateTransferDestination(accountId: String, navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val createTransferViewModel: CreateTransferViewModel = viewModel(
+        factory = application.appContainer.createTransferViewModelFactory(accountId)
+    )
+    val uiState by createTransferViewModel.uiState.collectAsStateWithLifecycle()
+    CreateTransferScreen(
+        uiState = uiState,
+        onSave = createTransferViewModel::save,
+        navigationEvent = createTransferViewModel.navigationEvent,
+        onNavigateBack = { _ -> navController.popBackStack() }
     )
 }
 

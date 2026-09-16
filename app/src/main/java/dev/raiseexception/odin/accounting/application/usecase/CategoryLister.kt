@@ -19,6 +19,7 @@ class CategoryLister(private val categoryRepository: CategoryRepository) {
 
     private fun filtered(categories: List<Category>, filter: CategoryType?, name: String): List<Category> =
         categories
+            .filter { !it.isSystem }
             .let { if (filter != null) it.filter { category -> category.type == filter } else it }
             .let { list ->
                 if (name.isNotBlank()) list.filter { it.name.contains(name, ignoreCase = true) } else list

@@ -60,4 +60,15 @@ class RoomCategoryRepository(
                 throw e
             }
         }
+
+    override fun findByType(type: CategoryType): Flow<Outcome<List<Category>>> =
+        this.categoryDao.findByType(type.name).map<_, Outcome<List<Category>>> { entities ->
+            Outcome.Success(entities.map { it.toDomain() })
+        }.catch { e ->
+            if (e is SQLiteException) {
+                emit(Outcome.Failure(StorageError(e.message ?: "Failed to find categories by type")))
+            } else {
+                throw e
+            }
+        }
 }

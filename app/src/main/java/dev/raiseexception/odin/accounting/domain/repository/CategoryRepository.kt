@@ -10,4 +10,5 @@ interface CategoryRepository {
     suspend fun add(category: Category): Outcome<Unit>
     fun findById(id: String): Flow<Outcome<Category>>
     fun getAll(): Flow<Outcome<List<Category>>>
+    fun findByType(type: CategoryType): Flow<Outcome<List<Category>>>
 }

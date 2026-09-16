@@ -6,12 +6,14 @@ import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 
+@Suppress("LongParameterList")
 class Category private constructor(
     val id: String,
     val name: String,
     val type: CategoryType,
     val description: String,
     val color: String,
+    val isSystem: Boolean,
     val createdAt: Instant
 ) {
 
@@ -34,13 +36,15 @@ class Category private constructor(
             type: CategoryType,
             description: String,
             color: String,
-            createdAt: Instant
+            createdAt: Instant,
+            isSystem: Boolean = false
         ): Category = Category(
             id = id,
             name = name,
             type = type,
             description = description,
             color = color,
+            isSystem = isSystem,
             createdAt = createdAt
         )
 
@@ -74,6 +78,7 @@ class Category private constructor(
                     type = type!!,
                     description = trimmedDescription,
                     color = color,
+                    isSystem = false,
                     createdAt = clock.now()
                 )
             )

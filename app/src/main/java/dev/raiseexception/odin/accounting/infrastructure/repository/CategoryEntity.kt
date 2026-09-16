@@ -13,6 +13,7 @@ data class CategoryEntity(
     val type: String,
     val description: String,
     val color: String,
+    val isSystem: Boolean = false,
     val createdAt: String
 )
 
@@ -23,7 +24,8 @@ internal fun CategoryEntity.toDomain(): Category =
         type = CategoryType.valueOf(type),
         description = description,
         color = color,
-        createdAt = Instant.parse(createdAt)
+        createdAt = Instant.parse(createdAt),
+        isSystem = isSystem
     )
 
 internal fun Category.toEntity(): CategoryEntity =
@@ -33,5 +35,6 @@ internal fun Category.toEntity(): CategoryEntity =
         type = type.name,
         description = description,
         color = color,
+        isSystem = isSystem,
         createdAt = createdAt.toString()
     )

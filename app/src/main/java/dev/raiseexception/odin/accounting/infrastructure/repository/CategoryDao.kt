@@ -19,4 +19,7 @@ interface CategoryDao {
 
     @Query("SELECT * FROM categories")
     fun getAll(): Flow<List<CategoryEntity>>
+
+    @Query("SELECT * FROM categories WHERE type = :type")
+    fun findByType(type: String): Flow<List<CategoryEntity>>
 }

@@ -319,7 +319,11 @@ private fun CategoryRow(
                 color = Slate800,
             )
             Text(
-                text = if (category.type == CategoryType.INCOME) "Ingreso" else "Gasto",
+                text = when (category.type) {
+                    CategoryType.INCOME -> "Ingreso"
+                    CategoryType.EXPENSE -> "Gasto"
+                    CategoryType.TRANSFER -> "Transferencia"
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = Slate400,
             )

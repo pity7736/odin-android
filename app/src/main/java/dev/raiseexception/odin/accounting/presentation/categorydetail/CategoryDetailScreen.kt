@@ -37,6 +37,7 @@ import dev.raiseexception.odin.ui.theme.SoraFamily
 private val categoryTypeLabels = mapOf(
     CategoryType.INCOME to "Ingreso",
     CategoryType.EXPENSE to "Gasto",
+    CategoryType.TRANSFER to "Transferencia",
 )
 
 @Suppress("LongParameterList")
