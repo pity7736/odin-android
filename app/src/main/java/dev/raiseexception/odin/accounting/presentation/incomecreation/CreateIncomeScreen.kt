@@ -63,6 +63,7 @@ import dev.raiseexception.odin.ui.theme.SoraFamily
 import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
@@ -89,6 +90,11 @@ fun CreateIncomeScreen(
                 is CreateIncomeUiState.Idle -> uiState.categories
                 is CreateIncomeUiState.ValidationError -> uiState.categories
                 else -> emptyList()
+            },
+            accountCreatedAt = when (uiState) {
+                is CreateIncomeUiState.Idle -> uiState.accountCreatedAt
+                is CreateIncomeUiState.ValidationError -> uiState.accountCreatedAt
+                else -> null
             },
             validation = uiState as? CreateIncomeUiState.ValidationError,
             isSaving = uiState is CreateIncomeUiState.Saving,
@@ -129,6 +135,7 @@ private fun ErrorContent(message: String, modifier: Modifier = Modifier) {
 @Composable
 private fun IncomeForm(
     categories: List<Category>,
+    accountCreatedAt: LocalDate?,
     validation: CreateIncomeUiState.ValidationError?,
     isSaving: Boolean,
     onSave: (String, String, CategoryInput, String) -> Unit,
@@ -168,7 +175,7 @@ private fun IncomeForm(
             visualTransformation = ThousandSeparatorTransformation,
         )
         Spacer(modifier = Modifier.height(16.dp))
-        DatePickerField(rawDate, { rawDate = it }, validation?.dateError)
+        DatePickerField(rawDate, { rawDate = it }, validation?.dateError, accountCreatedAt)
         Spacer(modifier = Modifier.height(16.dp))
         CategoryAutocomplete(
             categories = categories,
@@ -350,16 +357,23 @@ private fun DatePickerField(
     selectedDate: String,
     onDateSelected: (String) -> Unit,
     errorMessage: String?,
+    minDate: LocalDate?,
 ) {
     var showPicker by remember { mutableStateOf(false) }
     val todayMillis = remember {
         Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
             .toEpochDays().toLong() * MILLIS_PER_DAY
     }
+    val minDateMillis = remember(minDate) {
+        minDate?.toEpochDays()?.toLong()?.times(MILLIS_PER_DAY)
+    }
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = todayMillis,
         selectableDates = object : SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis <= todayMillis
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                val aboveMin = minDateMillis == null || utcTimeMillis >= minDateMillis
+                return utcTimeMillis <= todayMillis && aboveMin
+            }
         },
     )
     val interactionSource = remember { MutableInteractionSource() }

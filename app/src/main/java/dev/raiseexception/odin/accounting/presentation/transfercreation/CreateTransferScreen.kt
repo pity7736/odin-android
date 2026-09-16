@@ -59,6 +59,7 @@ import dev.raiseexception.odin.ui.theme.SoraFamily
 import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
@@ -142,6 +143,9 @@ private fun TransferForm(
         mutableStateOf(Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString())
     }
     val destinationAccounts = accounts.filter { it.id != sourceAccountId }
+    val sourceAccount = accounts.firstOrNull { it.id == sourceAccountId }
+    val destinationAccount = accounts.firstOrNull { it.id == destinationAccountId }
+    val transferMinDate = transferMinDate(sourceAccount, destinationAccount)
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -189,7 +193,7 @@ private fun TransferForm(
             visualTransformation = ThousandSeparatorTransformation,
         )
         Spacer(modifier = Modifier.height(16.dp))
-        DatePickerField(rawDate, { rawDate = it }, validation?.dateError)
+        DatePickerField(rawDate, { rawDate = it }, validation?.dateError, transferMinDate)
         Spacer(modifier = Modifier.height(24.dp))
         when {
             isSaving -> Box(
@@ -333,16 +337,23 @@ private fun DatePickerField(
     selectedDate: String,
     onDateSelected: (String) -> Unit,
     errorMessage: String?,
+    minDate: LocalDate?,
 ) {
     var showPicker by remember { mutableStateOf(false) }
     val todayMillis = remember {
         Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
             .toEpochDays().toLong() * MILLIS_PER_DAY
     }
+    val minDateMillis = remember(minDate) {
+        minDate?.toEpochDays()?.toLong()?.times(MILLIS_PER_DAY)
+    }
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = todayMillis,
         selectableDates = object : SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis <= todayMillis
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                val aboveMin = minDateMillis == null || utcTimeMillis >= minDateMillis
+                return utcTimeMillis <= todayMillis && aboveMin
+            }
         },
     )
     val interactionSource = remember { MutableInteractionSource() }
@@ -428,6 +439,17 @@ private fun FieldError(errorMessage: String?, testTag: String) {
                 .padding(top = 4.dp)
                 .testTag(testTag),
         )
+    }
+}
+
+private fun transferMinDate(sourceAccount: Account?, destinationAccount: Account?): LocalDate? {
+    val sourceDate = sourceAccount?.createdAt?.toLocalDateTime(TimeZone.currentSystemDefault())?.date
+    val destinationDate = destinationAccount?.createdAt?.toLocalDateTime(TimeZone.currentSystemDefault())?.date
+    return when {
+        sourceDate != null && destinationDate != null -> maxOf(sourceDate, destinationDate)
+        sourceDate != null -> sourceDate
+        destinationDate != null -> destinationDate
+        else -> null
     }
 }
 

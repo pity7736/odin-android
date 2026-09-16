@@ -159,6 +159,55 @@ class ExpenseTest {
         assertNull(error.categoryError)
     }
 
+    @Test
+    fun `given an account created on march 1, when creating expense with february 28, then returns date error`() {
+        val marchFirst = Instant.parse("2026-03-01T12:00:00Z")
+        val marchClock = object : Clock {
+            override fun now(): Instant = Instant.parse("2026-03-15T12:00:00Z")
+        }
+        val accountCreatedInMarch = AccountBuilder()
+            .id("acc-1")
+            .createdAt(marchFirst)
+            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
+            .build()
+
+        val result = accountCreatedInMarch.createExpense(
+            amount = "500.00",
+            date = "2026-02-28",
+            categoryId = "cat-1",
+            description = "",
+            clock = marchClock
+        )
+
+        val error = assertInvalidInput(result)
+        assertEquals("La fecha no puede ser anterior a la fecha de creación de la cuenta.", error.dateError)
+        assertNull(error.amountError)
+        assertNull(error.categoryError)
+    }
+
+    @Test
+    fun `given an account created on march 1, when creating expense with march 1, then succeeds`() {
+        val marchFirst = Instant.parse("2026-03-01T12:00:00Z")
+        val marchClock = object : Clock {
+            override fun now(): Instant = Instant.parse("2026-03-15T12:00:00Z")
+        }
+        val accountCreatedInMarch = AccountBuilder()
+            .id("acc-1")
+            .createdAt(marchFirst)
+            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
+            .build()
+
+        val result = accountCreatedInMarch.createExpense(
+            amount = "500.00",
+            date = "2026-03-01",
+            categoryId = "cat-1",
+            description = "",
+            clock = marchClock
+        )
+
+        assertTrue(result is Outcome.Success)
+    }
+
     private fun assertInvalidInput(result: Outcome<Expense>): ExpenseCreationError.InvalidInput {
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error

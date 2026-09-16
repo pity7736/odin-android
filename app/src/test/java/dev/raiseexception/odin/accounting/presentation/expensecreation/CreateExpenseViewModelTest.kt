@@ -1,12 +1,14 @@
 package dev.raiseexception.odin.accounting.presentation.expensecreation
 
 import app.cash.turbine.test
+import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.testutil.AccountBuilder
 import dev.raiseexception.odin.testutil.CategoryBuilder
 import io.mockk.coEvery
 import io.mockk.every
@@ -18,7 +20,10 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -31,13 +36,17 @@ class CreateExpenseViewModelTest {
 
     private val expenseCreator = mockk<ExpenseCreator>()
     private val categoryLister = mockk<CategoryLister>()
+    private val accountFinder = mockk<AccountFinder>()
     private val testDispatcher = StandardTestDispatcher()
     private val accountId = "acc-1"
+    private val accountCreatedAt = Instant.parse("2026-01-01T12:00:00Z")
     private val expenseCategory = CategoryBuilder().type(CategoryType.EXPENSE).build()
+    private val account = AccountBuilder().id(accountId).createdAt(accountCreatedAt).build()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        every { accountFinder.find(accountId) } returns flowOf(Outcome.Success(account))
     }
 
     @After
@@ -49,6 +58,7 @@ class CreateExpenseViewModelTest {
         accountId = accountId,
         expenseCreator = expenseCreator,
         categoryLister = categoryLister,
+        accountFinder = accountFinder,
         ioDispatcher = testDispatcher
     )
 
@@ -66,6 +76,8 @@ class CreateExpenseViewModelTest {
             val state = awaitItem() as CreateExpenseUiState.Idle
             assertEquals(1, state.categories.size)
             assertEquals(expenseCategory.id, state.categories.first().id)
+            val expectedDate = accountCreatedAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
+            assertEquals(expectedDate, state.accountCreatedAt)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -193,6 +205,33 @@ class CreateExpenseViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.save("500.00", "2099-01-01", CategoryInput.Existing(expenseCategory.id), "")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as CreateExpenseUiState.ValidationError
+            assertNotNull(state.dateError)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given date before account creation, when saving, then shows date error`() = runTest {
+        every { categoryLister.list(CategoryType.EXPENSE, "") } returns flowOf(
+            Outcome.Success(listOf(expenseCategory))
+        )
+        coEvery {
+            expenseCreator.create(any(), any(), any(), any(), any())
+        } returns Outcome.Failure(
+            ExpenseCreationError.InvalidInput(
+                amountError = null,
+                dateError = "La fecha no puede ser anterior a la fecha de creación de la cuenta.",
+                categoryError = null
+            )
+        )
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.save("500.00", "2025-12-31", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.uiState.test {
