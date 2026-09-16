@@ -14,10 +14,12 @@ Implement transfers between the user's own accounts. A transfer atomically
 creates an expense on the source account and an income on the destination
 account, linked by a `Transfer` domain entity persisted in its own table. Both
 transaction entries use a system "Transfer" category (type `TRANSFER`, marked
-`isSystem = true`) that the user cannot rename or delete. The description on
-each entry is auto-generated in Spanish ("Transferencia a [nombre]" /
-"Transferencia desde [nombre]"). The transfer is initiated from the account
-detail screen, with the source account pre-filled.
+`isSystem = true`) that the user cannot rename or delete. System categories are
+filtered out of the user-facing categories list. The description on each entry
+is auto-generated in Spanish ("Transferencia a [nombre]" / "Transferencia desde
+[nombre]"). The transfer is initiated from the account detail screen, with the
+source account pre-filled but changeable. Blank account ids are validated at
+the application layer before loading accounts.
 
 **Spec scenarios satisfied:**
 - Successful transfer
@@ -42,7 +44,8 @@ app/src/main/java/dev/raiseexception/odin/accounting/
 │       └── Category.kt                          # MODIFY — add isSystem field
 ├── application/
 │   └── usecase/
-│       └── TransferCreator.kt                   # CREATE — orchestrates transfer creation
+│       ├── TransferCreator.kt                   # CREATE — orchestrates transfer creation
+│       └── CategoryLister.kt                    # MODIFY — filter isSystem categories
 ├── infrastructure/
 │   ├── local/
 │   │   └── TransferEntity.kt                    # CREATE — Room @Entity
@@ -55,9 +58,9 @@ app/src/main/java/dev/raiseexception/odin/accounting/
 │   └── OdinDatabase.kt                          # MODIFY — add TransferEntity, update version
 └── presentation/
     ├── transfercreation/
-    │   ├── CreateTransferScreen.kt              # CREATE — Compose form
+    │   ├── CreateTransferScreen.kt              # CREATE — Compose form (source + destination dropdowns)
     │   ├── CreateTransferViewModel.kt           # CREATE — ViewModel
-    │   └── CreateTransferUiState.kt             # CREATE — sealed UiState
+    │   └── CreateTransferUiState.kt             # CREATE — sealed UiState (uses domain Account)
     └── accountdetail/
         ├── AccountDetailScreen.kt               # MODIFY — add Transfer mini-FAB
         └── AccountDetailNavigationTarget.kt     # MODIFY — add CreateTransfer target
@@ -195,13 +198,13 @@ interface TransferDao {
 ### Presentation
 
 ```kotlin
-// CreateTransferUiState.kt
+// CreateTransferUiState.kt — uses domain Account directly, no projection
 sealed interface CreateTransferUiState {
     data object Loading
-    data class Idle(val accounts: List<AccountSummary>)
+    data class Idle(val accounts: List<Account>, val selectedSourceAccountId: String)
     data object Saving
     data class ValidationError(
-        val accounts: List<AccountSummary>,
+        val accounts: List<Account>,
         val amountError: String?,
         val dateError: String?,
         val sourceAccountError: String?,
@@ -210,19 +213,16 @@ sealed interface CreateTransferUiState {
     data class Error(val message: String)
 }
 
-// AccountSummary — lightweight projection for the picker
-data class AccountSummary(val id: String, val name: String, val currency: Currency)
-
 // CreateTransferViewModel.kt
 class CreateTransferViewModel(
-    private val sourceAccountId: String,
+    private val preselectedSourceAccountId: String,
     private val transferCreator: TransferCreator,
     private val accountLister: AccountLister,
     private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
     val uiState: StateFlow<CreateTransferUiState>
     val navigationEvent: Flow<NavigationTarget>
-    fun save(destinationAccountId: String, amount: String, date: String)
+    fun save(sourceAccountId: String, destinationAccountId: String, amount: String, date: String)
 }
 ```
 
@@ -268,7 +268,9 @@ class CreateTransferViewModel(
 ### Phase 4: Application — TransferCreator use case
 
 **Red:**
-- `TransferCreatorTest`: `given valid accounts and transfer category exists, when creating transfer, then saves expense and income and transfer record`
+- `TransferCreatorTest`: `given valid accounts and transfer category, when creating transfer, then saves all records`
+- `TransferCreatorTest`: `given blank source account id, when creating transfer, then returns invalid input`
+- `TransferCreatorTest`: `given blank destination account id, when creating transfer, then returns invalid input`
 - `TransferCreatorTest`: `given source account not found, when creating transfer, then returns storage failure`
 - `TransferCreatorTest`: `given destination account not found, when creating transfer, then returns storage failure`
 - `TransferCreatorTest`: `given same source and destination, when creating transfer, then returns invalid input`
@@ -281,15 +283,17 @@ class CreateTransferViewModel(
 
 **Green:**
 - Create `TransferCreator`. In `create()`:
-  1. Load source account with `AccountCriteria(includeIncomes = true, includeExpenses = true)`.
-  2. Load destination account with default `AccountCriteria()`.
-  3. Find Transfer category via `categoryRepository.findByType(CategoryType.TRANSFER)`.
-  4. Inside `transactionRunner.run {}`:
+  1. Validate blank account ids — return `InvalidInput` with field errors if blank.
+  2. Load source account with `AccountCriteria(includeIncomes = true, includeExpenses = true)`.
+  3. Load destination account with default `AccountCriteria()`.
+  4. Find Transfer category via `categoryRepository.findByType(CategoryType.TRANSFER)`.
+  5. Inside `transactionRunner.run {}`:
      - Call `Transfer.create(sourceAccount, destinationAccount, amount, date, categoryId)`.
      - Save expense via `expenseRepository.add(transfer.expense)`.
      - Save income via `incomeRepository.add(transfer.income)`.
      - Save transfer via `transferRepository.add(transfer)`.
-  5. Return `Outcome<Transfer>`.
+  6. Return `Outcome<Transfer>`.
+- Modify `CategoryLister.filtered()` to exclude `isSystem = true` categories.
 
 ### Phase 5: Infrastructure — persistence
 
@@ -307,18 +311,17 @@ class CreateTransferViewModel(
 ### Phase 6: Presentation — ViewModel
 
 **Red:**
-- `CreateTransferViewModelTest`: `given init, when accounts load successfully, then emits Idle with accounts excluding source`
-- `CreateTransferViewModelTest`: `given Idle state, when saving valid transfer, then emits Saving then navigates to account detail`
+- `CreateTransferViewModelTest`: `given init, when accounts load, then emits Idle with all accounts and preselected source`
+- `CreateTransferViewModelTest`: `given Idle state, when saving valid transfer, then navigates to account detail`
 - `CreateTransferViewModelTest`: `given Idle state, when saving with validation error, then emits ValidationError`
 - `CreateTransferViewModelTest`: `given Saving state, when save called again, then ignores duplicate`
 - `CreateTransferViewModelTest`: `given accounts load fails, when init, then emits Error`
 
 **Green:**
-- Create `CreateTransferUiState` sealed interface.
-- Create `AccountSummary` data class.
+- Create `CreateTransferUiState` sealed interface. Uses domain `Account` directly (no `AccountSummary` projection). `Idle` carries `selectedSourceAccountId`.
 - Create `CreateTransferViewModel`:
-  - `init` loads accounts via `AccountLister`, filters out source, maps to `AccountSummary`, sets `Idle`.
-  - `save(destinationAccountId, amount, date)` calls `TransferCreator.create()`, maps result to navigation or error state.
+  - `init` loads all accounts via `AccountLister`, sets `Idle` with `preselectedSourceAccountId`.
+  - `save(sourceAccountId, destinationAccountId, amount, date)` calls `TransferCreator.create()`, maps result to navigation or error state.
 - Wire `NavigationTarget` with `AccountDetail(accountId)`.
 
 ### Phase 7: Presentation — Screen and navigation
@@ -328,7 +331,7 @@ class CreateTransferViewModel(
 - `CreateTransferScreenTest`: `given ValidationError state, when displayed, then shows field errors`
 
 **Green:**
-- Create `CreateTransferScreen` composable: destination account dropdown, amount field, date picker, save button. Follows existing income/expense screen patterns.
+- Create `CreateTransferScreen` composable: source account dropdown (pre-filled but changeable), destination account dropdown (excludes selected source), amount field, date picker, save button. Follows existing income/expense screen patterns.
 - Add `CreateTransfer(accountId)` to `AccountDetailNavigationTarget`.
 - Add Transfer mini-FAB to `AccountDetailScreen`'s expandable FAB.
 - Add `TRANSFER_CREATE` route and `transferCreate(accountId)` helper to `Routes`.
@@ -354,5 +357,8 @@ class CreateTransferViewModel(
 - [ ] `TransferCreator` use case bypasses `IncomeCreator`/`ExpenseCreator` — calls `Account.createExpense()` and `Account.createIncome()` directly.
 - [ ] `CategoryRepository.findByType()` added to look up categories by type.
 - [ ] Auto-generated descriptions: "Transferencia a [nombre]" (source side) / "Transferencia desde [nombre]" (destination side).
-- [ ] Entry point: account detail expandable FAB only (account list deferred to shortcuts feature).
+- [ ] Entry point: account detail expandable FAB only (account list deferred to shortcuts feature). Source account pre-filled but changeable.
 - [ ] Transfers are immutable after creation (no edit/delete).
+- [ ] `CategoryLister` filters out `isSystem = true` categories from the user-facing list.
+- [ ] `TransferCreator` validates blank account ids before loading, returning field-level `InvalidInput` errors.
+- [ ] Presentation uses domain `Account` directly (no `AccountSummary` projection).
