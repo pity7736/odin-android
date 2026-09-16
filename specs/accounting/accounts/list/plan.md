@@ -68,7 +68,7 @@ pass.
 
 ## Design decisions to hydrate into design.md
 
-- [ ] Data Flow: `AccountsListViewModel` passes `AccountCriteria(includeIncomes = true, includeExpenses = true)` to `AccountLister.list()` so that `Account.balance` returns the computed balance including all transactions
-- [ ] Screen & States: `Content` state rows display the account's computed balance (not just initial balance)
-- [ ] Known Limitations: remove "AccountDetailScreen is a placeholder" — account detail is fully implemented
-- [ ] Quality Pillars — Performance: `getAll()` now loads transaction rows to compute balances
+- [x] Data Flow: `AccountsListViewModel` passes `AccountCriteria(includeIncomes = true, includeExpenses = true)` to `AccountLister.list()` so that `Account.balance` returns the computed balance including all transactions
+- [x] Screen & States: `Content` state rows display the account's computed balance (not just initial balance)
+- [x] Known Limitations: remove "AccountDetailScreen is a placeholder" — account detail is fully implemented
+- [x] Quality Pillars — Performance: `getAll()` now loads transaction rows to compute balances

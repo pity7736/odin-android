@@ -7,7 +7,7 @@
 Displays all financial accounts stored on the device, ordered oldest first by id.
 The screen reacts to the current state of the account store: it shows a loading
 indicator while fetching, an empty message when no accounts exist, and a scrollable
-list of rows (name + id) when accounts are present. Tapping a row navigates to the
+list of rows (name + computed balance) when accounts are present. Tapping a row navigates to the
 account detail screen via the ViewModel's navigation channel. The create-account FAB
 is always visible and navigates directly without going through the ViewModel.
 
@@ -99,7 +99,7 @@ specs/accounting/accounts/list/
 
 **Loading accounts:**
 1. `AccountsListViewModel.init` launches a coroutine on `ioDispatcher`
-2. Collects `AccountLister.list()` — delegates to `AccountRepository.getAll()`, a reactive `Flow<Outcome<List<Account>>>`
+2. Collects `AccountLister.list(AccountCriteria(includeIncomes = true, includeExpenses = true))` — delegates to `AccountRepository.getAll(criteria)`, a reactive `Flow<Outcome<List<Account>>>`. The criteria ensures accounts are loaded with their transactions so `Account.balance` returns the computed balance
 3. `RoomAccountRepository.getAll()` queries the `accounts` table via `AccountDao`;
    Room re-emits whenever the table changes
 4. ViewModel pattern-matches on `Outcome`: `Success` with empty list → `Empty`,
@@ -118,8 +118,8 @@ specs/accounting/accounts/list/
 
 - `Loading` — spinner shown while the first emission is pending
 - `Empty` — message shown when the account list is empty
-- `Content(accounts)` — `LazyColumn` of rows, each showing name and id, ordered
-  oldest first; tapping a row triggers ViewModel navigation
+- `Content(accounts)` — `LazyColumn` of rows, each showing name and computed
+  balance, ordered oldest first; tapping a row triggers ViewModel navigation
 - `Error(message)` — Spanish error message shown on storage failure
 
 The FAB is always visible regardless of state and navigates directly to account
@@ -127,8 +127,7 @@ creation.
 
 ## Known Limitations
 
-- **`AccountDetailScreen` is a placeholder** — account detail is a separate feature;
-  the screen currently shows only the account id.
+None.
 
 ## Quality Pillars
 
@@ -138,8 +137,9 @@ creation.
 - **Reliability:** Storage failures are surfaced as `Outcome.Failure` and mapped
   to `Error` state in the ViewModel via pattern matching; there is no
   `catch(Exception)` block.
-- **Performance:** `getAll()` is a direct Room query on the `accounts` table,
-  returning results reactively. No in-memory filtering or sorting needed.
+- **Performance:** `getAll()` loads accounts with their transaction rows to
+  compute balances. Room re-emits reactively on table changes. No in-memory
+  filtering or sorting needed.
 - **Observability:** Internal errors from the storage layer are propagated as
   `Outcome.Failure`; the internal message is available for future logging without
   being surfaced to the user.
