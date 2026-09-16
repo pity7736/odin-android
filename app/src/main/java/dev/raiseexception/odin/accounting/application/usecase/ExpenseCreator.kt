@@ -87,6 +87,11 @@ class ExpenseCreator(
             is Outcome.Success -> Outcome.Success(result.value.id)
             is Outcome.Failure -> Outcome.Failure(
                 when (result.error) {
+                    is CategoryCreationError.InvalidInput -> ExpenseCreationError.InvalidInput(
+                        amountError = null,
+                        dateError = null,
+                        categoryError = result.error.nameError
+                    )
                     is CategoryCreationError.DuplicateName -> ExpenseCreationError.InvalidInput(
                         amountError = null,
                         dateError = null,
