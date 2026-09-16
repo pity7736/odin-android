@@ -2,6 +2,7 @@ package dev.raiseexception.odin.accounting.presentation.accountslist
 
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
+import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
@@ -36,6 +37,8 @@ class AccountsListViewModelTest {
         Dispatchers.resetMain()
     }
 
+    private val criteriaWithTransactions = AccountCriteria(includeIncomes = true, includeExpenses = true)
+
     private fun buildViewModel() = AccountsListViewModel(accountLister, testDispatcher)
 
     private fun account(id: String, name: String) = AccountBuilder().id(id).name(name).build()
@@ -47,7 +50,7 @@ class AccountsListViewModelTest {
 
     @Test
     fun `given lister emits empty list, when initialized, then ui state is Empty`() = runTest {
-        every { accountLister.list() } returns flowOf(Outcome.Success(emptyList()))
+        every { accountLister.list(criteriaWithTransactions) } returns flowOf(Outcome.Success(emptyList()))
         val viewModel = buildViewModel()
 
         viewModel.uiState.test {
@@ -62,7 +65,8 @@ class AccountsListViewModelTest {
     fun `given lister emits accounts, when initialized, then ui state is Content with accounts`() = runTest {
         val savings = account("aaa", "Ahorros")
         val checking = account("bbb", "Corriente")
-        every { accountLister.list() } returns flowOf(Outcome.Success(listOf(savings, checking)))
+        val accounts = listOf(savings, checking)
+        every { accountLister.list(criteriaWithTransactions) } returns flowOf(Outcome.Success(accounts))
         val viewModel = buildViewModel()
 
         viewModel.uiState.test {
@@ -77,7 +81,7 @@ class AccountsListViewModelTest {
     @Test
     fun `given Content state, when an account is selected, then navigation event is AccountDetail`() = runTest {
         val savings = account("aaa", "Ahorros")
-        every { accountLister.list() } returns flowOf(Outcome.Success(listOf(savings)))
+        every { accountLister.list(criteriaWithTransactions) } returns flowOf(Outcome.Success(listOf(savings)))
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -92,7 +96,7 @@ class AccountsListViewModelTest {
 
     @Test
     fun `given lister emits failure, when initialized, then ui state is Error`() = runTest {
-        every { accountLister.list() } returns flowOf(Outcome.Failure(storageError))
+        every { accountLister.list(criteriaWithTransactions) } returns flowOf(Outcome.Failure(storageError))
         val viewModel = buildViewModel()
 
         viewModel.uiState.test {
