@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -93,6 +94,7 @@ fun AccountDetailScreen(
     navigationEvent: Flow<AccountDetailNavigationTarget>,
     onCreateIncome: () -> Unit,
     onCreateExpense: () -> Unit,
+    onCreateTransfer: () -> Unit,
     onNavigateToTransactionDetail: (String) -> Unit,
     onTransactionSelected: (String) -> Unit,
     onFilterChanged: (TransactionFilter) -> Unit,
@@ -106,6 +108,7 @@ fun AccountDetailScreen(
             when (target) {
                 is AccountDetailNavigationTarget.CreateIncome -> onCreateIncome()
                 is AccountDetailNavigationTarget.CreateExpense -> onCreateExpense()
+                is AccountDetailNavigationTarget.CreateTransfer -> onCreateTransfer()
                 is AccountDetailNavigationTarget.TransactionDetail ->
                     onNavigateToTransactionDetail(target.transactionId)
             }
@@ -134,6 +137,10 @@ fun AccountDetailScreen(
                     onCreateExpense = {
                         fabExpanded = false
                         onCreateExpense()
+                    },
+                    onCreateTransfer = {
+                        fabExpanded = false
+                        onCreateTransfer()
                     },
                 )
             }
@@ -460,6 +467,7 @@ private fun ExpandableFab(
     onToggle: () -> Unit,
     onCreateIncome: () -> Unit,
     onCreateExpense: () -> Unit,
+    onCreateTransfer: () -> Unit,
 ) {
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         AnimatedVisibility(
@@ -498,6 +506,22 @@ private fun ExpandableFab(
                         modifier = Modifier.testTag("create_expense_fab"),
                     ) {
                         Icon(Icons.Filled.ArrowDownward, contentDescription = "Gasto")
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Transferencia",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Slate50,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    SmallFloatingActionButton(
+                        onClick = onCreateTransfer,
+                        containerColor = Slate200,
+                        contentColor = Slate800,
+                        modifier = Modifier.testTag("create_transfer_fab"),
+                    ) {
+                        Icon(Icons.Filled.SwapHoriz, contentDescription = "Transferencia")
                     }
                 }
             }

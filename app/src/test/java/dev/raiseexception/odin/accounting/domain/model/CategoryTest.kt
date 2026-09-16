@@ -118,6 +118,50 @@ class CategoryTest {
         assertEquals(knownInstant, category.createdAt)
     }
 
+    @Test
+    fun `given a category restored with isSystem true, when checking isSystem, then returns true`() {
+        val category = Category.restore(
+            id = "sys-1",
+            name = "Transferencia",
+            type = CategoryType.TRANSFER,
+            description = "",
+            color = "#FF9800",
+            createdAt = Instant.parse("2026-01-01T00:00:00Z"),
+            isSystem = true
+        )
+
+        assertTrue(category.isSystem)
+    }
+
+    @Test
+    fun `given a category created via factory, when checking isSystem, then returns false`() {
+        val result = Category.create(
+            name = "Alimentación",
+            type = CategoryType.EXPENSE,
+            description = "",
+            color = "#E57373"
+        )
+
+        assertTrue(result is Outcome.Success)
+        val category = (result as Outcome.Success).value
+        assertTrue(!category.isSystem)
+    }
+
+    @Test
+    fun `given a category type TRANSFER, when checking type, then it is TRANSFER`() {
+        val category = Category.restore(
+            id = "sys-1",
+            name = "Transferencia",
+            type = CategoryType.TRANSFER,
+            description = "",
+            color = "#FF9800",
+            createdAt = Instant.parse("2026-01-01T00:00:00Z"),
+            isSystem = true
+        )
+
+        assertEquals(CategoryType.TRANSFER, category.type)
+    }
+
     private fun failureInvalidInput(result: Outcome<Category>): CategoryCreationError.InvalidInput {
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error

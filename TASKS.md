@@ -21,6 +21,7 @@ Tasks are listed in priority order.
 - [ ] Update expenses
 - [ ] Update categories
 - [ ] Tags for transactions (income and expenses) for better reporting granularity
+- [ ] System Transfer category is not created at user registration time. Currently seeded only during development; a production user would have no Transfer category until the seeder is replaced with proper initialization
 
 ### Home Screen
 
@@ -73,6 +74,7 @@ migration path.
 
 ### Bugs
 
+- [ ] **HIGH PRIORITY** — Account list shows initial balances instead of real balances. `AccountsListViewModel` calls `accountLister.list()` with default `AccountCriteria()` (both `includeIncomes` and `includeExpenses` are `false`), so `Account.balance` returns only `initialBalance`. `HomeViewModel` correctly passes `AccountCriteria(includeIncomes = true, includeExpenses = true)`
 - [ ] Income and expense date validation allows dates before the account's creation date. `Account.createIncome()` and `Account.createExpense()` only check that the date is not in the future but do not reject dates earlier than the account's `createdAt`
 - [ ] Backtick `given … when … then …` method names contain spaces, which DEX forbids before version 040 (min API 30), so `connectedAndroidTest` fails to build the `androidTest` APK (affects `RegistrationScreenTest` and `LoginScreenTest`; the JVM unit suite is unaffected). Decide between renaming `androidTest` method names to a space-free form (recommended, keeps `minSdk 26`) vs raising `minSdk` to 30; then update `docs/05` §3.1 with the instrumented-test carve-out
 - [ ] App briefly flashes a content screen (e.g. account details) before navigating to login/registration on cold start. `StartupViewModel` check is async and the default navigation route renders before it resolves
@@ -86,6 +88,8 @@ migration path.
 - [ ] Money input is not locale-aware (deferred — current users are developers who type with a dot). `CreateAccountViewModel.parseBalance` accepts only dot decimal and no grouping separators, so es-CO conventions are unusable: "1000,50" (comma decimal) is rejected as not a number, and "1.000" (period grouping, meaning one thousand) is misread as `1.000` (value one, scale 3) and rejected as ">2 decimals". This affects money everywhere it is entered (incomes, expenses) and displayed (balances) app-wide, not just this field.
 - [ ] `Account.createIncome()` owns income validation logic. Consider moving validation into `Income.create()` so `Income` validates its own invariants and `Account.createIncome()` just delegates, passing `this.id` and `this.currency`.
 - [ ] Navigation: all destinations are defined inline in `AppNavHost` inside `MainActivity.kt`. Extract per-module navigation graphs as screen count grows.
+- [ ] `AccountDetailNavigationTarget` has three dead variants (`CreateIncome`, `CreateExpense`, `CreateTransfer`) that are defined and handled in `when` branches but never emitted by `AccountDetailViewModel`. The FABs navigate via direct lambdas, making the ViewModel channel unnecessary for these. Remove the dead variants and their `when` branches
+- [ ] `OdinField`, `DatePickerField`, `FieldError`, `LoadingContent`, and `ErrorContent` composables are duplicated across `CreateExpenseScreen`, `CreateIncomeScreen`, and `CreateTransferScreen`. Extract them into shared composables
 - [ ] Global exception handler in ViewModels (catch uncaught library exceptions, map to UiState.Error instead of crashing). Pair with structured logging (Timber) so crashes are captured and surfaced to users without requiring developer tools. Confirmed during SQLCipher integration: `UnsatisfiedLinkError` in `DatabaseProvider.unlock()` bypasses the `SQLiteException` catch, kills the coroutine, and leaves `LoginViewModel` stuck on `Loading` with no user feedback. Long-running operations (login, registration) have no timeout — if a coroutine hangs (e.g. Room Flow never emitting), the UI stays on Loading forever with no way to cancel or surface an error.
 - [ ] `ExpenseCreator` and `IncomeCreator` read account balance outside the database transaction (`findById().first()` before `transactionRunner.run {}`). Two concurrent creations could both pass validation on stale balance. Move the read inside the transaction to guarantee consistency
 - [ ] `RoomAccountRepository.getAll()` with transactions loads every transaction row into memory via `@Relation` just to compute balances. A SQL `SUM(amount) GROUP BY type` query would return balance directly without loading individual rows — matters when accounts accumulate hundreds of transactions

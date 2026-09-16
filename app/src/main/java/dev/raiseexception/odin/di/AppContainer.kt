@@ -18,16 +18,19 @@ import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
+import dev.raiseexception.odin.accounting.application.usecase.TransferCreator
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
 import dev.raiseexception.odin.accounting.domain.repository.ExpenseRepository
 import dev.raiseexception.odin.accounting.domain.repository.IncomeRepository
 import dev.raiseexception.odin.accounting.domain.repository.TransactionRepository
+import dev.raiseexception.odin.accounting.domain.repository.TransferRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomAccountRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomCategoryRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomExpenseRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomIncomeRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomTransactionRepository
+import dev.raiseexception.odin.accounting.infrastructure.repository.RoomTransferRepository
 import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAccountViewModel
 import dev.raiseexception.odin.accounting.presentation.accountdetail.AccountDetailViewModel
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListViewModel
@@ -37,6 +40,7 @@ import dev.raiseexception.odin.accounting.presentation.categorydetail.CategoryDe
 import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExpenseViewModel
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeViewModel
 import dev.raiseexception.odin.accounting.presentation.transactiondetail.TransactionDetailViewModel
+import dev.raiseexception.odin.accounting.presentation.transfercreation.CreateTransferViewModel
 import dev.raiseexception.odin.accounts.application.usecase.UserAuthenticator
 import dev.raiseexception.odin.accounts.application.usecase.UserRegistrar
 import dev.raiseexception.odin.accounts.domain.model.User
@@ -111,6 +115,9 @@ class AppContainer(context: Context) {
         RoomTransactionRepository(databaseProvider.requireDatabase().transactionDao())
     }
     private val transactionFinder by lazy { TransactionFinder(transactionRepository) }
+    private val transferRepository: TransferRepository by lazy {
+        RoomTransferRepository(databaseProvider.requireDatabase().transferDao())
+    }
     private val transactionRunner: TransactionRunner by lazy {
         RoomTransactionRunner(databaseProvider.requireDatabase())
     }
@@ -132,13 +139,23 @@ class AppContainer(context: Context) {
             transactionRunner = transactionRunner
         )
     }
+    private val transferCreator by lazy {
+        TransferCreator(
+            accountRepository = accountRepository,
+            transferRepository = transferRepository,
+            categoryRepository = categoryRepository,
+            expenseRepository = expenseRepository,
+            incomeRepository = incomeRepository,
+            transactionRunner = transactionRunner
+        )
+    }
 
     fun registrationViewModel(): RegistrationViewModel = RegistrationViewModel(userRegistrar)
 
     fun loginViewModel(): LoginViewModel {
         if (BuildConfig.DEBUG) {
             return LoginViewModel(userAuthenticator) {
-                DevDataSeeder(accountCreator, categoryCreator, incomeCreator, accountLister).seed()
+                DevDataSeeder(accountCreator, categoryCreator, categoryRepository, incomeCreator, accountLister).seed()
             }
         }
         return LoginViewModel(userAuthenticator)
@@ -190,6 +207,13 @@ class AppContainer(context: Context) {
         viewModelFactory {
             initializer {
                 CreateExpenseViewModel(accountId, expenseCreator, categoryLister, ioDispatcher)
+            }
+        }
+
+    fun createTransferViewModelFactory(accountId: String): ViewModelProvider.Factory =
+        viewModelFactory {
+            initializer {
+                CreateTransferViewModel(accountId, transferCreator, accountLister, ioDispatcher)
             }
         }
 }

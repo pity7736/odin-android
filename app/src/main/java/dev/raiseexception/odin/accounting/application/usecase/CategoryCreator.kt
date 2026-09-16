@@ -48,5 +48,6 @@ class CategoryCreator(
     private fun typeLabel(type: CategoryType): String = when (type) {
         CategoryType.INCOME -> "ingreso"
         CategoryType.EXPENSE -> "gasto"
+        CategoryType.TRANSFER -> "transferencia"
     }
 }
