@@ -10,9 +10,7 @@ A transfer atomically creates an expense on the source account and an income on 
 
 - **`Transfer` is a domain entity that links an `Expense` and an `Income`, not a standalone transaction type** — `Transfer.create()` delegates to `Account.createExpense()` and `Account.createIncome()` to reuse all existing validation (amount, date, balance ceiling, currency). The `Transfer` holds full entity references in memory but persists only the foreign-key ids (`expenseId`, `incomeId`) in its own `transfers` table. Alternative rejected: a single combined transaction record — it would break the existing per-account transaction history and balance computation.
 
-- **Cross-account validation and description generation live in `Transfer.create()`** — same-account rejection, same-currency check, and auto-generated descriptions ("Transferencia a [nombre]" / "Transferencia desde [nombre]") are enforced in the domain factory. Amount and date validation — including rejection of dates before the account's creation — are delegated to the account aggregate methods. Alternative rejected: validating in the use case — these are domain invariants that belong with the entity.
-
-- **Transfer date picker uses the later of the two accounts' creation dates as the minimum date** — since `Transfer.create()` delegates to `Account.createExpense()` and `Account.createIncome()`, the date must be valid for both accounts. The screen computes the more restrictive minimum from both accounts' `createdAt` values. Alternative rejected: using only the source account's creation date — a date valid for the source but before the destination's creation would be rejected by the domain.
+- **Cross-account validation and description generation live in `Transfer.create()`** — same-account rejection, same-currency check, and auto-generated descriptions ("Transferencia a [nombre]" / "Transferencia desde [nombre]") are enforced in the domain factory. Amount and date validation are delegated to the account aggregate methods. Alternative rejected: validating in the use case — these are domain invariants that belong with the entity.
 
 - **`CategoryType.TRANSFER` distinguishes transfer categories from income and expense categories** — a dedicated type prevents users from accidentally selecting or creating transfer categories through the normal category flows.
 
@@ -99,7 +97,7 @@ specs/accounting/transfers/
 `CreateTransferScreen` observes `CreateTransferUiState`:
 
 - `Loading` — spinner shown while accounts are loading
-- `Idle(accounts, selectedSourceAccountId)` — form displayed with source account dropdown (pre-filled), destination account dropdown (excludes selected source), amount field, date picker (today pre-selected, constrained from the later of both accounts' creation dates through today), and "Transferir" button
+- `Idle(accounts, selectedSourceAccountId)` — form displayed with source account dropdown (pre-filled), destination account dropdown (excludes selected source), amount field, date picker (today pre-selected, future dates disabled), and "Transferir" button
 - `Saving` — save button replaced with spinner; form field state preserved via `rememberSaveable`
 - `ValidationError(accounts, amountError?, dateError?, sourceAccountError?, destinationAccountError?)` — per-field error messages shown below the relevant fields
 - `Error(message)` — centered Spanish error message for non-recoverable failures
