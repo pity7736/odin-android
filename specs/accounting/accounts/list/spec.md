@@ -13,7 +13,9 @@ device, so that I know which accounts exist and can navigate to any of them.
 
 ## Acceptance Criteria
 - The list shows every account registered on this device.
-- Each entry displays the account identifier and name.
+- Each entry displays the account name and current balance.
+- The current balance reflects the initial balance plus all incomes and transfers
+  in, minus all expenses and transfers out.
 - Accounts appear in the order they were created, oldest first.
 - Selecting an account navigates to that account's detail view.
 
@@ -22,7 +24,9 @@ device, so that I know which accounts exist and can navigate to any of them.
 ### Viewing a non-empty account list
 - Given the user is authenticated and at least one account exists
 - When they open the account list
-- Then they see one entry per account, showing the identifier and name
+- Then they see one entry per account, showing the name and current balance
+- And the current balance reflects the initial balance plus all incomes and
+  transfers in, minus all expenses and transfers out
 - And the entries are ordered from oldest to newest
 
 ### Navigating to an account

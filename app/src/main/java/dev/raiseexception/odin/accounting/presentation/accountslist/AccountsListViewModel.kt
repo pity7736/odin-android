@@ -3,6 +3,7 @@ package dev.raiseexception.odin.accounting.presentation.accountslist
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
+import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
@@ -26,7 +27,8 @@ class AccountsListViewModel(
 
     init {
         this.viewModelScope.launch(this.ioDispatcher) {
-            this@AccountsListViewModel.accountLister.list().collect { outcome ->
+            val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
+            this@AccountsListViewModel.accountLister.list(criteria).collect { outcome ->
                 this@AccountsListViewModel.mutableUiState.value = when (outcome) {
                     is Outcome.Success -> if (outcome.value.isEmpty()) {
                         AccountsListUiState.Empty
