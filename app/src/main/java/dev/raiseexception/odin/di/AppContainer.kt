@@ -155,7 +155,13 @@ class AppContainer(context: Context) {
     fun loginViewModel(): LoginViewModel {
         if (BuildConfig.DEBUG) {
             return LoginViewModel(userAuthenticator) {
-                DevDataSeeder(accountCreator, categoryCreator, categoryRepository, incomeCreator, accountLister).seed()
+                DevDataSeeder(
+                    accountRepository,
+                    categoryCreator,
+                    categoryRepository,
+                    incomeCreator,
+                    accountLister
+                ).seed()
             }
         }
         return LoginViewModel(userAuthenticator)
@@ -199,14 +205,14 @@ class AppContainer(context: Context) {
     fun createIncomeViewModelFactory(accountId: String): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
-                CreateIncomeViewModel(accountId, incomeCreator, categoryLister, ioDispatcher)
+                CreateIncomeViewModel(accountId, incomeCreator, categoryLister, accountFinder, ioDispatcher)
             }
         }
 
     fun createExpenseViewModelFactory(accountId: String): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
-                CreateExpenseViewModel(accountId, expenseCreator, categoryLister, ioDispatcher)
+                CreateExpenseViewModel(accountId, expenseCreator, categoryLister, accountFinder, ioDispatcher)
             }
         }
 

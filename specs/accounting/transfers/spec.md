@@ -75,6 +75,15 @@ manually.
 - Then the transfer is rejected with a message explaining that the source
   account does not have enough funds
 
+### Rejected: date before account creation
+
+- Given the source account was created on March 1 and the destination account
+  was created on February 15
+- When the user attempts to create a transfer dated February 20 (before the
+  source account existed)
+- Then the transfer is rejected with a message explaining that the date cannot
+  be earlier than the account's creation date
+
 ### Rejected: different currencies
 
 - Given the source account uses one currency and the destination uses another

@@ -137,6 +137,10 @@ class Account private constructor(
             return Pair(null, message)
         }
         if (parsed > today) return Pair(null, "La fecha debe ser hoy o en el pasado.")
+        val accountCreationDate = this.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
+        if (parsed < accountCreationDate) {
+            return Pair(null, "La fecha no puede ser anterior a la fecha de creación de la cuenta.")
+        }
         return Pair(parsed, null)
     }
 

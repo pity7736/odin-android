@@ -9,6 +9,7 @@ import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.testutil.CategoryBuilder
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.datetime.LocalDate
 import org.junit.Rule
 import org.junit.Test
 
@@ -26,7 +27,10 @@ class CreateExpenseScreenTest {
     fun given_idle_state_when_displayed_then_shows_amount_date_category_and_description_fields() {
         composeTestRule.setContent {
             CreateExpenseScreen(
-                uiState = CreateExpenseUiState.Idle(categories = listOf(expenseCategory)),
+                uiState = CreateExpenseUiState.Idle(
+                    categories = listOf(expenseCategory),
+                    accountCreatedAt = LocalDate(2026, 1, 1)
+                ),
                 onSave = { _, _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onNavigateBack = {}
@@ -44,7 +48,10 @@ class CreateExpenseScreenTest {
         var capturedAmount = ""
         composeTestRule.setContent {
             CreateExpenseScreen(
-                uiState = CreateExpenseUiState.Idle(categories = listOf(expenseCategory)),
+                uiState = CreateExpenseUiState.Idle(
+                    categories = listOf(expenseCategory),
+                    accountCreatedAt = LocalDate(2026, 1, 1)
+                ),
                 onSave = { amount, _, _, _ ->
                     capturedAmount = amount
                 },
@@ -65,6 +72,7 @@ class CreateExpenseScreenTest {
             CreateExpenseScreen(
                 uiState = CreateExpenseUiState.ValidationError(
                     categories = listOf(expenseCategory),
+                    accountCreatedAt = LocalDate(2026, 1, 1),
                     amountError = "El monto debe ser mayor que cero.",
                     dateError = null,
                     categoryError = null
@@ -83,6 +91,7 @@ class CreateExpenseScreenTest {
             CreateExpenseScreen(
                 uiState = CreateExpenseUiState.ValidationError(
                     categories = listOf(expenseCategory),
+                    accountCreatedAt = LocalDate(2026, 1, 1),
                     amountError = null,
                     dateError = "La fecha debe ser hoy o en el pasado.",
                     categoryError = null
@@ -101,6 +110,7 @@ class CreateExpenseScreenTest {
             CreateExpenseScreen(
                 uiState = CreateExpenseUiState.ValidationError(
                     categories = listOf(expenseCategory),
+                    accountCreatedAt = LocalDate(2026, 1, 1),
                     amountError = null,
                     dateError = null,
                     categoryError = "La categoría es obligatoria."

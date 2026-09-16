@@ -16,6 +16,12 @@ Records an expense against an existing account. The user navigates from the acco
 
 - **Private validation helpers in `Account` are shared between `createIncome()` and `createExpense()`** — `parseAmount`, `validateAmount`, and `parseAndValidateDate` are generic private methods. `createExpense()` uses an additional `validateExpenseAmount()` wrapper that layers the balance check on top of the shared `validateAmount()`. Each method returns its own error type (`IncomeCreationError` / `ExpenseCreationError`). Alternative rejected: duplicating the validation logic — identical rules would drift independently.
 
+- **`Account.parseAndValidateDate()` rejects dates before the account's `createdAt`** — the boundary is inclusive (the creation date itself is valid). `createdAt` is converted from `Instant` to `LocalDate` using the system default timezone, consistent with how `clock.now()` is used for the today check. Error message: "La fecha no puede ser anterior a la fecha de creación de la cuenta." Alternative rejected: allowing any past date — permits logically impossible transactions before the account existed.
+
+- **Income and expense ViewModels load the account to expose `accountCreatedAt: LocalDate` in the UI state** — `CreateExpenseViewModel` injects `AccountFinder` and loads the account in `init` alongside categories. The `createdAt` instant is converted to `LocalDate` and included in both `Idle` and `ValidationError` states. Alternative rejected: passing only the creation date string from the navigation arguments — fragile, couples the screen to a serialization format.
+
+- **Date picker constrains selectable dates to `[accountCreatedAt, today]`** — `DatePickerField` accepts a `minDate: LocalDate?` parameter. `SelectableDates.isSelectableDate` checks `utcTimeMillis in [minDateMillis, todayMillis]`. This prevents the user from selecting invalid dates rather than relying solely on domain rejection. Alternative rejected: no picker constraint — poor UX, the user can select dates that will always be rejected.
+
 - **`AccountCriteria` extended with `includeExpenses`** — follows the same pattern as `includeIncomes`. The criteria object controls which related entities are loaded with the account. Alternative rejected: separate `findByIdWithExpenses` / `findByIdWithIncomesAndExpenses` methods — combinatorial method proliferation.
 
 - **Single `transactions` table with type discriminator** — incomes and expenses are stored in one `transactions` table with a `type` column ("INCOME"/"EXPENSE"). `RoomAccountRepository` splits transactions by type using a `splitTransactions()` helper and maps them to domain objects via `internal` extension functions (`TransactionEntity.toIncome()` / `TransactionEntity.toExpense()`). This design supports future query patterns (listing, search, reporting, pagination) that treat incomes and expenses as one concept. Alternative rejected: separate `incomes` and `expenses` tables — every query feature would need to UNION across both.
@@ -85,7 +91,7 @@ specs/accounting/expense/creation/
 **Recording an expense:**
 1. User taps the expandable FAB on the account detail screen and selects "Gasto"
 2. `AccountDetailViewModel` emits `AccountDetailNavigationTarget.CreateExpense(accountId)`, which navigates to the expense creation route
-3. `CreateExpenseViewModel.init` loads expense categories via `CategoryLister.list(CategoryType.EXPENSE)` and transitions to `Idle`
+3. `CreateExpenseViewModel.init` loads expense categories via `CategoryLister` and the account via `AccountFinder` in parallel, transitions to `Idle` with categories and `accountCreatedAt`
 4. User fills in amount, date, category, and optional description; taps "Guardar"
 5. `CreateExpenseViewModel.save()` delegates to `ExpenseCreator.create()`
 6. `ExpenseCreator` loads the account via `AccountRepository.findById(id, AccountCriteria(includeIncomes = true, includeExpenses = true)).first()` so the balance is accurate
@@ -99,9 +105,9 @@ specs/accounting/expense/creation/
 `CreateExpenseScreen` observes `CreateExpenseUiState`:
 
 - `Loading` — spinner shown while expense categories are loading
-- `Idle(categories)` — form displayed with amount, date (today pre-selected, future dates disabled in picker), category autocomplete (expense categories), optional description, and save button
+- `Idle(categories, accountCreatedAt)` — form displayed with amount, date (today pre-selected, picker constrained from account creation date through today), category autocomplete (expense categories), optional description, and save button
 - `Saving` — save button disabled; form field state preserved via `rememberSaveable`
-- `ValidationError(categories, amountError?, dateError?, categoryError?, descriptionError?)` — per-field error messages shown below the relevant fields
+- `ValidationError(categories, accountCreatedAt, amountError?, dateError?, categoryError?, descriptionError?)` — per-field error messages shown below the relevant fields
 - `Error(message)` — centered Spanish error message
 
 ## Known Limitations

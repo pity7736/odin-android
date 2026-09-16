@@ -18,6 +18,9 @@ import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.infrastructure.persistence.RoomTransactionRunner
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -30,6 +33,7 @@ import java.math.BigDecimal
 @RunWith(RobolectricTestRunner::class)
 class BalanceIntegrationTest {
 
+    private val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
     private lateinit var database: OdinDatabase
     private lateinit var accountCreator: AccountCreator
     private lateinit var accountFinder: AccountFinder
@@ -91,7 +95,7 @@ class BalanceIntegrationTest {
         val salarioResult = incomeCreator.create(
             accountId = ahorros.id,
             amount = "2000000",
-            date = "2026-08-30",
+            date = today,
             categoryInput = CategoryInput.New("Salario"),
             description = "Pago mensual"
         )
@@ -99,7 +103,7 @@ class BalanceIntegrationTest {
         val freelanceResult = incomeCreator.create(
             accountId = ahorros.id,
             amount = "500000",
-            date = "2026-08-24",
+            date = today,
             categoryInput = CategoryInput.New("Freelance"),
             description = "Proyecto web"
         )
@@ -129,7 +133,7 @@ class BalanceIntegrationTest {
         val incomeResult = incomeCreator.create(
             accountId = account.id,
             amount = "2000000",
-            date = "2026-08-30",
+            date = today,
             categoryInput = CategoryInput.New("Salario"),
             description = "Pago mensual"
         )
@@ -158,7 +162,7 @@ class BalanceIntegrationTest {
         val expenseResult = expenseCreator.create(
             accountId = account.id,
             amount = "200000",
-            date = "2026-08-30",
+            date = today,
             categoryInput = CategoryInput.New("Alimentación"),
             description = "Mercado"
         )

@@ -1,15 +1,17 @@
 package dev.raiseexception.odin.di
 
 import com.github.f4b6a3.uuid.UuidCreator
-import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
+import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.coroutines.flow.first
@@ -18,15 +20,17 @@ import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.toLocalDateTime
+import java.math.BigDecimal
 
 class DevDataSeeder(
-    private val accountCreator: AccountCreator,
+    private val accountRepository: AccountRepository,
     private val categoryCreator: CategoryCreator,
     private val categoryRepository: CategoryRepository,
     private val incomeCreator: IncomeCreator,
     private val accountLister: AccountLister,
 ) {
 
+    @Suppress("LongMethod")
     suspend fun seed() {
         val existingAccounts = this.accountLister.list().first()
         if (existingAccounts is Outcome.Success && existingAccounts.value.isNotEmpty()) return
@@ -34,14 +38,30 @@ class DevDataSeeder(
         val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         val yesterday = today.minus(DAYS_AGO_YESTERDAY, DateTimeUnit.DAY)
         val lastWeek = today.minus(DAYS_AGO_LAST_WEEK, DateTimeUnit.DAY)
+        val twoWeeksAgo = Clock.System.now().minus(
+            DAYS_AGO_TWO_WEEKS,
+            DateTimeUnit.DAY,
+            TimeZone.currentSystemDefault()
+        )
 
-        val savingsAccount = when (
-            val result = this.accountCreator.create("Ahorros", "1000000", Currency.COP, AccountType.SAVINGS, "")
-        ) {
-            is Outcome.Success -> result.value
-            is Outcome.Failure -> return
-        }
-        this.accountCreator.create("Efectivo", "50000", Currency.COP, AccountType.CASH, "")
+        val savingsAccount = Account.restore(
+            id = UuidCreator.getTimeOrderedEpoch().toString(),
+            name = "Ahorros",
+            initialBalance = Money.of(BigDecimal("1000000"), Currency.COP),
+            type = AccountType.SAVINGS,
+            description = "",
+            createdAt = twoWeeksAgo
+        )
+        this.accountRepository.add(savingsAccount)
+        val cashAccount = Account.restore(
+            id = UuidCreator.getTimeOrderedEpoch().toString(),
+            name = "Efectivo",
+            initialBalance = Money.of(BigDecimal("50000"), Currency.COP),
+            type = AccountType.CASH,
+            description = "",
+            createdAt = twoWeeksAgo
+        )
+        this.accountRepository.add(cashAccount)
 
         this.categoryCreator.create("Alimentación", CategoryType.EXPENSE, "", null)
         this.categoryCreator.create("Transporte", CategoryType.EXPENSE, "", null)
@@ -77,5 +97,6 @@ class DevDataSeeder(
     companion object {
         private const val DAYS_AGO_YESTERDAY = 1
         private const val DAYS_AGO_LAST_WEEK = 7
+        private const val DAYS_AGO_TWO_WEEKS = 14
     }
 }

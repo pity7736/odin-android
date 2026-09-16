@@ -2,6 +2,7 @@ package dev.raiseexception.odin.accounting.presentation.incomecreation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
@@ -19,11 +20,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 class CreateIncomeViewModel(
     private val accountId: String,
     private val incomeCreator: IncomeCreator,
     private val categoryLister: CategoryLister,
+    private val accountFinder: AccountFinder,
     private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -35,17 +40,28 @@ class CreateIncomeViewModel(
 
     init {
         this.viewModelScope.launch(this.ioDispatcher) {
-            val outcome = this@CreateIncomeViewModel.categoryLister.list(CategoryType.INCOME, "").first()
-            this@CreateIncomeViewModel.mutableUiState.value = when (outcome) {
-                is Outcome.Success -> CreateIncomeUiState.Idle(outcome.value)
-                is Outcome.Failure -> CreateIncomeUiState.Error(outcome.error.externalMessage)
+            val categoriesOutcome = this@CreateIncomeViewModel.categoryLister
+                .list(CategoryType.INCOME, "").first()
+            val accountOutcome = this@CreateIncomeViewModel.accountFinder
+                .find(this@CreateIncomeViewModel.accountId).first()
+            this@CreateIncomeViewModel.mutableUiState.value = when {
+                categoriesOutcome is Outcome.Failure ->
+                    CreateIncomeUiState.Error(categoriesOutcome.error.externalMessage)
+                accountOutcome is Outcome.Failure ->
+                    CreateIncomeUiState.Error(accountOutcome.error.externalMessage)
+                else -> {
+                    val categories = (categoriesOutcome as Outcome.Success).value
+                    val account = (accountOutcome as Outcome.Success).value
+                    val createdAt = account.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                    CreateIncomeUiState.Idle(categories, createdAt)
+                }
             }
         }
     }
 
     fun save(amount: String, date: String, categoryInput: CategoryInput, description: String) {
         if (this.mutableUiState.value is CreateIncomeUiState.Saving) return
-        val categories = currentCategories()
+        val snapshot = currentSnapshot()
         this.mutableUiState.value = CreateIncomeUiState.Saving
         this.viewModelScope.launch(this.ioDispatcher) {
             val outcome = this@CreateIncomeViewModel.incomeCreator.create(
@@ -59,15 +75,16 @@ class CreateIncomeViewModel(
                 is Outcome.Success -> navigationChannel.send(
                     NavigationTarget.AccountDetail(this@CreateIncomeViewModel.accountId)
                 )
-                is Outcome.Failure -> mutableUiState.value = mapError(outcome.error, categories)
+                is Outcome.Failure -> mutableUiState.value = mapError(outcome.error, snapshot)
             }
         }
     }
 
-    private fun mapError(error: DomainError, categories: List<Category>): CreateIncomeUiState {
+    private fun mapError(error: DomainError, snapshot: FormSnapshot): CreateIncomeUiState {
         return when (error) {
             is IncomeCreationError.InvalidInput -> CreateIncomeUiState.ValidationError(
-                categories = categories,
+                categories = snapshot.categories,
+                accountCreatedAt = snapshot.accountCreatedAt,
                 amountError = error.amountError,
                 dateError = error.dateError,
                 categoryError = error.categoryError,
@@ -77,10 +94,15 @@ class CreateIncomeViewModel(
         }
     }
 
-    private fun currentCategories() = when (val current = this.mutableUiState.value) {
-        is CreateIncomeUiState.Idle -> current.categories
-        is CreateIncomeUiState.ValidationError -> current.categories
-        is CreateIncomeUiState.Saving -> emptyList()
-        else -> emptyList()
+    private fun currentSnapshot() = when (val current = this.mutableUiState.value) {
+        is CreateIncomeUiState.Idle -> FormSnapshot(current.categories, current.accountCreatedAt)
+        is CreateIncomeUiState.ValidationError -> FormSnapshot(current.categories, current.accountCreatedAt)
+        else -> FormSnapshot(emptyList(), EPOCH_DATE)
+    }
+
+    private data class FormSnapshot(val categories: List<Category>, val accountCreatedAt: LocalDate)
+
+    companion object {
+        private val EPOCH_DATE = LocalDate(1970, 1, 1)
     }
 }

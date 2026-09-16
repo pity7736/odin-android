@@ -11,10 +11,10 @@ As a user, I want to record an income amount against an account I am viewing, so
 ## Acceptance Criteria
 - Income can be recorded from within an account's detail view.
 - The user provides an amount, a date, and a category; an optional description can be added.
-- The date field opens a calendar picker. Today's date is pre-selected so the user can save immediately without changing it.
+- The date field opens a calendar picker. Today's date is pre-selected so the user can save immediately without changing it. The calendar only allows selecting dates from the account's creation date through today.
 - The account the income belongs to is the one the user is currently viewing — it is not chosen in the form.
 - The amount must be a positive value greater than zero.
-- The date must be today or in the past.
+- The date must be today or in the past, and no earlier than the day the account was created.
 - When the category field is focused, all existing income categories are shown. As the user types, the list filters to matching categories. The user can pick one from the list or finish typing a new name to create a new income category.
 - If any required field is invalid or missing, an error is shown next to that field.
 - Once saved, the income is recorded and the account's balance increases by the recorded amount.
@@ -35,6 +35,16 @@ As a user, I want to record an income amount against an account I am viewing, so
 - Given the user is filling in the record income form
 - When the user selects a date in the future and attempts to save
 - Then an error is shown next to the date field and the income is not saved
+
+### Rejection — date before account creation
+- Given the user is filling in the record income form for an account created on March 1
+- When the user selects February 28 (a date before the account existed) and attempts to save
+- Then an error is shown next to the date field and the income is not saved
+
+### Boundary — date equal to account creation
+- Given the user is filling in the record income form for an account created on March 1
+- When the user selects March 1 as the date and fills in valid data, then saves
+- Then the income is saved successfully
 
 ### Rejection — missing required field
 - Given the user is filling in the record income form

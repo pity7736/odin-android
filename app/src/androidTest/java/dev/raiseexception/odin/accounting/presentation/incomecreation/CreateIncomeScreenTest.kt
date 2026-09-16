@@ -29,7 +29,10 @@ class CreateIncomeScreenTest {
     fun given_idle_state_when_displayed_then_shows_amount_date_category_and_description_fields() {
         composeTestRule.setContent {
             CreateIncomeScreen(
-                uiState = CreateIncomeUiState.Idle(categories = listOf(incomeCategory)),
+                uiState = CreateIncomeUiState.Idle(
+                    categories = listOf(incomeCategory),
+                    accountCreatedAt = LocalDate(2026, 1, 1)
+                ),
                 onSave = { _, _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onNavigateBack = {}
@@ -50,7 +53,10 @@ class CreateIncomeScreenTest {
         var capturedDescription = ""
         composeTestRule.setContent {
             CreateIncomeScreen(
-                uiState = CreateIncomeUiState.Idle(categories = listOf(incomeCategory)),
+                uiState = CreateIncomeUiState.Idle(
+                    categories = listOf(incomeCategory),
+                    accountCreatedAt = LocalDate(2026, 1, 1)
+                ),
                 onSave = { amount, date, categoryId, description ->
                     capturedAmount = amount
                     capturedDate = date
@@ -78,6 +84,7 @@ class CreateIncomeScreenTest {
             CreateIncomeScreen(
                 uiState = CreateIncomeUiState.ValidationError(
                     categories = listOf(incomeCategory),
+                    accountCreatedAt = LocalDate(2026, 1, 1),
                     amountError = "El monto debe ser mayor que cero.",
                     dateError = null,
                     categoryError = null
@@ -96,6 +103,7 @@ class CreateIncomeScreenTest {
             CreateIncomeScreen(
                 uiState = CreateIncomeUiState.ValidationError(
                     categories = listOf(incomeCategory),
+                    accountCreatedAt = LocalDate(2026, 1, 1),
                     amountError = null,
                     dateError = "La fecha debe ser hoy o en el pasado.",
                     categoryError = null
@@ -114,6 +122,7 @@ class CreateIncomeScreenTest {
             CreateIncomeScreen(
                 uiState = CreateIncomeUiState.ValidationError(
                     categories = listOf(incomeCategory),
+                    accountCreatedAt = LocalDate(2026, 1, 1),
                     amountError = null,
                     dateError = null,
                     categoryError = "La categoría es obligatoria."
