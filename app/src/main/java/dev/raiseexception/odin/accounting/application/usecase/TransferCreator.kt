@@ -55,6 +55,23 @@ class TransferCreator(
         return this.persistTransfer(sourceAccount, destinationAccount, amount, date, categoryId)
     }
 
+    private fun validateAccountIds(
+        sourceAccountId: String,
+        destinationAccountId: String
+    ): TransferCreationError.InvalidInput? {
+        val sourceError = if (sourceAccountId.isBlank()) "Selecciona una cuenta origen." else null
+        val destError = if (destinationAccountId.isBlank()) "Selecciona una cuenta destino." else null
+        if (sourceError != null || destError != null) {
+            return TransferCreationError.InvalidInput(
+                amountError = null,
+                dateError = null,
+                sourceAccountError = sourceError,
+                destinationAccountError = destError
+            )
+        }
+        return null
+    }
+
     private suspend fun loadAccount(accountId: String, criteria: AccountCriteria): Outcome<Account> =
         when (val outcome = this.accountRepository.findById(accountId, criteria).first()) {
             is Outcome.Success -> outcome
@@ -115,23 +132,6 @@ class TransferCreator(
                 )
             )
         return Outcome.Success(transferCategory.id)
-    }
-
-    private fun validateAccountIds(
-        sourceAccountId: String,
-        destinationAccountId: String
-    ): TransferCreationError.InvalidInput? {
-        val sourceError = if (sourceAccountId.isBlank()) "Selecciona una cuenta origen." else null
-        val destError = if (destinationAccountId.isBlank()) "Selecciona una cuenta destino." else null
-        if (sourceError != null || destError != null) {
-            return TransferCreationError.InvalidInput(
-                amountError = null,
-                dateError = null,
-                sourceAccountError = sourceError,
-                destinationAccountError = destError
-            )
-        }
-        return null
     }
 
     private fun storageFailure(error: DomainError) = TransferCreationError.StorageFailure(

@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.shared.presentation.ThousandSeparatorTransformation
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.Slate200
@@ -127,7 +128,7 @@ private fun ErrorContent(message: String, modifier: Modifier = Modifier) {
 
 @Composable
 private fun TransferForm(
-    accounts: List<AccountSummary>,
+    accounts: List<Account>,
     selectedSourceAccountId: String,
     validation: CreateTransferUiState.ValidationError?,
     isSaving: Boolean,
@@ -222,7 +223,7 @@ private fun TransferForm(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AccountDropdown(
-    accounts: List<AccountSummary>,
+    accounts: List<Account>,
     selectedAccountId: String,
     onAccountSelected: (String) -> Unit,
     label: String,

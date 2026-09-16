@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.application.usecase.TransferCreator
 import dev.raiseexception.odin.accounting.domain.TransferCreationError
+import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.coroutines.CoroutineDispatcher
@@ -34,14 +35,10 @@ class CreateTransferViewModel(
         this.viewModelScope.launch(this.ioDispatcher) {
             val outcome = this@CreateTransferViewModel.accountLister.list().first()
             this@CreateTransferViewModel.mutableUiState.value = when (outcome) {
-                is Outcome.Success -> {
-                    val accounts = outcome.value
-                        .map { AccountSummary(id = it.id, name = it.name, currency = it.currency) }
-                    CreateTransferUiState.Idle(
-                        accounts = accounts,
-                        selectedSourceAccountId = this@CreateTransferViewModel.preselectedSourceAccountId
-                    )
-                }
+                is Outcome.Success -> CreateTransferUiState.Idle(
+                    accounts = outcome.value,
+                    selectedSourceAccountId = this@CreateTransferViewModel.preselectedSourceAccountId
+                )
                 is Outcome.Failure -> CreateTransferUiState.Error(outcome.error.externalMessage)
             }
         }
@@ -67,7 +64,7 @@ class CreateTransferViewModel(
         }
     }
 
-    private fun mapError(error: DomainError, accounts: List<AccountSummary>): CreateTransferUiState {
+    private fun mapError(error: DomainError, accounts: List<Account>): CreateTransferUiState {
         return when (error) {
             is TransferCreationError.InvalidInput -> CreateTransferUiState.ValidationError(
                 accounts = accounts,
