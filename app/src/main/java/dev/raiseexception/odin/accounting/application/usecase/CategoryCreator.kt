@@ -11,6 +11,26 @@ class CategoryCreator(
     private val colorPicker: () -> String = { Category.DEFAULT_PALETTE.random() }
 ) {
 
+    suspend fun createSystem(
+        name: String,
+        type: CategoryType,
+        description: String,
+        color: String
+    ): Outcome<Category> {
+        val category = when (val creationOutcome = Category.createSystem(name, type, description, color)) {
+            is Outcome.Success -> creationOutcome.value
+            is Outcome.Failure -> return creationOutcome
+        }
+        return when (val existsOutcome = this.categoryRepository.existsByNameAndType(category.name, category.type)) {
+            is Outcome.Failure -> existsOutcome
+            is Outcome.Success -> if (existsOutcome.value) {
+                this.duplicateNameFailure(category.type)
+            } else {
+                this.persist(category)
+            }
+        }
+    }
+
     suspend fun create(
         name: String,
         type: CategoryType?,

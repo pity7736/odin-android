@@ -22,7 +22,8 @@ class UserRegistrar(
     private val masterKeyRepository: MasterKeyRepository,
     private val saltRepository: SaltRepository,
     private val vaultUnlocker: VaultUnlocker,
-    private val cpuDispatcher: CoroutineDispatcher = Dispatchers.Default
+    private val cpuDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val postRegistration: suspend () -> Outcome<Unit> = { Outcome.Success(Unit) }
 ) {
 
     suspend fun register(password: SensitivePassword, confirmation: SensitivePassword): Outcome<User> {
@@ -73,8 +74,23 @@ class UserRegistrar(
             }
             saveUser(wrappedMasterKey, masterKey, derivedKeys.encryptionKey)
         }
-        if (result is Outcome.Failure) {
+        val finalResult = if (result is Outcome.Success) {
+            this.runPostRegistration(result)
+        } else {
+            result
+        }
+        if (finalResult is Outcome.Failure) {
             this.saltRepository.delete()
+        }
+        return finalResult
+    }
+
+    private suspend fun runPostRegistration(result: Outcome.Success<User>): Outcome<User> {
+        val postOutcome = this.postRegistration()
+        if (postOutcome is Outcome.Failure) {
+            return this.storageFailure(
+                "Post-registration callback failed: ${postOutcome.error.internalMessage}"
+            )
         }
         return result
     }
@@ -111,6 +127,13 @@ class UserRegistrar(
         RegistrationError.PasswordsDoNotMatch(
             internalMessage = "Password and confirmation do not match",
             externalMessage = "Las contraseñas no coinciden"
+        )
+    )
+
+    private fun storageFailure(internalMessage: String) = Outcome.Failure(
+        RegistrationError.StorageFailure(
+            internalMessage = internalMessage,
+            externalMessage = "Algo salió mal. Intente de nuevo más tarde"
         )
     )
 

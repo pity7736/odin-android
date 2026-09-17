@@ -295,6 +295,85 @@ class UserRegistrarTest {
         assertTrue(confirmation.isBlank())
     }
 
+    @Test
+    fun `given a successful registration, when the post-registration callback succeeds, then returns success`() =
+        runTest {
+            stubSuccessfulRegistration()
+            val postRegistration: suspend () -> Outcome<Unit> = { Outcome.Success(Unit) }
+            registrar = UserRegistrar(
+                vaultCrypto,
+                userRepository,
+                masterKeyRepository,
+                saltRepository,
+                vaultUnlocker,
+                UnconfinedTestDispatcher(),
+                postRegistration
+            )
+
+            val result =
+                registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+            assertTrue(result is Outcome.Success)
+        }
+
+    @Test
+    fun `given a successful registration, when the post-registration callback fails, then returns storage failure`() =
+        runTest {
+            stubSuccessfulRegistration()
+            coEvery { saltRepository.delete() } returns Unit
+            val postRegistration: suspend () -> Outcome<Unit> = {
+                Outcome.Failure(
+                    RegistrationError.StorageFailure(
+                        internalMessage = "Post-registration failed",
+                        externalMessage = "Algo salió mal. Intente de nuevo más tarde"
+                    )
+                )
+            }
+            registrar = UserRegistrar(
+                vaultCrypto,
+                userRepository,
+                masterKeyRepository,
+                saltRepository,
+                vaultUnlocker,
+                UnconfinedTestDispatcher(),
+                postRegistration
+            )
+
+            val result =
+                registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+            assertTrue(result is Outcome.Failure)
+            assertTrue((result as Outcome.Failure).error is RegistrationError.StorageFailure)
+        }
+
+    @Test
+    fun `given a successful registration, when the post-registration callback fails, then rolls back the salt`() =
+        runTest {
+            stubSuccessfulRegistration()
+            coEvery { saltRepository.delete() } returns Unit
+            val postRegistration: suspend () -> Outcome<Unit> = {
+                Outcome.Failure(
+                    RegistrationError.StorageFailure(
+                        internalMessage = "Post-registration failed",
+                        externalMessage = "Algo salió mal. Intente de nuevo más tarde"
+                    )
+                )
+            }
+            registrar = UserRegistrar(
+                vaultCrypto,
+                userRepository,
+                masterKeyRepository,
+                saltRepository,
+                vaultUnlocker,
+                UnconfinedTestDispatcher(),
+                postRegistration
+            )
+
+            registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+            coVerify { saltRepository.delete() }
+        }
+
     private fun stubSuccessfulRegistration() {
         coEvery { saltRepository.exists() } returns false
         every { vaultCrypto.generateSalt() } returns salt

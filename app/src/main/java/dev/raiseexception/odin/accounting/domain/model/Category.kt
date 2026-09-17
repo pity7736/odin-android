@@ -48,6 +48,41 @@ class Category private constructor(
             createdAt = createdAt
         )
 
+        fun createSystem(
+            name: String,
+            type: CategoryType,
+            description: String,
+            color: String,
+            clock: Clock = Clock.System
+        ): Outcome<Category> {
+            val trimmedName = name.trim()
+            val trimmedDescription = description.trim()
+            val nameError = validateName(trimmedName)
+            val descriptionError = validateDescription(trimmedDescription)
+            val colorError = validateColor(color)
+            if (anyError(nameError, descriptionError, colorError)) {
+                return Outcome.Failure(
+                    CategoryCreationError.InvalidInput(
+                        nameError = nameError,
+                        typeError = null,
+                        descriptionError = descriptionError,
+                        colorError = colorError
+                    )
+                )
+            }
+            return Outcome.Success(
+                Category(
+                    id = UuidCreator.getTimeOrderedEpoch().toString(),
+                    name = trimmedName,
+                    type = type,
+                    description = trimmedDescription,
+                    color = color,
+                    isSystem = true,
+                    createdAt = clock.now()
+                )
+            )
+        }
+
         fun create(
             name: String,
             type: CategoryType?,

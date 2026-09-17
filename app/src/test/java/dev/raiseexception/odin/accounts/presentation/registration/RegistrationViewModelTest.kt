@@ -180,6 +180,28 @@ class RegistrationViewModelTest {
     }
 
     @Test
+    fun `given a registration with post-registration failure, when registering, then shows error state`() = runTest {
+        coEvery { userRegistrar.register(any(), any()) } returns Outcome.Failure(
+            RegistrationError.StorageFailure(
+                internalMessage = "Post-registration callback failed",
+                externalMessage = "Algo salió mal. Intente de nuevo más tarde"
+            )
+        )
+
+        viewModel.uiState.test {
+            assertEquals(RegistrationUiState.Idle, awaitItem())
+            viewModel.register("validPassword1", "validPassword1")
+            assertEquals(RegistrationUiState.Loading, awaitItem())
+            val state = awaitItem()
+            assertTrue(state is RegistrationUiState.Error)
+            assertEquals(
+                "Algo salió mal. Intente de nuevo más tarde",
+                (state as RegistrationUiState.Error).message
+            )
+        }
+    }
+
+    @Test
     fun `given user already registered, when registering, then emits Error with message`() = runTest {
         coEvery { userRegistrar.register(any(), any()) } returns Outcome.Failure(
             RegistrationError.AlreadyRegistered(
