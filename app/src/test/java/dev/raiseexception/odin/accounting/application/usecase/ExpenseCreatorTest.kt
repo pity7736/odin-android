@@ -1,5 +1,6 @@
 package dev.raiseexception.odin.accounting.application.usecase
 
+import dev.raiseexception.odin.accounting.domain.CategoryCreationError
 import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
@@ -20,6 +21,7 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -210,5 +212,57 @@ class ExpenseCreatorTest {
         )
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is ExpenseCreationError.CategoryWrongType)
+    }
+
+    @Test
+    fun `given empty category name, when creating expense, then returns category error`() = runTest {
+        every {
+            accountRepository.findById("acc-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
+        } returns flowOf(Outcome.Success(account))
+        coEvery { categoryCreator.create("", CategoryType.EXPENSE, "", null) } returns
+            Outcome.Failure(
+                CategoryCreationError.InvalidInput(
+                    nameError = "El nombre es obligatorio.",
+                    typeError = null,
+                    descriptionError = null
+                )
+            )
+        val result = expenseCreator.create(
+            accountId = "acc-1",
+            amount = "500.00",
+            date = today.toString(),
+            categoryInput = CategoryInput.New(""),
+            description = ""
+        )
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is ExpenseCreationError.InvalidInput)
+        assertEquals("El nombre es obligatorio.", (error as ExpenseCreationError.InvalidInput).categoryError)
+    }
+
+    @Test
+    fun `given whitespace-only category name, when creating expense, then returns category error`() = runTest {
+        every {
+            accountRepository.findById("acc-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
+        } returns flowOf(Outcome.Success(account))
+        coEvery { categoryCreator.create("   ", CategoryType.EXPENSE, "", null) } returns
+            Outcome.Failure(
+                CategoryCreationError.InvalidInput(
+                    nameError = "El nombre es obligatorio.",
+                    typeError = null,
+                    descriptionError = null
+                )
+            )
+        val result = expenseCreator.create(
+            accountId = "acc-1",
+            amount = "500.00",
+            date = today.toString(),
+            categoryInput = CategoryInput.New("   "),
+            description = ""
+        )
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is ExpenseCreationError.InvalidInput)
+        assertEquals("El nombre es obligatorio.", (error as ExpenseCreationError.InvalidInput).categoryError)
     }
 }
