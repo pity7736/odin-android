@@ -1,140 +1,81 @@
-# Work Order: Create a financial account — add creation timestamp
+# Work Order: Create a financial account — format balance with thousand separators
 
 **Feature design:** `specs/accounting/accounts/creation/design.md` (the living source of truth)
 **Corresponds to Spec:** `specs/accounting/accounts/creation/spec.md`
 
-> Work order for: **adding a creation timestamp to financial accounts**. Disposable —
-> overwritten by the next change (git keeps the history). The living design is in
-> design.md; hydrate it before this change merges, then freeze this file.
+> Work order for: **add dot thousand separator formatting to the balance field as
+> the user types**. Disposable — overwritten by the next change (git keeps the
+> history). The living design is in design.md; hydrate it before this change
+> merges, then freeze this file.
 
 ## Change
 
-Add a `createdAt` timestamp to `Account` that is captured automatically at creation
-time and cannot be changed. The timestamp is stored as part of the encrypted account
-record. If storage fails (and therefore the timestamp cannot be persisted), the
-account is not created and the user sees a general error — this is the existing
-`StorageFailure`/`CryptoFailure` path; no new error type is introduced.
+The balance field in the account creation form shows raw digits as the user
+types, while the income and expense creation forms already format the amount
+with dot thousand separators via `ThousandSeparatorTransformation`. This change
+applies the same visual transformation to the account creation balance field so
+all amount inputs in the app behave consistently.
 
-The clock is injected into `Account.create` via a `clock: Clock = Clock.System`
-parameter so tests can supply a deterministic instant without changing `AccountCreator`
-or any other caller.
+Satisfies spec scenario: **"Initial balance is formatted with thousand
+separators as the user types"**.
 
-**Spec scenarios satisfied:** "Creation timestamp is recorded on account creation",
-"Creation fails when the timestamp cannot be recorded".
+This is a visual-only change. The raw value the user typed is what reaches the
+ViewModel and domain — the transformation is purely presentational.
 
 ## Architecture & Files (this change)
 
 ```
-gradle/libs.versions.toml                                           # MODIFY (add kotlinx-datetime)
-app/build.gradle.kts                                                # MODIFY (add kotlinx-datetime dependency)
+app/src/main/java/dev/raiseexception/odin/accounting/
+└── presentation/
+    └── accountcreation/
+        └── CreateAccountScreen.kt              # MODIFY
 
-app/src/main/java/dev/raiseexception/odin/
-└── accounting/
-    ├── domain/
-    │   └── model/
-    │       └── Account.kt                                          # MODIFY (add createdAt: Instant; add clock param to create)
-    └── infrastructure/
-        └── serialization/
-            └── AccountRecord.kt                                    # MODIFY (add createdAt: String)
-
-app/src/test/java/dev/raiseexception/odin/
-└── accounting/
-    ├── domain/model/AccountTest.kt                                 # MODIFY (add timestamp assertions)
-    ├── application/usecase/AccountCreatorTest.kt                   # MODIFY (assert createdAt present on created account)
-    └── infrastructure/repository/VaultAccountRepositoryTest.kt     # MODIFY (assert createdAt stored and round-trips correctly)
+app/src/androidTest/java/dev/raiseexception/odin/accounting/
+└── presentation/
+    └── accountcreation/
+        └── CreateAccountScreenTest.kt          # MODIFY
 ```
 
 ## Key Types & Signatures
 
-**Domain — `Account` (updated):**
-```kotlin
-data class Account private constructor(
-    val id: String,
-    val name: String,
-    val initialBalance: Money,
-    val type: AccountType,
-    val description: String,
-    val createdAt: Instant
-) {
-    val currency: Currency get() = initialBalance.currency
-    companion object {
-        fun create(
-            name: String,
-            initialBalance: String,
-            currency: Currency?,
-            type: AccountType?,
-            description: String,
-            clock: Clock = Clock.System
-        ): Outcome<Account>
-    }
-}
-```
-`createdAt` is a `val` on an immutable `data class` — immutability is enforced by
-construction. `clock` defaults to `Clock.System`; no caller needs to change.
+**`OdinField` (private composable in `CreateAccountScreen.kt`)** — add a
+`visualTransformation: VisualTransformation = VisualTransformation.None`
+parameter and pass it through to `OutlinedTextField`.
 
-**Infrastructure — `AccountRecord` (updated):**
-```kotlin
-@Serializable
-data class AccountRecord(
-    val recordType: String = "account",
-    val id: String,
-    val name: String,
-    val amount: String,
-    val currency: String,
-    val accountType: String,
-    val description: String,
-    val createdAt: String   // Instant.toString() — ISO-8601
-)
-```
+**Call site** — the balance `OdinField` invocation passes
+`visualTransformation = ThousandSeparatorTransformation`.
+
+No new types. `ThousandSeparatorTransformation` already exists in
+`shared/presentation/TextFormatter.kt`.
 
 ## Implementation Phases (TDD)
 
-### Phase 0: Tooling — add kotlinx-datetime
+### Phase 1: Presentation — UI test and screen change
 
-**Red:** none (tooling; confirm `./gradlew help` resolves after the change).
-**Green:** add `kotlinx-datetime` to `gradle/libs.versions.toml` (version + library
-alias) and apply the dependency in `app/build.gradle.kts`.
+**Red:** Add an instrumented test in `CreateAccountScreenTest.kt`:
 
-### Phase 1: Domain — `Account.createdAt`
+- `given balance field when user types 1500000 then field displays formatted
+  amount with thousand separators` — type "1500000" into the balance field,
+  assert the displayed text is "1.500.000". The raw value passed to the
+  `onCreate` callback remains "1500000" (no separators).
 
-**Red:** extend the existing `given all valid fields, when creating an account, then returns
-success` test in `AccountCreateTest` with a fixed-clock assertion: inject a `Clock` that
-returns a known `Instant` and assert `account.createdAt == fixedInstant`. The all-errors
-test still passes (timestamp does not appear in `InvalidInput`).
-
-**Green:** add `createdAt: Instant` to `Account`'s private constructor; in `Account.create`
-call `clock.now()` and assign it to the successfully built `Account`. Add `clock: Clock =
-Clock.System` parameter to `create`.
-
-### Phase 2: Infrastructure — `AccountRecord` stores `createdAt`
-
-**Red:** extend the existing `given an added account, when reading the stored record, then
-all fields are intact` test in `VaultAccountRepositoryTest` with one additional assertion:
-`assertEquals(savings.createdAt.toString(), record.createdAt)`.
-
-**Green:** add `createdAt: String` to `AccountRecord`; update `VaultAccountRepository.toRecord`
-to set `createdAt = account.createdAt.toString()`.
-
-### Phase 3: Application — `AccountCreator` passes through timestamp
-
-**Red:** extend the existing `given a unique valid account, when creating, then adds it and
-returns success` test in `AccountCreatorTest`: capture `Clock.System.now()` before and after
-the call and assert `account.createdAt >= before && account.createdAt <= after` (a fixed clock
-cannot be injected at this level without changing `AccountCreator`; the time-window assertion
-proves the field is a real "now", not merely non-null).
-
-**Green:** no change to `AccountCreator` — it calls `Account.create` with its default
-`Clock.System`; the test verifies the field survives the orchestration flow.
+**Green:**
+1. Add `visualTransformation: VisualTransformation = VisualTransformation.None`
+   parameter to the private `OdinField` composable in `CreateAccountScreen.kt`.
+2. Pass `visualTransformation` through to `OutlinedTextField`.
+3. At the balance `OdinField` call site, pass
+   `visualTransformation = ThousandSeparatorTransformation`.
+4. Add the necessary imports (`ThousandSeparatorTransformation`,
+   `VisualTransformation`).
 
 Finish with `./gradlew check` GREEN.
 
 ## Design decisions to hydrate into design.md
 
-- [x] `Account.createdAt: Instant` — captured at creation via an injected `clock: Clock =
-  Clock.System` in `Account.create`; defaults to `Clock.System` so no caller changes;
-  immutability enforced by `val` on an immutable `data class`.
-- [x] `AccountRecord.createdAt` stored as an ISO-8601 string (`Instant.toString()`) — same
-  rationale as `amount` (exact representation at the infra boundary).
-- [x] No new error subclass — "timestamp cannot be recorded" is the existing
-  `StorageFailure`/`CryptoFailure` path; maps to `Error` UiState as before.
-- [x] `kotlinx-datetime` added to the version catalog and `app/build.gradle.kts`.
+- [ ] Balance field uses `ThousandSeparatorTransformation` for dot thousand
+  separator formatting as the user types (presentation-only; raw value reaches
+  the domain unchanged).
+- [ ] Remove the "Balance input is dot-only" Known Limitation — the balance
+  field now formats with thousand separators, matching income/expense. Rewrite
+  as a Design Decision: balance input uses dot thousand separators via
+  `ThousandSeparatorTransformation`, consistent with transaction creation forms.

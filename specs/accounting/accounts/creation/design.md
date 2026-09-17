@@ -68,6 +68,12 @@ accounts list.
   ISO-8601 string (`Instant.toString()`) for exact round-trip at the infra boundary without
   loss. `Account.create` carries a `@Suppress("LongParameterList")` annotation because the
   factory legitimately requires all its inputs; the suppress is scoped to that function alone.
+- **Balance field formats with dot thousand separators as the user types.** The
+  private `OdinField` composable accepts a `VisualTransformation` and the balance
+  call site passes `ThousandSeparatorTransformation` (from `shared/presentation`).
+  This is presentation-only — the raw value reaches the ViewModel and domain
+  unchanged. Consistent with income and expense creation forms, which use the
+  same transformation.
 - **`CreateAccountViewModel` is destination-scoped.** The `ACCOUNT_CREATE`
   destination obtains it via `androidx.lifecycle.viewmodel.compose.viewModel { … }`
   (backed by the `NavBackStackEntry`'s `ViewModelStore`; instance from the
@@ -128,7 +134,7 @@ specs/accounting/accounts/creation/
 ## Screen & States / Backend Interaction
 
 - **Screens:** `CreateAccountScreen` (the form; the balance input is a numeric
-  decimal field) and a placeholder `AccountsListScreen` reached via a single "+"
+  decimal field with dot thousand separator formatting) and a placeholder `AccountsListScreen` reached via a single "+"
   FAB; entry to the flow is a "Mis cuentas" action on Home. Routes `ACCOUNTS` and
   `ACCOUNT_CREATE`.
 - **UiState:** one immutable state — `Idle` / `Loading` / `ValidationError`
@@ -138,9 +144,6 @@ specs/accounting/accounts/creation/
 
 ## Known Limitations
 
-- **Balance input is dot-only** — the domain parses with a dot decimal and no
-  grouping separators; comma decimals / period grouping (es-CO) are unsupported.
-  Acceptable for now (dev users), tracked in `TASKS.md`.
 - **Out of scope** (per spec): editing/deleting accounts, transactions, credit-card
   and other account types, and currencies beyond USD/EUR/COP.
 

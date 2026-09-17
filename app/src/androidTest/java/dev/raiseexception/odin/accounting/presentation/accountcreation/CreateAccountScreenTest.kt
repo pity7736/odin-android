@@ -137,4 +137,23 @@ class CreateAccountScreenTest {
         assertEquals(AccountType.SAVINGS, capturedType)
         assertEquals("Fondo de emergencia", capturedDescription)
     }
+
+    @Test
+    fun given_balance_field_when_user_types_1500000_then_field_displays_formatted_amount_with_thousand_separators() {
+        var capturedBalance = ""
+        composeTestRule.setContent {
+            CreateAccountScreen(
+                uiState = CreateAccountUiState.Idle,
+                onCreate = { _, balance, _, _, _ ->
+                    capturedBalance = balance
+                },
+                navigationEvent = emptyFlow(),
+                onCreateSuccess = {}
+            )
+        }
+        composeTestRule.onNodeWithTag("balance_field").performTextInput("1500000")
+        composeTestRule.onNodeWithText("1.500.000").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("create_button").performClick()
+        assertEquals("1500000", capturedBalance)
+    }
 }
