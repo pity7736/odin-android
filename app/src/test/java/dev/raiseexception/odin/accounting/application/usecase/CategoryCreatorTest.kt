@@ -134,6 +134,71 @@ class CategoryCreatorTest {
     }
 
     @Test
+    fun `given valid inputs, when creating a system category, then persists and returns the category`() = runTest {
+        coEvery {
+            categoryRepository.existsByNameAndType("Transferencia", CategoryType.TRANSFER)
+        } returns Outcome.Success(false)
+        coEvery { categoryRepository.add(any()) } returns Outcome.Success(Unit)
+
+        val result = creator.createSystem(
+            name = "Transferencia",
+            type = CategoryType.TRANSFER,
+            description = "",
+            color = "#607D8B"
+        )
+
+        assertTrue(result is Outcome.Success)
+        val category = (result as Outcome.Success).value
+        assertEquals("Transferencia", category.name)
+        assertEquals(CategoryType.TRANSFER, category.type)
+        assertTrue(category.isSystem)
+        coVerify { categoryRepository.add(any()) }
+    }
+
+    @Test
+    fun `given a duplicate name and type, when creating a system category, then returns duplicate name error`() =
+        runTest {
+            coEvery {
+                categoryRepository.existsByNameAndType("Transferencia", CategoryType.TRANSFER)
+            } returns Outcome.Success(true)
+
+            val result = creator.createSystem(
+                name = "Transferencia",
+                type = CategoryType.TRANSFER,
+                description = "",
+                color = "#607D8B"
+            )
+
+            assertTrue(result is Outcome.Failure)
+            assertTrue((result as Outcome.Failure).error is CategoryCreationError.DuplicateName)
+            coVerify(exactly = 0) { categoryRepository.add(any()) }
+        }
+
+    @Test
+    fun `given a storage failure on persist, when creating a system category, then propagates the failure`() =
+        runTest {
+            coEvery {
+                categoryRepository.existsByNameAndType("Transferencia", CategoryType.TRANSFER)
+            } returns Outcome.Success(false)
+            coEvery { categoryRepository.add(any()) } returns Outcome.Failure(
+                CategoryCreationError.StorageFailure(
+                    internalMessage = "storage broke",
+                    externalMessage = "Algo salió mal. Intente de nuevo más tarde"
+                )
+            )
+
+            val result = creator.createSystem(
+                name = "Transferencia",
+                type = CategoryType.TRANSFER,
+                description = "",
+                color = "#607D8B"
+            )
+
+            assertTrue(result is Outcome.Failure)
+            assertTrue((result as Outcome.Failure).error is CategoryCreationError.StorageFailure)
+        }
+
+    @Test
     fun `given no color provided, when creating, then uses the injected colorPicker`() = runTest {
         coEvery {
             categoryRepository.existsByNameAndType("Alimentación", CategoryType.EXPENSE)

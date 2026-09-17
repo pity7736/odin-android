@@ -6,13 +6,11 @@ import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
-import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
-import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.coroutines.flow.first
 import kotlinx.datetime.Clock
@@ -25,7 +23,6 @@ import java.math.BigDecimal
 class DevDataSeeder(
     private val accountRepository: AccountRepository,
     private val categoryCreator: CategoryCreator,
-    private val categoryRepository: CategoryRepository,
     private val incomeCreator: IncomeCreator,
     private val accountLister: AccountLister,
 ) {
@@ -66,18 +63,6 @@ class DevDataSeeder(
         this.categoryCreator.create("Alimentación", CategoryType.EXPENSE, "", null)
         this.categoryCreator.create("Transporte", CategoryType.EXPENSE, "", null)
         this.categoryCreator.create("Entretenimiento", CategoryType.EXPENSE, "", null)
-
-        val transferCategory = Category.restore(
-            id = UuidCreator.getTimeOrderedEpoch().toString(),
-            name = "Transferencia",
-            type = CategoryType.TRANSFER,
-            description = "",
-            color = "#607D8B",
-            createdAt = Clock.System.now(),
-            isSystem = true
-        )
-        this.categoryRepository.add(transferCategory)
-
         this.incomeCreator.create(
             accountId = savingsAccount.id,
             amount = "2000000",

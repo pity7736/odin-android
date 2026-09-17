@@ -21,11 +21,15 @@ Tasks are listed in priority order.
 - [ ] Update expenses
 - [ ] Update categories
 - [ ] Tags for transactions (income and expenses) for better reporting granularity
-- [ ] System Transfer category is not created at user registration time. Currently seeded only during development; a production user would have no Transfer category until the seeder is replaced with proper initialization
+- [x] System Transfer category is not created at user registration time. Currently seeded only during development; a production user would have no Transfer category until the seeder is replaced with proper initialization
 
 ### Home Screen
 
 - [x] Summary view showing total balance across accounts, per-account balances, and recent transactions
+
+### Auth
+
+- [ ] Registration rollback is incomplete after vault unlock. If any step fails after `vaultUnlocker.unlock()` (user persistence, post-registration setup), only the salt is deleted. The SQLCipher database file remains encrypted with the first attempt's key, blocking future registration retries on app restart
 
 ### Security
 

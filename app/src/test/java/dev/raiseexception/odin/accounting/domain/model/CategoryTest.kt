@@ -162,6 +162,79 @@ class CategoryTest {
         assertEquals(CategoryType.TRANSFER, category.type)
     }
 
+    @Test
+    fun `given valid inputs, when creating a system category, then returns a category with isSystem true`() {
+        val result = Category.createSystem(
+            name = "Transferencia",
+            type = CategoryType.TRANSFER,
+            description = "",
+            color = "#607D8B"
+        )
+
+        assertTrue(result is Outcome.Success)
+        val category = (result as Outcome.Success).value
+        assertEquals("Transferencia", category.name)
+        assertEquals(CategoryType.TRANSFER, category.type)
+        assertEquals("#607D8B", category.color)
+        assertTrue(category.isSystem)
+        assertTrue(category.id.isNotEmpty())
+        assertNotNull(category.createdAt)
+    }
+
+    @Test
+    fun `given a blank name, when creating a system category, then returns invalid input`() {
+        val result = Category.createSystem(
+            name = "   ",
+            type = CategoryType.TRANSFER,
+            description = "",
+            color = "#607D8B"
+        )
+
+        assertEquals("El nombre es obligatorio.", failureInvalidInput(result).nameError)
+    }
+
+    @Test
+    fun `given a name exceeding max length, when creating a system category, then returns invalid input`() {
+        val result = Category.createSystem(
+            name = "a".repeat(MAX_NAME_LENGTH + 1),
+            type = CategoryType.TRANSFER,
+            description = "",
+            color = "#607D8B"
+        )
+
+        assertEquals(
+            "El nombre no puede superar los $MAX_NAME_LENGTH caracteres.",
+            failureInvalidInput(result).nameError
+        )
+    }
+
+    @Test
+    fun `given an invalid color, when creating a system category, then returns invalid input`() {
+        val result = Category.createSystem(
+            name = "Transferencia",
+            type = CategoryType.TRANSFER,
+            description = "",
+            color = "not-a-color"
+        )
+
+        assertNotNull(failureInvalidInput(result).colorError)
+    }
+
+    @Test
+    fun `given a description exceeding max length, when creating a system category, then returns invalid input`() {
+        val result = Category.createSystem(
+            name = "Transferencia",
+            type = CategoryType.TRANSFER,
+            description = "a".repeat(MAX_DESCRIPTION_LENGTH + 1),
+            color = "#607D8B"
+        )
+
+        assertEquals(
+            "La descripción no puede superar los $MAX_DESCRIPTION_LENGTH caracteres.",
+            failureInvalidInput(result).descriptionError
+        )
+    }
+
     private fun failureInvalidInput(result: Outcome<Category>): CategoryCreationError.InvalidInput {
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error

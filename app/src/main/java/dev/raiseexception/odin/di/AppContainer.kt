@@ -19,6 +19,7 @@ import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
 import dev.raiseexception.odin.accounting.application.usecase.TransferCreator
+import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
 import dev.raiseexception.odin.accounting.domain.repository.ExpenseRepository
@@ -77,13 +78,27 @@ class AppContainer(context: Context) {
     private val masterKeyRepository: MasterKeyRepository = InMemoryMasterKeyRepository()
     private val saltRepository: SaltRepository = DataStoreSaltRepository(context.saltDataStore)
     private val userRepository: UserRepository = DeferredUserRepository(databaseProvider)
-    private val userRegistrar: UserRegistrar = UserRegistrar(
-        vaultCrypto,
-        userRepository,
-        masterKeyRepository,
-        saltRepository,
-        databaseProvider
-    )
+    private val userRegistrar: UserRegistrar by lazy {
+        UserRegistrar(
+            vaultCrypto,
+            userRepository,
+            masterKeyRepository,
+            saltRepository,
+            databaseProvider,
+            postRegistration = {
+                val outcome = this.categoryCreator.createSystem(
+                    name = "Transferencia",
+                    type = CategoryType.TRANSFER,
+                    description = "",
+                    color = "#607D8B"
+                )
+                when (outcome) {
+                    is Outcome.Success -> Outcome.Success(Unit)
+                    is Outcome.Failure -> Outcome.Failure(outcome.error)
+                }
+            }
+        )
+    }
     private val userAuthenticator: UserAuthenticator = UserAuthenticator(
         vaultCrypto,
         userRepository,
@@ -158,7 +173,6 @@ class AppContainer(context: Context) {
                 DevDataSeeder(
                     accountRepository,
                     categoryCreator,
-                    categoryRepository,
                     incomeCreator,
                     accountLister
                 ).seed()
