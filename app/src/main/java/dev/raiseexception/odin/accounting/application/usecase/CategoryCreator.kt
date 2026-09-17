@@ -21,14 +21,7 @@ class CategoryCreator(
             is Outcome.Success -> creationOutcome.value
             is Outcome.Failure -> return creationOutcome
         }
-        return when (val existsOutcome = this.categoryRepository.existsByNameAndType(category.name, category.type)) {
-            is Outcome.Failure -> existsOutcome
-            is Outcome.Success -> if (existsOutcome.value) {
-                this.duplicateNameFailure(category.type)
-            } else {
-                this.persist(category)
-            }
-        }
+        return this.checkDuplicateAndPersist(category)
     }
 
     suspend fun create(
@@ -42,7 +35,11 @@ class CategoryCreator(
             is Outcome.Success -> creationOutcome.value
             is Outcome.Failure -> return creationOutcome
         }
-        return when (val existsOutcome = this.categoryRepository.existsByNameAndType(category.name, category.type)) {
+        return this.checkDuplicateAndPersist(category)
+    }
+
+    private suspend fun checkDuplicateAndPersist(category: Category): Outcome<Category> =
+        when (val existsOutcome = this.categoryRepository.existsByNameAndType(category.name, category.type)) {
             is Outcome.Failure -> existsOutcome
             is Outcome.Success -> if (existsOutcome.value) {
                 this.duplicateNameFailure(category.type)
@@ -50,7 +47,6 @@ class CategoryCreator(
                 this.persist(category)
             }
         }
-    }
 
     private suspend fun persist(category: Category): Outcome<Category> =
         when (val addOutcome = this.categoryRepository.add(category)) {

@@ -74,18 +74,15 @@ class UserRegistrar(
             }
             saveUser(wrappedMasterKey, masterKey, derivedKeys.encryptionKey)
         }
-        val finalResult = if (result is Outcome.Success) {
-            this.runPostRegistration(result)
-        } else {
-            result
-        }
+        val finalResult = this.runPostRegistration(result)
         if (finalResult is Outcome.Failure) {
             this.saltRepository.delete()
         }
         return finalResult
     }
 
-    private suspend fun runPostRegistration(result: Outcome.Success<User>): Outcome<User> {
+    private suspend fun runPostRegistration(result: Outcome<User>): Outcome<User> {
+        if (result is Outcome.Failure) return result
         val postOutcome = this.postRegistration()
         if (postOutcome is Outcome.Failure) {
             return this.storageFailure(
