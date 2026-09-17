@@ -80,4 +80,4 @@ All four tests must FAIL (returning `StorageFailure` instead of `InvalidInput`) 
 
 ## Design decisions to hydrate into design.md
 
-- [ ] `CategoryCreationError.InvalidInput` from inline category creation maps to a field-level `categoryError` (using `nameError`), not `StorageFailure` — same pattern as `DuplicateName`
+- [x] `CategoryCreationError.InvalidInput` from inline category creation maps to a field-level `categoryError` (using `nameError`), not `StorageFailure` — same pattern as `DuplicateName`
