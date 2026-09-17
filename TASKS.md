@@ -21,7 +21,7 @@ Tasks are listed in priority order.
 - [ ] Update expenses
 - [ ] Update categories
 - [ ] Tags for transactions (income and expenses) for better reporting granularity
-- [ ] System Transfer category is not created at user registration time. Currently seeded only during development; a production user would have no Transfer category until the seeder is replaced with proper initialization
+- [x] System Transfer category is not created at user registration time. Currently seeded only during development; a production user would have no Transfer category until the seeder is replaced with proper initialization
 
 ### Home Screen
 

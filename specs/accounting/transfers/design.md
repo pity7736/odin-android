@@ -107,7 +107,6 @@ specs/accounting/transfers/
 ## Known Limitations
 
 - **Account reads happen outside the database transaction** — `TransferCreator` loads both accounts via `AccountRepository.findById().first()` before entering `TransactionRunner.run {}`. A concurrent modification between the read and the transactional write could cause stale balance validation. Acceptable for the current single-user, single-device design; the same pattern exists in `ExpenseCreator` and `IncomeCreator`, tracked in `TASKS.md`.
-- **Transfer system category is seeded only in `DevDataSeeder`** — production users would not have the Transfer category until a proper initialization flow is implemented at registration time. Tracked in `TASKS.md`.
 - **Transfers are not visible as a distinct filter in account detail** — the "Todos" / "Ingresos" / "Gastos" tabs show the transfer's expense and income entries alongside regular transactions, with no "Transferencias" filter.
 
 ## Quality Pillars
