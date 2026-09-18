@@ -32,7 +32,7 @@ Tasks are listed in priority order.
 - [ ] Change `applicationId` to `io.sitia.odin` before first upload (permanent, cannot change after publishing)
 - [ ] Signed release build (generate and securely store the signing key — same key used for Play Store later)
 - [ ] Registration screen must warn users that the password cannot be recovered — losing it means losing all data. Zero-knowledge design has no forgot-password flow
-- [ ] Home screen shortcuts for creating income, expense, and transfer without navigating to an account first. Creation forms need an account selector field
+- [x] Home screen shortcuts for creating income, expense, and transfer without navigating to an account first. Creation forms need an account selector field
 - [ ] Replace `fallbackToDestructiveMigration` with proper Room migrations. Must be done before any alpha update that changes the schema, otherwise testers lose all data
 - [ ] Enable R8 for release build (shrink unused code from dependencies to reduce APK size)
 
