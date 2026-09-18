@@ -6,9 +6,7 @@ A standalone app where one user can register, log in, and track basic
 personal finances (accounts, income, expenses) with all data encrypted
 locally.
 
-Tasks are listed in priority order.
-
-### Accounting
+### Done
 
 - [x] Create financial account (e.g. bank account, cash, credit card)
 - [x] Create category (income and expense categories)
@@ -16,58 +14,58 @@ Tasks are listed in priority order.
 - [x] Record expense (amount, account, category, date, description)
 - [x] Account balance calculation
 - [x] List transactions (income and expenses) per account
+- [x] System Transfer category is not created at user registration time. Currently seeded only during development; a production user would have no Transfer category until the seeder is replaced with proper initialization
+- [x] Summary view showing total balance across accounts, per-account balances, and recent transactions
+- [x] Raw passwords are held as immutable `String` and cannot be wiped from memory. `RegistrationViewModel.register` and `LoginViewModel.login` receive the password as a `String` and pass it down through the use cases to `VaultCrypto`; a `String` is immutable, so the plaintext lingers on the heap until GC with no way to zero it. For a zero-knowledge app the in-memory plaintext window should be as short as possible. Spans the whole password call chain (ViewModel → use case → crypto), not a single function — own PR
+- [x] Near-term: persist ONLY the user (survive process death) to unblock login end-to-end — login is logic-complete but currently unreachable because the in-memory user is wiped on cold start, so `StartupViewModel` never routes to login. Planned after the account-creation feature
+- [x] Room database for user data (replace in-memory repositories)
+- [x] SQLCipher migration (encrypt the Room database at rest)
+- [x] UI polish across all screens (visual consistency, spacing, typography)
+- [x] `AccountsListScreen` renders the raw UUID as user-visible secondary text on every account row. No user scenario calls for seeing internal identifiers; useful information such as balance, currency, or type should appear instead.
+- [x] User registration (password-based key setup, local vault creation)
+- [x] User login (password verification via master key unwrap)
+
+### Alpha (signed APK shared with testers)
+
+Tasks are listed in priority order.
+
+- [ ] Change `applicationId` to `io.sitia.odin` before first upload (permanent, cannot change after publishing)
+- [ ] Signed release build (generate and securely store the signing key — same key used for Play Store later)
+- [ ] Registration screen must warn users that the password cannot be recovered — losing it means losing all data. Zero-knowledge design has no forgot-password flow
+- [ ] Home screen shortcuts for creating income, expense, and transfer without navigating to an account first. Creation forms need an account selector field
+- [ ] Replace `fallbackToDestructiveMigration` with proper Room migrations. Must be done before any alpha update that changes the schema, otherwise testers lose all data
+- [ ] Enable R8 for release build (shrink unused code from dependencies to reduce APK size)
+
+### Pre-launch (blocks Play Store release)
+
+- [ ] Registration rollback is incomplete after vault unlock. If any step fails after `vaultUnlocker.unlock()` (user persistence, post-registration setup), only the salt is deleted. The SQLCipher database file remains encrypted with the first attempt's key, blocking future registration retries on app restart
+- [ ] App briefly flashes a content screen (e.g. account details) before navigating to login/registration on cold start. `StartupViewModel` check is async and the default navigation route renders before it resolves
+- [ ] Privacy policy: hosted page describing data handling, required by Play Store for finance apps
+- [ ] Play Store listing: app icon (512x512), feature graphic (1024x500), screenshots, descriptions, content rating questionnaire, Data Safety section declaration
+- [ ] Crash reporting (Crashlytics or Sentry) so production crashes are visible
+- [ ] Session management + biometric unlock (ship together): lock when the app goes to background, clear master key, close SQLCipher database. Biometric as the fast path back in; password as fallback
 - [ ] Update accounts
 - [ ] Update incomes
 - [ ] Update expenses
 - [ ] Update categories
-- [ ] Tags for transactions (income and expenses) for better reporting granularity
-- [x] System Transfer category is not created at user registration time. Currently seeded only during development; a production user would have no Transfer category until the seeder is replaced with proper initialization
-
-### Home Screen
-
-- [x] Summary view showing total balance across accounts, per-account balances, and recent transactions
-
-### Auth
-
-- [ ] Registration rollback is incomplete after vault unlock. If any step fails after `vaultUnlocker.unlock()` (user persistence, post-registration setup), only the salt is deleted. The SQLCipher database file remains encrypted with the first attempt's key, blocking future registration retries on app restart
-
-### Security
-
-- [x] Raw passwords are held as immutable `String` and cannot be wiped from memory. `RegistrationViewModel.register` and `LoginViewModel.login` receive the password as a `String` and pass it down through the use cases to `VaultCrypto`; a `String` is immutable, so the plaintext lingers on the heap until GC with no way to zero it. For a zero-knowledge app the in-memory plaintext window should be as short as possible. Spans the whole password call chain (ViewModel → use case → crypto), not a single function — own PR
-
-### Persistence
-
-- [x] Near-term: persist ONLY the user (survive process death) to unblock login end-to-end — login is logic-complete but currently unreachable because the in-memory user is wiped on cold start, so `StartupViewModel` never routes to login. Planned after the account-creation feature
-- [x] Room database for user data (replace in-memory repositories)
-- [ ] Replace `fallbackToDestructiveMigration` with proper Room migrations before MVP. Current config silently drops all tables on any schema version bump, destroying user data without warning
-- [x] SQLCipher migration (encrypt the Room database at rest)
-
-### Look and Feel
-
-- [x] UI polish across all screens (visual consistency, spacing, typography)
-- [x] `AccountsListScreen` renders the raw UUID as user-visible secondary text on every account row. No user scenario calls for seeing internal identifiers; useful information such as balance, currency, or type should appear instead.
-
-### Auth
-
-- [x] User registration (password-based key setup, local vault creation)
-- [x] User login (password verification via master key unwrap)
-- [ ] Session management: lock when the app goes to background, require password to unlock on return. Clear in-memory master key and close the SQLCipher database on lock; re-derive keys from password and restore the session on unlock
-- [ ] Biometric unlock (opt-in): user setting to enable biometric authentication as a convenience alternative to password on unlock. When enabled, wrap the master key and encryption key with an Android Keystore AES key (biometric-bound) and persist the blob. On return from background, show biometric prompt; on success unwrap and restore session, on failure fall back to password. Make `MasterKeyRepository.store()` return `Outcome<Unit>` and add `StorageFailure` to `LoginError` so Keystore write failures are handled honestly
-
-### Reporting
-
 - [ ] Basic reporting (expenses by category, income vs expenses for a period)
+- [ ] AI assistant (create transactions in natural language, e.g. "me gasté una hamburguesa por 20K cop con la tarjeta débito"). Requires server — alpha testers get free trial to stress-test the feature
 
-## v0.2.0 — Server + Events
+## v0.2.0 — Post-launch
+
+- [ ] Tags for transactions (income and expenses) for better reporting granularity
+
+## v0.3.0 — Server + Events
 
 Server-backed features for backup, sync, and multi-device support.
-Alpha testers with existing local data validate the local-to-server
-migration path.
 
 - [ ] Backup (encrypted blobs to server)
 - [ ] Sync (multi-device support)
-- [ ] AI assistant (create transactions in natural language, e.g. "me gasté una hamburguesa por 20K cop con la tarjeta débito")
 - [ ] Events (group expenses under a trip, project, or occasion for tracking spending on specific activities)
+
+## v0.4.0 — Account recovery
+
+- [ ] Recovery phrase: user can generate a recovery phrase from settings at any time while logged in. Creates a second encrypted copy of the master key. If the user forgets their password, the phrase decrypts the master key and allows setting a new password
 
 ### Accounting (post-MVP)
 
@@ -81,7 +79,6 @@ migration path.
 - [x] **HIGH PRIORITY** — Account list shows initial balances instead of real balances. `AccountsListViewModel` calls `accountLister.list()` with default `AccountCriteria()` (both `includeIncomes` and `includeExpenses` are `false`), so `Account.balance` returns only `initialBalance`. `HomeViewModel` correctly passes `AccountCriteria(includeIncomes = true, includeExpenses = true)`
 - [x] Income and expense date validation allows dates before the account's creation date. `Account.createIncome()` and `Account.createExpense()` only check that the date is not in the future but do not reject dates earlier than the account's `createdAt`
 - [ ] Backtick `given … when … then …` method names contain spaces, which DEX forbids before version 040 (min API 30), so `connectedAndroidTest` fails to build the `androidTest` APK (affects `RegistrationScreenTest` and `LoginScreenTest`; the JVM unit suite is unaffected). Decide between renaming `androidTest` method names to a space-free form (recommended, keeps `minSdk 26`) vs raising `minSdk` to 30; then update `docs/05` §3.1 with the instrumented-test carve-out
-- [ ] App briefly flashes a content screen (e.g. account details) before navigating to login/registration on cold start. `StartupViewModel` check is async and the default navigation route renders before it resolves
 - [x] Submitting the income or expense creation form with an empty category field shows a blank error page instead of inline validation errors. `IncomeCreator.resolveNewCategory` and `ExpenseCreator.resolveNewCategory` receive an empty category name, which fails with `CategoryCreationError.InvalidInput`; the `else` branch maps it to `StorageFailure`, and the ViewModel renders the `Error` state (blank page) instead of `ValidationError` (form with field errors)
 - [ ] Submitting the income or expense creation form with multiple empty fields (e.g. empty amount and empty category) shows only the category error. `ExpenseCreator` and `IncomeCreator` resolve the category before calling `Account.createExpense()`/`Account.createIncome()`, so when category resolution fails it short-circuits before the domain validates the other fields. The spec says errors are shown next to each missing field simultaneously
 
