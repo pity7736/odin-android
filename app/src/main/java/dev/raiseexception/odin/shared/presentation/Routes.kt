@@ -7,21 +7,24 @@ object Routes {
     const val ACCOUNTS = "accounts"
     const val ACCOUNT_CREATE = "account_create"
     const val ACCOUNT_DETAIL = "account_detail/{accountId}"
-    const val INCOME_CREATE = "income_create/{accountId}"
-    const val EXPENSE_CREATE = "expense_create/{accountId}"
+    const val INCOME_CREATE = "income_create?accountId={accountId}"
+    const val EXPENSE_CREATE = "expense_create?accountId={accountId}"
     const val CATEGORIES = "categories"
     const val CATEGORY_CREATE = "category_create"
     const val CATEGORY_DETAIL = "category_detail/{categoryId}"
     const val TRANSACTION_DETAIL = "transaction_detail/{transactionId}"
-    const val TRANSFER_CREATE = "transfer_create/{accountId}"
+    const val TRANSFER_CREATE = "transfer_create?accountId={accountId}"
 
     fun accountDetail(accountId: String) = "account_detail/$accountId"
 
-    fun incomeCreate(accountId: String) = "income_create/$accountId"
+    fun incomeCreate(accountId: String? = null): String =
+        if (accountId != null) "income_create?accountId=$accountId" else "income_create"
 
-    fun expenseCreate(accountId: String) = "expense_create/$accountId"
+    fun expenseCreate(accountId: String? = null): String =
+        if (accountId != null) "expense_create?accountId=$accountId" else "expense_create"
 
-    fun transferCreate(accountId: String) = "transfer_create/$accountId"
+    fun transferCreate(accountId: String? = null): String =
+        if (accountId != null) "transfer_create?accountId=$accountId" else "transfer_create"
 
     fun categoryDetail(categoryId: String) = "category_detail/$categoryId"
 

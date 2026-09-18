@@ -176,6 +176,45 @@ class CreateTransferViewModelTest {
         }
 
     @Test
+    fun `given no preselected account, when initialized, then no source account is selected`() =
+        runTest {
+            every { accountLister.list() } returns flowOf(
+                Outcome.Success(listOf(sourceAccount, destinationAccount))
+            )
+            val viewModel = CreateTransferViewModel(
+                preselectedSourceAccountId = null,
+                transferCreator = transferCreator,
+                accountLister = accountLister,
+                ioDispatcher = testDispatcher
+            )
+            viewModel.uiState.test {
+                assertEquals(CreateTransferUiState.Loading, awaitItem())
+                testDispatcher.scheduler.advanceUntilIdle()
+                val state = awaitItem() as CreateTransferUiState.Idle
+                assertEquals("", state.selectedSourceAccountId)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `given no preselected account, when source selected, then updates selection`() =
+        runTest {
+            every { accountLister.list() } returns flowOf(
+                Outcome.Success(listOf(sourceAccount, destinationAccount))
+            )
+            val viewModel = CreateTransferViewModel(
+                preselectedSourceAccountId = null,
+                transferCreator = transferCreator,
+                accountLister = accountLister,
+                ioDispatcher = testDispatcher
+            )
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = viewModel.uiState.value as CreateTransferUiState.Idle
+            assertEquals("", state.selectedSourceAccountId)
+            assertEquals(2, state.accounts.size)
+        }
+
+    @Test
     fun `given Saving state, when save called again, then ignores duplicate`() =
         runTest {
             every { accountLister.list() } returns flowOf(

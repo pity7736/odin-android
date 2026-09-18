@@ -2,6 +2,7 @@ package dev.raiseexception.odin.accounting.presentation.incomecreation
 
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
+import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
@@ -27,6 +28,7 @@ import kotlinx.datetime.toLocalDateTime
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -37,6 +39,7 @@ class CreateIncomeViewModelTest {
     private val incomeCreator = mockk<IncomeCreator>()
     private val categoryLister = mockk<CategoryLister>()
     private val accountFinder = mockk<AccountFinder>()
+    private val accountLister = mockk<AccountLister>()
     private val testDispatcher = StandardTestDispatcher()
     private val accountId = "acc-1"
     private val accountCreatedAt = Instant.parse("2026-01-01T12:00:00Z")
@@ -59,6 +62,7 @@ class CreateIncomeViewModelTest {
         incomeCreator = incomeCreator,
         categoryLister = categoryLister,
         accountFinder = accountFinder,
+        accountLister = accountLister,
         ioDispatcher = testDispatcher
     )
 
@@ -266,6 +270,145 @@ class CreateIncomeViewModelTest {
             assertNotNull(state.amountError)
             assertNotNull(state.dateError)
             assertNotNull(state.categoryError)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given no account id, when initialized, then loads accounts for picker`() = runTest {
+        every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(
+            Outcome.Success(listOf(incomeCategory))
+        )
+        every { accountLister.list() } returns flowOf(
+            Outcome.Success(listOf(account))
+        )
+        val viewModel = CreateIncomeViewModel(
+            accountId = null,
+            incomeCreator = incomeCreator,
+            categoryLister = categoryLister,
+            accountFinder = accountFinder,
+            accountLister = accountLister,
+            ioDispatcher = testDispatcher
+        )
+        viewModel.uiState.test {
+            assertEquals(CreateIncomeUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = awaitItem() as CreateIncomeUiState.Idle
+            assertEquals(1, state.accounts.size)
+            assertEquals(accountId, state.accounts.first().id)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given no account id, when account selected, then updates selected account`() = runTest {
+        every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(
+            Outcome.Success(listOf(incomeCategory))
+        )
+        every { accountLister.list() } returns flowOf(
+            Outcome.Success(listOf(account))
+        )
+        val viewModel = CreateIncomeViewModel(
+            accountId = null,
+            incomeCreator = incomeCreator,
+            categoryLister = categoryLister,
+            accountFinder = accountFinder,
+            accountLister = accountLister,
+            ioDispatcher = testDispatcher
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.onAccountSelected(accountId)
+        viewModel.uiState.test {
+            val state = awaitItem() as CreateIncomeUiState.Idle
+            assertEquals(accountId, state.selectedAccountId)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given no account id and no account selected, when saving, then shows account required error`() = runTest {
+        every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(
+            Outcome.Success(listOf(incomeCategory))
+        )
+        every { accountLister.list() } returns flowOf(
+            Outcome.Success(listOf(account))
+        )
+        val viewModel = CreateIncomeViewModel(
+            accountId = null,
+            incomeCreator = incomeCreator,
+            categoryLister = categoryLister,
+            accountFinder = accountFinder,
+            accountLister = accountLister,
+            ioDispatcher = testDispatcher
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(incomeCategory.id), "")
+        viewModel.uiState.test {
+            val state = awaitItem() as CreateIncomeUiState.ValidationError
+            assertEquals("La cuenta es obligatoria.", state.accountError)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given no account id and account selected, when saving, then creates with selected account`() = runTest {
+        every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(
+            Outcome.Success(listOf(incomeCategory))
+        )
+        every { accountLister.list() } returns flowOf(
+            Outcome.Success(listOf(account))
+        )
+        coEvery {
+            incomeCreator.create(
+                accountId = accountId,
+                amount = "500.00",
+                date = "2026-08-29",
+                categoryInput = CategoryInput.Existing(incomeCategory.id),
+                description = ""
+            )
+        } returns Outcome.Success(
+            dev.raiseexception.odin.accounting.domain.model.Income.restore(
+                id = "inc-1",
+                accountId = accountId,
+                amount = dev.raiseexception.odin.accounting.domain.model.Money.of(
+                    java.math.BigDecimal("500.00"),
+                    dev.raiseexception.odin.accounting.domain.model.Currency.COP
+                ),
+                date = kotlinx.datetime.LocalDate(2026, 8, 29),
+                categoryId = incomeCategory.id,
+                description = "",
+                createdAt = kotlinx.datetime.Instant.parse("2026-08-29T10:00:00Z")
+            )
+        )
+        val viewModel = CreateIncomeViewModel(
+            accountId = null,
+            incomeCreator = incomeCreator,
+            categoryLister = categoryLister,
+            accountFinder = accountFinder,
+            accountLister = accountLister,
+            ioDispatcher = testDispatcher
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.onAccountSelected(accountId)
+        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(incomeCategory.id), "")
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.navigationEvent.test {
+            assertEquals(NavigationTarget.Back, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given account id provided, when initialized, then does not load accounts for picker`() = runTest {
+        every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(
+            Outcome.Success(listOf(incomeCategory))
+        )
+        val viewModel = buildViewModel()
+        viewModel.uiState.test {
+            assertEquals(CreateIncomeUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = awaitItem() as CreateIncomeUiState.Idle
+            assertTrue(state.accounts.isEmpty())
             cancelAndIgnoreRemainingEvents()
         }
     }

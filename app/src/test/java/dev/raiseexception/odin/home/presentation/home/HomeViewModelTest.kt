@@ -240,6 +240,48 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `given content state, when income shortcut selected, then emits income create target`() = runTest {
+        val account = AccountBuilder().id("acc-1").name("Ahorros").build()
+        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(account)))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.navigationEvent.test {
+            viewModel.onIncomeShortcutSelected()
+            val event = awaitItem()
+            assertTrue(event is HomeNavigationTarget.IncomeCreate)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given content state, when expense shortcut selected, then emits expense create target`() = runTest {
+        val account = AccountBuilder().id("acc-1").name("Ahorros").build()
+        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(account)))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.navigationEvent.test {
+            viewModel.onExpenseShortcutSelected()
+            val event = awaitItem()
+            assertTrue(event is HomeNavigationTarget.ExpenseCreate)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given content state, when transfer shortcut selected, then emits transfer create target`() = runTest {
+        val account = AccountBuilder().id("acc-1").name("Ahorros").build()
+        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(account)))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.navigationEvent.test {
+            viewModel.onTransferShortcutSelected()
+            val event = awaitItem()
+            assertTrue(event is HomeNavigationTarget.TransferCreate)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `given accounts in different currencies, when initialized, then emits one total per currency`() = runTest {
         val copAccount1 = AccountBuilder()
             .id("acc-1")

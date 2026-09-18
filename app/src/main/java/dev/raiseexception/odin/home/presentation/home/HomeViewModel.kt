@@ -66,6 +66,24 @@ class HomeViewModel(
         }
     }
 
+    fun onIncomeShortcutSelected() {
+        this.viewModelScope.launch {
+            this@HomeViewModel.navigationChannel.send(HomeNavigationTarget.IncomeCreate)
+        }
+    }
+
+    fun onExpenseShortcutSelected() {
+        this.viewModelScope.launch {
+            this@HomeViewModel.navigationChannel.send(HomeNavigationTarget.ExpenseCreate)
+        }
+    }
+
+    fun onTransferShortcutSelected() {
+        this.viewModelScope.launch {
+            this@HomeViewModel.navigationChannel.send(HomeNavigationTarget.TransferCreate)
+        }
+    }
+
     private fun mapToUiState(accounts: List<Account>): HomeUiState {
         if (accounts.isEmpty()) {
             return HomeUiState.Empty

@@ -2,11 +2,6 @@
 
 package dev.raiseexception.odin.accounting.presentation.accountdetail
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -24,18 +19,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,6 +47,7 @@ import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
 import dev.raiseexception.odin.shared.presentation.BottomBarTab
+import dev.raiseexception.odin.shared.presentation.ExpandableFab
 import dev.raiseexception.odin.shared.presentation.OdinBottomBar
 import dev.raiseexception.odin.shared.presentation.SPANISH_MONTHS
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
@@ -66,7 +57,6 @@ import dev.raiseexception.odin.ui.theme.ExpenseDark
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.IncomeBadge
 import dev.raiseexception.odin.ui.theme.IncomeGreen
-import dev.raiseexception.odin.ui.theme.OrangePrimary
 import dev.raiseexception.odin.ui.theme.Slate100
 import dev.raiseexception.odin.ui.theme.Slate200
 import dev.raiseexception.odin.ui.theme.Slate400
@@ -130,15 +120,16 @@ fun AccountDetailScreen(
                 ExpandableFab(
                     expanded = fabExpanded,
                     onToggle = { fabExpanded = !fabExpanded },
-                    onCreateIncome = {
+                    showTransferOption = true,
+                    onIncomeSelected = {
                         fabExpanded = false
                         onCreateIncome()
                     },
-                    onCreateExpense = {
+                    onExpenseSelected = {
                         fabExpanded = false
                         onCreateExpense()
                     },
-                    onCreateTransfer = {
+                    onTransferSelected = {
                         fabExpanded = false
                         onCreateTransfer()
                     },
@@ -458,86 +449,6 @@ private fun TransactionRow(transaction: AccountTransaction, onClick: () -> Unit)
             fontWeight = FontWeight.SemiBold,
             color = amountColor,
         )
-    }
-}
-
-@Composable
-private fun ExpandableFab(
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    onCreateIncome: () -> Unit,
-    onCreateExpense: () -> Unit,
-    onCreateTransfer: () -> Unit,
-) {
-    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        AnimatedVisibility(
-            visible = expanded,
-            enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
-            exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
-        ) {
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Ingreso",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Slate50,
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    SmallFloatingActionButton(
-                        onClick = onCreateIncome,
-                        containerColor = IncomeBadge,
-                        contentColor = IncomeGreen,
-                        modifier = Modifier.testTag("create_income_fab"),
-                    ) {
-                        Icon(Icons.Filled.ArrowUpward, contentDescription = "Ingreso")
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Gasto",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Slate50,
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    SmallFloatingActionButton(
-                        onClick = onCreateExpense,
-                        containerColor = ExpenseBadge,
-                        contentColor = ExpenseRed,
-                        modifier = Modifier.testTag("create_expense_fab"),
-                    ) {
-                        Icon(Icons.Filled.ArrowDownward, contentDescription = "Gasto")
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Transferencia",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Slate50,
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    SmallFloatingActionButton(
-                        onClick = onCreateTransfer,
-                        containerColor = Slate200,
-                        contentColor = Slate800,
-                        modifier = Modifier.testTag("create_transfer_fab"),
-                    ) {
-                        Icon(Icons.Filled.SwapHoriz, contentDescription = "Transferencia")
-                    }
-                }
-            }
-        }
-        FloatingActionButton(
-            onClick = onToggle,
-            containerColor = OrangePrimary,
-            contentColor = Slate50,
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.testTag("expandable_fab"),
-        ) {
-            Icon(
-                imageVector = if (expanded) Icons.Filled.Close else Icons.Filled.Add,
-                contentDescription = if (expanded) "Cerrar" else "Nuevo",
-            )
-        }
     }
 }
 

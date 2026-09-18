@@ -4,6 +4,7 @@ package dev.raiseexception.odin.home.presentation.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +53,7 @@ import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.home.application.usecase.RecentTransaction
 import dev.raiseexception.odin.shared.presentation.BottomBarTab
+import dev.raiseexception.odin.shared.presentation.ExpandableFab
 import dev.raiseexception.odin.shared.presentation.OdinBottomBar
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
 import dev.raiseexception.odin.shared.presentation.formatMoney
@@ -75,9 +81,15 @@ fun HomeScreen(
     onAccountSelected: (String) -> Unit,
     onTransactionSelected: (String) -> Unit,
     onCreateAccountSelected: () -> Unit,
+    onIncomeShortcutSelected: () -> Unit,
+    onExpenseShortcutSelected: () -> Unit,
+    onTransferShortcutSelected: () -> Unit,
     onNavigateToAccountDetail: (String) -> Unit,
     onNavigateToTransactionDetail: (String) -> Unit,
     onNavigateToAccountCreate: () -> Unit,
+    onNavigateToIncomeCreate: () -> Unit,
+    onNavigateToExpenseCreate: () -> Unit,
+    onNavigateToTransferCreate: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
     modifier: Modifier = Modifier,
@@ -88,9 +100,13 @@ fun HomeScreen(
                 is HomeNavigationTarget.AccountDetail -> onNavigateToAccountDetail(target.accountId)
                 is HomeNavigationTarget.TransactionDetail -> onNavigateToTransactionDetail(target.transactionId)
                 is HomeNavigationTarget.AccountCreate -> onNavigateToAccountCreate()
+                is HomeNavigationTarget.IncomeCreate -> onNavigateToIncomeCreate()
+                is HomeNavigationTarget.ExpenseCreate -> onNavigateToExpenseCreate()
+                is HomeNavigationTarget.TransferCreate -> onNavigateToTransferCreate()
             }
         }
     }
+    var fabExpanded by remember { mutableStateOf(false) }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
@@ -100,38 +116,72 @@ fun HomeScreen(
                 onNavigateToAccounts = onNavigateToAccounts,
                 onNavigateToCategories = onNavigateToCategories,
             )
-        }
+        },
+        floatingActionButton = {
+            if (uiState is HomeUiState.Content) {
+                ExpandableFab(
+                    expanded = fabExpanded,
+                    onToggle = { fabExpanded = !fabExpanded },
+                    showTransferOption = uiState.accounts.size >= MINIMUM_ACCOUNTS_FOR_TRANSFER,
+                    onIncomeSelected = {
+                        fabExpanded = false
+                        onIncomeShortcutSelected()
+                    },
+                    onExpenseSelected = {
+                        fabExpanded = false
+                        onExpenseShortcutSelected()
+                    },
+                    onTransferSelected = {
+                        fabExpanded = false
+                        onTransferShortcutSelected()
+                    },
+                )
+            }
+        },
     ) { innerPadding ->
-        when (uiState) {
-            is HomeUiState.Loading -> LoadingContent(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            )
-            is HomeUiState.Empty -> EmptyContent(
-                onCreateAccount = onCreateAccountSelected,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            )
-            is HomeUiState.Content -> SummaryContent(
-                totalBalances = uiState.totalBalances,
-                accounts = uiState.accounts,
-                hasMoreAccounts = uiState.hasMoreAccounts,
-                recentTransactions = uiState.recentTransactions,
-                onAccountSelected = onAccountSelected,
-                onTransactionSelected = onTransactionSelected,
-                onSeeAllAccounts = onNavigateToAccounts,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            )
-            is HomeUiState.Error -> ErrorContent(
-                message = uiState.message,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            )
+        Box(modifier = Modifier.fillMaxSize()) {
+            when (uiState) {
+                is HomeUiState.Loading -> LoadingContent(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                )
+                is HomeUiState.Empty -> EmptyContent(
+                    onCreateAccount = onCreateAccountSelected,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                )
+                is HomeUiState.Content -> SummaryContent(
+                    totalBalances = uiState.totalBalances,
+                    accounts = uiState.accounts,
+                    hasMoreAccounts = uiState.hasMoreAccounts,
+                    recentTransactions = uiState.recentTransactions,
+                    onAccountSelected = onAccountSelected,
+                    onTransactionSelected = onTransactionSelected,
+                    onSeeAllAccounts = onNavigateToAccounts,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                )
+                is HomeUiState.Error -> ErrorContent(
+                    message = uiState.message,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                )
+            }
+            if (fabExpanded) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Slate900.copy(alpha = 0.6f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { fabExpanded = false },
+                )
+            }
         }
     }
 }
@@ -522,3 +572,5 @@ private fun formatDate(date: kotlinx.datetime.LocalDate): String {
     )
     return "${date.dayOfMonth} ${months[date.monthNumber - 1]} ${date.year}"
 }
+
+private const val MINIMUM_ACCOUNTS_FOR_TRANSFER = 2
