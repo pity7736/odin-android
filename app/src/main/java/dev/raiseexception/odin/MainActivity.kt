@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions")
+@file:Suppress("TooManyFunctions", "LongMethod")
 
 package dev.raiseexception.odin
 
@@ -111,16 +111,43 @@ private fun AppNavHost(startRoute: String) {
                 val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
                 AccountDetailDestination(accountId, navController)
             }
-            composable(Routes.INCOME_CREATE) { backStackEntry ->
-                val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
+            composable(
+                Routes.INCOME_CREATE,
+                arguments = listOf(
+                    androidx.navigation.navArgument("accountId") {
+                        type = androidx.navigation.NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                val accountId = backStackEntry.arguments?.getString("accountId")
                 CreateIncomeDestination(accountId, navController)
             }
-            composable(Routes.EXPENSE_CREATE) { backStackEntry ->
-                val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
+            composable(
+                Routes.EXPENSE_CREATE,
+                arguments = listOf(
+                    androidx.navigation.navArgument("accountId") {
+                        type = androidx.navigation.NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                val accountId = backStackEntry.arguments?.getString("accountId")
                 CreateExpenseDestination(accountId, navController)
             }
-            composable(Routes.TRANSFER_CREATE) { backStackEntry ->
-                val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
+            composable(
+                Routes.TRANSFER_CREATE,
+                arguments = listOf(
+                    androidx.navigation.navArgument("accountId") {
+                        type = androidx.navigation.NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                val accountId = backStackEntry.arguments?.getString("accountId")
                 CreateTransferDestination(accountId, navController)
             }
             composable(Routes.CATEGORIES) {
@@ -266,7 +293,7 @@ private fun AccountDetailDestination(accountId: String, navController: NavHostCo
 }
 
 @Composable
-private fun CreateIncomeDestination(accountId: String, navController: NavHostController) {
+private fun CreateIncomeDestination(accountId: String?, navController: NavHostController) {
     val application = LocalContext.current.applicationContext as OdinApplication
     val createIncomeViewModel: CreateIncomeViewModel = viewModel(
         factory = application.appContainer.createIncomeViewModelFactory(accountId)
@@ -275,13 +302,14 @@ private fun CreateIncomeDestination(accountId: String, navController: NavHostCon
     CreateIncomeScreen(
         uiState = uiState,
         onSave = createIncomeViewModel::save,
+        onAccountSelected = createIncomeViewModel::onAccountSelected,
         navigationEvent = createIncomeViewModel.navigationEvent,
         onNavigateBack = { navController.popBackStack() }
     )
 }
 
 @Composable
-private fun CreateExpenseDestination(accountId: String, navController: NavHostController) {
+private fun CreateExpenseDestination(accountId: String?, navController: NavHostController) {
     val application = LocalContext.current.applicationContext as OdinApplication
     val createExpenseViewModel: CreateExpenseViewModel = viewModel(
         factory = application.appContainer.createExpenseViewModelFactory(accountId)
@@ -290,13 +318,14 @@ private fun CreateExpenseDestination(accountId: String, navController: NavHostCo
     CreateExpenseScreen(
         uiState = uiState,
         onSave = createExpenseViewModel::save,
+        onAccountSelected = createExpenseViewModel::onAccountSelected,
         navigationEvent = createExpenseViewModel.navigationEvent,
         onNavigateBack = { navController.popBackStack() }
     )
 }
 
 @Composable
-private fun CreateTransferDestination(accountId: String, navController: NavHostController) {
+private fun CreateTransferDestination(accountId: String?, navController: NavHostController) {
     val application = LocalContext.current.applicationContext as OdinApplication
     val createTransferViewModel: CreateTransferViewModel = viewModel(
         factory = application.appContainer.createTransferViewModelFactory(accountId)
@@ -342,6 +371,9 @@ private fun HomeDestination(navController: NavHostController) {
         onAccountSelected = homeViewModel::onAccountSelected,
         onTransactionSelected = homeViewModel::onTransactionSelected,
         onCreateAccountSelected = homeViewModel::onCreateAccountSelected,
+        onIncomeShortcutSelected = homeViewModel::onIncomeShortcutSelected,
+        onExpenseShortcutSelected = homeViewModel::onExpenseShortcutSelected,
+        onTransferShortcutSelected = homeViewModel::onTransferShortcutSelected,
         onNavigateToAccountDetail = { accountId ->
             navController.navigate(Routes.accountDetail(accountId))
         },
@@ -349,6 +381,9 @@ private fun HomeDestination(navController: NavHostController) {
             navController.navigate(Routes.transactionDetail(transactionId))
         },
         onNavigateToAccountCreate = { navController.navigate(Routes.ACCOUNT_CREATE) },
+        onNavigateToIncomeCreate = { navController.navigate(Routes.incomeCreate()) },
+        onNavigateToExpenseCreate = { navController.navigate(Routes.expenseCreate()) },
+        onNavigateToTransferCreate = { navController.navigate(Routes.transferCreate()) },
         onNavigateToAccounts = { navController.navigate(Routes.ACCOUNTS) },
         onNavigateToCategories = { navController.navigate(Routes.CATEGORIES) },
     )

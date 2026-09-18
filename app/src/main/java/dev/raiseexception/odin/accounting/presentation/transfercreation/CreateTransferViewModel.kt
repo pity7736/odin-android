@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 class CreateTransferViewModel(
-    private val preselectedSourceAccountId: String,
+    private val preselectedSourceAccountId: String?,
     private val transferCreator: TransferCreator,
     private val accountLister: AccountLister,
     private val ioDispatcher: CoroutineDispatcher
@@ -37,7 +37,7 @@ class CreateTransferViewModel(
             this@CreateTransferViewModel.mutableUiState.value = when (outcome) {
                 is Outcome.Success -> CreateTransferUiState.Idle(
                     accounts = outcome.value,
-                    selectedSourceAccountId = this@CreateTransferViewModel.preselectedSourceAccountId
+                    selectedSourceAccountId = this@CreateTransferViewModel.preselectedSourceAccountId ?: ""
                 )
                 is Outcome.Failure -> CreateTransferUiState.Error(outcome.error.externalMessage)
             }

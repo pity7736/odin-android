@@ -48,6 +48,7 @@ import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.home.application.usecase.RecentTransaction
 import dev.raiseexception.odin.shared.presentation.BottomBarTab
+import dev.raiseexception.odin.shared.presentation.ExpandableFab
 import dev.raiseexception.odin.shared.presentation.OdinBottomBar
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
 import dev.raiseexception.odin.shared.presentation.formatMoney
@@ -75,9 +76,15 @@ fun HomeScreen(
     onAccountSelected: (String) -> Unit,
     onTransactionSelected: (String) -> Unit,
     onCreateAccountSelected: () -> Unit,
+    onIncomeShortcutSelected: () -> Unit,
+    onExpenseShortcutSelected: () -> Unit,
+    onTransferShortcutSelected: () -> Unit,
     onNavigateToAccountDetail: (String) -> Unit,
     onNavigateToTransactionDetail: (String) -> Unit,
     onNavigateToAccountCreate: () -> Unit,
+    onNavigateToIncomeCreate: () -> Unit,
+    onNavigateToExpenseCreate: () -> Unit,
+    onNavigateToTransferCreate: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
     modifier: Modifier = Modifier,
@@ -88,6 +95,9 @@ fun HomeScreen(
                 is HomeNavigationTarget.AccountDetail -> onNavigateToAccountDetail(target.accountId)
                 is HomeNavigationTarget.TransactionDetail -> onNavigateToTransactionDetail(target.transactionId)
                 is HomeNavigationTarget.AccountCreate -> onNavigateToAccountCreate()
+                is HomeNavigationTarget.IncomeCreate -> onNavigateToIncomeCreate()
+                is HomeNavigationTarget.ExpenseCreate -> onNavigateToExpenseCreate()
+                is HomeNavigationTarget.TransferCreate -> onNavigateToTransferCreate()
             }
         }
     }
@@ -100,7 +110,17 @@ fun HomeScreen(
                 onNavigateToAccounts = onNavigateToAccounts,
                 onNavigateToCategories = onNavigateToCategories,
             )
-        }
+        },
+        floatingActionButton = {
+            if (uiState is HomeUiState.Content) {
+                ExpandableFab(
+                    showTransferOption = uiState.accounts.size >= MINIMUM_ACCOUNTS_FOR_TRANSFER,
+                    onIncomeSelected = onIncomeShortcutSelected,
+                    onExpenseSelected = onExpenseShortcutSelected,
+                    onTransferSelected = onTransferShortcutSelected,
+                )
+            }
+        },
     ) { innerPadding ->
         when (uiState) {
             is HomeUiState.Loading -> LoadingContent(
@@ -522,3 +542,5 @@ private fun formatDate(date: kotlinx.datetime.LocalDate): String {
     )
     return "${date.dayOfMonth} ${months[date.monthNumber - 1]} ${date.year}"
 }
+
+private const val MINIMUM_ACCOUNTS_FOR_TRANSFER = 2

@@ -216,21 +216,35 @@ class AppContainer(context: Context) {
             }
         }
 
-    fun createIncomeViewModelFactory(accountId: String): ViewModelProvider.Factory =
+    fun createIncomeViewModelFactory(accountId: String?): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
-                CreateIncomeViewModel(accountId, incomeCreator, categoryLister, accountFinder, ioDispatcher)
+                CreateIncomeViewModel(
+                    accountId,
+                    incomeCreator,
+                    categoryLister,
+                    accountFinder,
+                    accountLister,
+                    ioDispatcher,
+                )
             }
         }
 
-    fun createExpenseViewModelFactory(accountId: String): ViewModelProvider.Factory =
+    fun createExpenseViewModelFactory(accountId: String?): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
-                CreateExpenseViewModel(accountId, expenseCreator, categoryLister, accountFinder, ioDispatcher)
+                CreateExpenseViewModel(
+                    accountId,
+                    expenseCreator,
+                    categoryLister,
+                    accountFinder,
+                    accountLister,
+                    ioDispatcher,
+                )
             }
         }
 
-    fun createTransferViewModelFactory(accountId: String): ViewModelProvider.Factory =
+    fun createTransferViewModelFactory(accountId: String?): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
                 CreateTransferViewModel(accountId, transferCreator, accountLister, ioDispatcher)

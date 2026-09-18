@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions", "LongMethod", "LongParameterList")
+@file:Suppress("TooManyFunctions", "LongMethod", "LongParameterList", "CyclomaticComplexMethod")
 
 package dev.raiseexception.odin.accounting.presentation.incomecreation
 
@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
+import dev.raiseexception.odin.shared.presentation.AccountAutocomplete
 import dev.raiseexception.odin.shared.presentation.ThousandSeparatorTransformation
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
 import dev.raiseexception.odin.ui.theme.ExpenseRed
@@ -71,6 +72,7 @@ import kotlinx.datetime.toLocalDateTime
 fun CreateIncomeScreen(
     uiState: CreateIncomeUiState,
     onSave: (String, String, CategoryInput, String) -> Unit,
+    onAccountSelected: (String) -> Unit = {},
     navigationEvent: Flow<NavigationTarget>,
     onNavigateBack: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -79,6 +81,7 @@ fun CreateIncomeScreen(
         navigationEvent.collect { target ->
             when (target) {
                 is NavigationTarget.AccountDetail -> onNavigateBack(target.accountId)
+                is NavigationTarget.Back -> onNavigateBack("")
             }
         }
     }
@@ -96,6 +99,18 @@ fun CreateIncomeScreen(
                 is CreateIncomeUiState.ValidationError -> uiState.accountCreatedAt
                 else -> null
             },
+            accounts = when (uiState) {
+                is CreateIncomeUiState.Idle -> uiState.accounts
+                is CreateIncomeUiState.ValidationError -> uiState.accounts
+                else -> emptyList()
+            },
+            selectedAccountId = when (uiState) {
+                is CreateIncomeUiState.Idle -> uiState.selectedAccountId
+                is CreateIncomeUiState.ValidationError -> uiState.selectedAccountId
+                else -> null
+            },
+            accountError = (uiState as? CreateIncomeUiState.ValidationError)?.accountError,
+            onAccountSelected = onAccountSelected,
             validation = uiState as? CreateIncomeUiState.ValidationError,
             isSaving = uiState is CreateIncomeUiState.Saving,
             onSave = onSave,
@@ -136,6 +151,10 @@ private fun ErrorContent(message: String, modifier: Modifier = Modifier) {
 private fun IncomeForm(
     categories: List<Category>,
     accountCreatedAt: LocalDate?,
+    accounts: List<dev.raiseexception.odin.accounting.domain.model.Account>,
+    selectedAccountId: String?,
+    accountError: String?,
+    onAccountSelected: (String) -> Unit,
     validation: CreateIncomeUiState.ValidationError?,
     isSaving: Boolean,
     onSave: (String, String, CategoryInput, String) -> Unit,
@@ -165,6 +184,16 @@ private fun IncomeForm(
             modifier = Modifier.testTag("create_income_title"),
         )
         Spacer(modifier = Modifier.height(28.dp))
+        if (accounts.isNotEmpty()) {
+            AccountAutocomplete(
+                accounts = accounts,
+                selectedAccountId = selectedAccountId,
+                onAccountSelected = onAccountSelected,
+                isError = accountError != null,
+                errorMessage = accountError,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
         OdinField(
             value = amount,
             onValueChange = { amount = it },

@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions", "LongMethod", "LongParameterList")
+@file:Suppress("TooManyFunctions", "LongMethod", "LongParameterList", "CyclomaticComplexMethod")
 
 package dev.raiseexception.odin.accounting.presentation.expensecreation
 
@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
+import dev.raiseexception.odin.shared.presentation.AccountAutocomplete
 import dev.raiseexception.odin.shared.presentation.ThousandSeparatorTransformation
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
 import dev.raiseexception.odin.ui.theme.ExpenseRed
@@ -71,6 +72,7 @@ import kotlinx.datetime.toLocalDateTime
 fun CreateExpenseScreen(
     uiState: CreateExpenseUiState,
     onSave: (String, String, CategoryInput, String) -> Unit,
+    onAccountSelected: (String) -> Unit = {},
     navigationEvent: Flow<NavigationTarget>,
     onNavigateBack: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -79,6 +81,7 @@ fun CreateExpenseScreen(
         navigationEvent.collect { target ->
             when (target) {
                 is NavigationTarget.AccountDetail -> onNavigateBack(target.accountId)
+                is NavigationTarget.Back -> onNavigateBack("")
             }
         }
     }
@@ -96,6 +99,18 @@ fun CreateExpenseScreen(
                 is CreateExpenseUiState.ValidationError -> uiState.accountCreatedAt
                 else -> null
             },
+            accounts = when (uiState) {
+                is CreateExpenseUiState.Idle -> uiState.accounts
+                is CreateExpenseUiState.ValidationError -> uiState.accounts
+                else -> emptyList()
+            },
+            selectedAccountId = when (uiState) {
+                is CreateExpenseUiState.Idle -> uiState.selectedAccountId
+                is CreateExpenseUiState.ValidationError -> uiState.selectedAccountId
+                else -> null
+            },
+            accountError = (uiState as? CreateExpenseUiState.ValidationError)?.accountError,
+            onAccountSelected = onAccountSelected,
             validation = uiState as? CreateExpenseUiState.ValidationError,
             isSaving = uiState is CreateExpenseUiState.Saving,
             onSave = onSave,
@@ -136,6 +151,10 @@ private fun ErrorContent(message: String, modifier: Modifier = Modifier) {
 private fun ExpenseForm(
     categories: List<Category>,
     accountCreatedAt: LocalDate?,
+    accounts: List<dev.raiseexception.odin.accounting.domain.model.Account>,
+    selectedAccountId: String?,
+    accountError: String?,
+    onAccountSelected: (String) -> Unit,
     validation: CreateExpenseUiState.ValidationError?,
     isSaving: Boolean,
     onSave: (String, String, CategoryInput, String) -> Unit,
@@ -165,6 +184,16 @@ private fun ExpenseForm(
             modifier = Modifier.testTag("create_expense_title"),
         )
         Spacer(modifier = Modifier.height(28.dp))
+        if (accounts.isNotEmpty()) {
+            AccountAutocomplete(
+                accounts = accounts,
+                selectedAccountId = selectedAccountId,
+                onAccountSelected = onAccountSelected,
+                isError = accountError != null,
+                errorMessage = accountError,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
         OdinField(
             value = amount,
             onValueChange = { amount = it },
