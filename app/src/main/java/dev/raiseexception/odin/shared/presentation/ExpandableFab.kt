@@ -23,10 +23,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -40,14 +36,16 @@ import dev.raiseexception.odin.ui.theme.Slate200
 import dev.raiseexception.odin.ui.theme.Slate50
 import dev.raiseexception.odin.ui.theme.Slate800
 
+@Suppress("LongParameterList")
 @Composable
 fun ExpandableFab(
+    expanded: Boolean,
+    onToggle: () -> Unit,
     showTransferOption: Boolean,
     onIncomeSelected: () -> Unit,
     onExpenseSelected: () -> Unit,
     onTransferSelected: () -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(false) }
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         AnimatedVisibility(
             visible = expanded,
@@ -55,24 +53,15 @@ fun ExpandableFab(
             exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
         ) {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                IncomeAction(onSelected = {
-                    expanded = false
-                    onIncomeSelected()
-                })
-                ExpenseAction(onSelected = {
-                    expanded = false
-                    onExpenseSelected()
-                })
+                IncomeAction(onSelected = onIncomeSelected)
+                ExpenseAction(onSelected = onExpenseSelected)
                 if (showTransferOption) {
-                    TransferAction(onSelected = {
-                        expanded = false
-                        onTransferSelected()
-                    })
+                    TransferAction(onSelected = onTransferSelected)
                 }
             }
         }
         FloatingActionButton(
-            onClick = { expanded = !expanded },
+            onClick = onToggle,
             containerColor = OrangePrimary,
             contentColor = Slate50,
             shape = RoundedCornerShape(16.dp),

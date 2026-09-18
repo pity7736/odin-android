@@ -4,6 +4,7 @@ package dev.raiseexception.odin.home.presentation.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -101,6 +106,7 @@ fun HomeScreen(
             }
         }
     }
+    var fabExpanded by remember { mutableStateOf(false) }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
@@ -114,44 +120,68 @@ fun HomeScreen(
         floatingActionButton = {
             if (uiState is HomeUiState.Content) {
                 ExpandableFab(
+                    expanded = fabExpanded,
+                    onToggle = { fabExpanded = !fabExpanded },
                     showTransferOption = uiState.accounts.size >= MINIMUM_ACCOUNTS_FOR_TRANSFER,
-                    onIncomeSelected = onIncomeShortcutSelected,
-                    onExpenseSelected = onExpenseShortcutSelected,
-                    onTransferSelected = onTransferShortcutSelected,
+                    onIncomeSelected = {
+                        fabExpanded = false
+                        onIncomeShortcutSelected()
+                    },
+                    onExpenseSelected = {
+                        fabExpanded = false
+                        onExpenseShortcutSelected()
+                    },
+                    onTransferSelected = {
+                        fabExpanded = false
+                        onTransferShortcutSelected()
+                    },
                 )
             }
         },
     ) { innerPadding ->
-        when (uiState) {
-            is HomeUiState.Loading -> LoadingContent(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            )
-            is HomeUiState.Empty -> EmptyContent(
-                onCreateAccount = onCreateAccountSelected,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            )
-            is HomeUiState.Content -> SummaryContent(
-                totalBalances = uiState.totalBalances,
-                accounts = uiState.accounts,
-                hasMoreAccounts = uiState.hasMoreAccounts,
-                recentTransactions = uiState.recentTransactions,
-                onAccountSelected = onAccountSelected,
-                onTransactionSelected = onTransactionSelected,
-                onSeeAllAccounts = onNavigateToAccounts,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            )
-            is HomeUiState.Error -> ErrorContent(
-                message = uiState.message,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            )
+        Box(modifier = Modifier.fillMaxSize()) {
+            when (uiState) {
+                is HomeUiState.Loading -> LoadingContent(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                )
+                is HomeUiState.Empty -> EmptyContent(
+                    onCreateAccount = onCreateAccountSelected,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                )
+                is HomeUiState.Content -> SummaryContent(
+                    totalBalances = uiState.totalBalances,
+                    accounts = uiState.accounts,
+                    hasMoreAccounts = uiState.hasMoreAccounts,
+                    recentTransactions = uiState.recentTransactions,
+                    onAccountSelected = onAccountSelected,
+                    onTransactionSelected = onTransactionSelected,
+                    onSeeAllAccounts = onNavigateToAccounts,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                )
+                is HomeUiState.Error -> ErrorContent(
+                    message = uiState.message,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                )
+            }
+            if (fabExpanded) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Slate900.copy(alpha = 0.6f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { fabExpanded = false },
+                )
+            }
         }
     }
 }

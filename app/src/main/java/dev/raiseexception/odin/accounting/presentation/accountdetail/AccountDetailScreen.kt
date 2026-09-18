@@ -4,6 +4,7 @@ package dev.raiseexception.odin.accounting.presentation.accountdetail
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +64,7 @@ import dev.raiseexception.odin.ui.theme.Slate50
 import dev.raiseexception.odin.ui.theme.Slate500
 import dev.raiseexception.odin.ui.theme.Slate600
 import dev.raiseexception.odin.ui.theme.Slate800
+import dev.raiseexception.odin.ui.theme.Slate900
 import dev.raiseexception.odin.ui.theme.SoraFamily
 import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.Clock
@@ -98,6 +104,7 @@ fun AccountDetailScreen(
             }
         }
     }
+    var fabExpanded by remember { mutableStateOf(false) }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
@@ -111,42 +118,66 @@ fun AccountDetailScreen(
         floatingActionButton = {
             if (uiState is AccountDetailUiState.Content) {
                 ExpandableFab(
+                    expanded = fabExpanded,
+                    onToggle = { fabExpanded = !fabExpanded },
                     showTransferOption = true,
-                    onIncomeSelected = onCreateIncome,
-                    onExpenseSelected = onCreateExpense,
-                    onTransferSelected = onCreateTransfer,
+                    onIncomeSelected = {
+                        fabExpanded = false
+                        onCreateIncome()
+                    },
+                    onExpenseSelected = {
+                        fabExpanded = false
+                        onCreateExpense()
+                    },
+                    onTransferSelected = {
+                        fabExpanded = false
+                        onCreateTransfer()
+                    },
                 )
             }
         },
     ) { innerPadding ->
-        when (uiState) {
-            is AccountDetailUiState.Loading -> AccountDetailLoading(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-            is AccountDetailUiState.Content -> AccountDetailContent(
-                account = uiState.account,
-                transactions = uiState.transactions,
-                activeFilter = uiState.activeFilter,
-                onTransactionSelected = onTransactionSelected,
-                onFilterChanged = onFilterChanged,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-            is AccountDetailUiState.NotFound -> AccountDetailMessage(
-                message = "Cuenta no encontrada",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-            is AccountDetailUiState.Error -> AccountDetailMessage(
-                message = uiState.message,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
+        Box(modifier = Modifier.fillMaxSize()) {
+            when (uiState) {
+                is AccountDetailUiState.Loading -> AccountDetailLoading(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                is AccountDetailUiState.Content -> AccountDetailContent(
+                    account = uiState.account,
+                    transactions = uiState.transactions,
+                    activeFilter = uiState.activeFilter,
+                    onTransactionSelected = onTransactionSelected,
+                    onFilterChanged = onFilterChanged,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                is AccountDetailUiState.NotFound -> AccountDetailMessage(
+                    message = "Cuenta no encontrada",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                is AccountDetailUiState.Error -> AccountDetailMessage(
+                    message = uiState.message,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+            }
+            if (fabExpanded) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Slate900.copy(alpha = 0.6f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { fabExpanded = false },
+                )
+            }
         }
     }
 }
