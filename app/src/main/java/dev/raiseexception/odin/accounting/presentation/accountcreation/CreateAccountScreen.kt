@@ -40,7 +40,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
-import dev.raiseexception.odin.shared.presentation.ThousandSeparatorTransformation
+import dev.raiseexception.odin.shared.presentation.AmountField
+import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.Slate200
 import dev.raiseexception.odin.ui.theme.Slate50
@@ -91,14 +92,12 @@ fun CreateAccountScreen(
             errorMessage = validation?.nameError,
         )
         Spacer(modifier = Modifier.height(16.dp))
-        OdinField(
+        AmountField(
             value = balance,
             onValueChange = { balance = it },
             label = "Saldo inicial",
             testTag = "balance_field",
             errorMessage = validation?.balanceError,
-            keyboardType = KeyboardType.Decimal,
-            visualTransformation = ThousandSeparatorTransformation,
         )
         Spacer(modifier = Modifier.height(16.dp))
         ChipPicker(
@@ -139,7 +138,9 @@ fun CreateAccountScreen(
             errorMessage = validation?.descriptionError,
         )
         Spacer(modifier = Modifier.height(24.dp))
-        CreateAction(uiState) { onCreate(name, balance, selectedCurrency, selectedType, description) }
+        CreateAction(uiState) {
+            onCreate(name, amountInputToRaw(balance), selectedCurrency, selectedType, description)
+        }
         GeneralMessage(uiState)
         Spacer(modifier = Modifier.height(24.dp))
     }
