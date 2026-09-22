@@ -26,6 +26,10 @@ manually.
 - A transfer follows the same validation rules as income and expense creation,
   plus its own transfer-specific rules (same account, same currency,
   sufficient funds).
+- As the user types the amount, it is formatted while typing as described by the
+  shared amount-formatting behavior (see `specs/shared/amount-formatting/spec.md`).
+  The value used for validation and storage is the raw amount the user entered,
+  without the separators.
 - A transfer deducts the amount from the source account and adds it to the
   destination account.
 - The source account's history shows an expense entry with the description

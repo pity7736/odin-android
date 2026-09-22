@@ -68,12 +68,13 @@ accounts list.
   ISO-8601 string (`Instant.toString()`) for exact round-trip at the infra boundary without
   loss. `Account.create` carries a `@Suppress("LongParameterList")` annotation because the
   factory legitimately requires all its inputs; the suppress is scoped to that function alone.
-- **Balance field formats with dot thousand separators as the user types.** The
-  private `OdinField` composable accepts a `VisualTransformation` and the balance
-  call site passes `ThousandSeparatorTransformation` (from `shared/presentation`).
-  This is presentation-only — the raw value reaches the ViewModel and domain
-  unchanged. Consistent with income and expense creation forms, which use the
-  same transformation.
+- **Balance is entered through the shared `AmountField`.** The balance call site
+  uses `AmountField` (from `shared/presentation`), which formats the amount as the
+  user types and accepts a comma decimal, identically to the income, expense, and
+  transfer amount fields. The durable design of that behavior lives in
+  `specs/shared/amount-formatting/design.md`. It is presentation-only: the screen
+  converts the on-screen text to the raw dot-decimal form before `onCreate`, so
+  the ViewModel and domain receive an unchanged raw amount.
 - **`CreateAccountViewModel` is destination-scoped.** The `ACCOUNT_CREATE`
   destination obtains it via `androidx.lifecycle.viewmodel.compose.viewModel { … }`
   (backed by the `NavBackStackEntry`'s `ViewModelStore`; instance from the
@@ -133,8 +134,8 @@ specs/accounting/accounts/creation/
 
 ## Screen & States / Backend Interaction
 
-- **Screens:** `CreateAccountScreen` (the form; the balance input is a numeric
-  decimal field with dot thousand separator formatting) and a placeholder `AccountsListScreen` reached via a single "+"
+- **Screens:** `CreateAccountScreen` (the form; the balance input is the shared
+  `AmountField`, see `specs/shared/amount-formatting/design.md`) and a placeholder `AccountsListScreen` reached via a single "+"
   FAB; entry to the flow is a "Mis cuentas" action on Home. Routes `ACCOUNTS` and
   `ACCOUNT_CREATE`.
 - **UiState:** one immutable state — `Idle` / `Loading` / `ValidationError`

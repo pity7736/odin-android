@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -45,10 +44,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.raiseexception.odin.accounting.domain.model.Account
-import dev.raiseexception.odin.shared.presentation.ThousandSeparatorTransformation
+import dev.raiseexception.odin.shared.presentation.AmountField
+import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.Slate200
 import dev.raiseexception.odin.ui.theme.Slate50
@@ -183,14 +182,12 @@ private fun TransferForm(
             errorMessage = validation?.destinationAccountError,
         )
         Spacer(modifier = Modifier.height(16.dp))
-        OdinField(
+        AmountField(
             value = amount,
             onValueChange = { amount = it },
             label = "Monto",
             testTag = "amount_field",
             errorMessage = validation?.amountError,
-            keyboardType = KeyboardType.Decimal,
-            visualTransformation = ThousandSeparatorTransformation,
         )
         Spacer(modifier = Modifier.height(16.dp))
         DatePickerField(rawDate, { rawDate = it }, validation?.dateError, transferMinDate)
@@ -203,7 +200,7 @@ private fun TransferForm(
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
             else -> Button(
-                onClick = { onSave(sourceAccountId, destinationAccountId, amount, rawDate) },
+                onClick = { onSave(sourceAccountId, destinationAccountId, amountInputToRaw(amount), rawDate) },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Slate800,
@@ -289,45 +286,6 @@ private fun AccountDropdown(
             }
         }
         FieldError(errorMessage, "${testTagPrefix}_field_error")
-    }
-}
-
-@Composable
-private fun OdinField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    testTag: String,
-    errorMessage: String?,
-    keyboardType: KeyboardType = KeyboardType.Text,
-    visualTransformation: androidx.compose.ui.text.input.VisualTransformation =
-        androidx.compose.ui.text.input.VisualTransformation.None,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = Slate800,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            singleLine = true,
-            isError = errorMessage != null,
-            shape = RoundedCornerShape(10.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                unfocusedBorderColor = if (errorMessage != null) ExpenseRed else Slate200,
-                focusedBorderColor = if (errorMessage != null) ExpenseRed else Slate200,
-            ),
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-            visualTransformation = visualTransformation,
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag(testTag),
-        )
-        FieldError(errorMessage, "${testTag}_error")
     }
 }
 

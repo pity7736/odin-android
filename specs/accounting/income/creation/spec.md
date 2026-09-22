@@ -14,6 +14,7 @@ As a user, I want to record an income amount against an account I am viewing, so
 - The date field opens a calendar picker. Today's date is pre-selected so the user can save immediately without changing it. The calendar only allows selecting dates from the account's creation date through today.
 - The account the income belongs to is the one the user is currently viewing — it is not chosen in the form.
 - The amount must be a positive value greater than zero.
+- As the user types the amount, it is formatted while typing as described by the shared amount-formatting behavior (see `specs/shared/amount-formatting/spec.md`). The value used for validation and storage is the raw amount the user entered, without the separators.
 - The date must be today or in the past, and no earlier than the day the account was created.
 - When the category field is focused, all existing income categories are shown. As the user types, the list filters to matching categories. The user can pick one from the list or finish typing a new name to create a new income category.
 - If any required field is invalid or missing, an error is shown next to that field.

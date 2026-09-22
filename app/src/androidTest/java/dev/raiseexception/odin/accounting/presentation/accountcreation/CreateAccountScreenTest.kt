@@ -126,7 +126,7 @@ class CreateAccountScreenTest {
             )
         }
         composeTestRule.onNodeWithTag("name_field").performTextInput("Ahorros")
-        composeTestRule.onNodeWithTag("balance_field").performTextInput("1500.00")
+        composeTestRule.onNodeWithTag("balance_field").performTextInput("1500,00")
         composeTestRule.onNodeWithTag("description_field").performTextInput("Fondo de emergencia")
         composeTestRule.onNodeWithTag("currency_option_COP").performClick()
         composeTestRule.onNodeWithTag("type_option_SAVINGS").performClick()
@@ -155,5 +155,24 @@ class CreateAccountScreenTest {
         composeTestRule.onNodeWithText("1.500.000").assertIsDisplayed()
         composeTestRule.onNodeWithTag("create_button").performClick()
         assertEquals("1500000", capturedBalance)
+    }
+
+    @Test
+    fun given_balance_field_when_user_types_a_comma_decimal_then_it_is_formatted_and_saved_as_a_dot_decimal() {
+        var capturedBalance = ""
+        composeTestRule.setContent {
+            CreateAccountScreen(
+                uiState = CreateAccountUiState.Idle,
+                onCreate = { _, balance, _, _, _ ->
+                    capturedBalance = balance
+                },
+                navigationEvent = emptyFlow(),
+                onCreateSuccess = {}
+            )
+        }
+        composeTestRule.onNodeWithTag("balance_field").performTextInput("111176,46")
+        composeTestRule.onNodeWithText("111.176,46").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("create_button").performClick()
+        assertEquals("111176.46", capturedBalance)
     }
 }

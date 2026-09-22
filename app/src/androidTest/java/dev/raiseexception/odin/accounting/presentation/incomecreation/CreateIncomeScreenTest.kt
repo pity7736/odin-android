@@ -6,12 +6,15 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import dev.raiseexception.odin.accounting.domain.model.Category
+import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
-import dev.raiseexception.odin.testutil.CategoryBuilder
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Rule
 import org.junit.Test
 
@@ -20,10 +23,14 @@ class CreateIncomeScreenTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
-    private val incomeCategory: Category = CategoryBuilder()
-        .name("Salario")
-        .type(CategoryType.INCOME)
-        .build()
+    private val incomeCategory: Category = Category.restore(
+        "income-category-id",
+        "Salario",
+        CategoryType.INCOME,
+        "",
+        "#E57373",
+        Instant.parse("2026-01-01T00:00:00Z"),
+    )
 
     @Test
     fun given_idle_state_when_displayed_then_shows_amount_date_category_and_description_fields() {
@@ -47,9 +54,11 @@ class CreateIncomeScreenTest {
 
     @Test
     fun given_valid_input_when_save_tapped_then_income_is_submitted() {
+        val today = Clock.System.now()
+            .toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
         var capturedAmount = ""
-        var capturedDate: LocalDate? = null
-        var capturedCategoryId = ""
+        var capturedDate = ""
+        var capturedCategory: CategoryInput? = null
         var capturedDescription = ""
         composeTestRule.setContent {
             CreateIncomeScreen(
@@ -57,24 +66,23 @@ class CreateIncomeScreenTest {
                     categories = listOf(incomeCategory),
                     accountCreatedAt = LocalDate(2026, 1, 1)
                 ),
-                onSave = { amount, date, categoryId, description ->
+                onSave = { amount, date, category, description ->
                     capturedAmount = amount
                     capturedDate = date
-                    capturedCategoryId = categoryId
+                    capturedCategory = category
                     capturedDescription = description
                 },
                 navigationEvent = emptyFlow(),
                 onNavigateBack = {}
             )
         }
-        composeTestRule.onNodeWithTag("amount_field").performTextInput("500.00")
-        composeTestRule.onNodeWithTag("date_field").performTextInput("2026-08-29")
+        composeTestRule.onNodeWithTag("amount_field").performTextInput("500,00")
         composeTestRule.onNodeWithTag("category_field").performClick()
         composeTestRule.onNodeWithTag("category_option_${incomeCategory.id}").performClick()
         composeTestRule.onNodeWithTag("save_button").performClick()
         assertEquals("500.00", capturedAmount)
-        assertEquals(LocalDate(2026, 8, 29), capturedDate)
-        assertEquals(incomeCategory.id, capturedCategoryId)
+        assertEquals(today, capturedDate)
+        assertEquals(CategoryInput.Existing(incomeCategory.id), capturedCategory)
         assertEquals("", capturedDescription)
     }
 

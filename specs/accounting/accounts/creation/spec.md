@@ -32,9 +32,10 @@ see how long I have been tracking it.
   upper/lower case (so "Savings" and "savings" count as the same name).
 - The initial balance is required, cannot be negative, and can have at most two
   decimal places. Zero is allowed.
-- As the user types the initial balance, the amount is formatted with dot
-  thousand separators (e.g., typing "1500000" shows "1.500.000"). This is a
-  visual aid only — the stored value is the raw number the user entered.
+- As the user types the initial balance, the amount is formatted while typing as
+  described by the shared amount-formatting behavior (see
+  `specs/shared/amount-formatting/spec.md`). The value used for validation and
+  storage is the raw amount the user entered, without the separators.
 - The currency is required and must be one of: US Dollar (USD), Euro (EUR), or
   Colombian Peso (COP).
 - The type is required and must be one of: savings or cash.
@@ -164,13 +165,6 @@ see how long I have been tracking it.
 - Then the account is not created
 - And the user sees the message "La descripción no puede superar los 500
   caracteres." next to the description
-
-### Initial balance is formatted with thousand separators as the user types
-- Given the user is signed in and filling in a new account
-- When the user types "1500000" in the initial balance field
-- Then the field displays "1.500.000" with dot thousand separators
-- And the actual value used for validation and storage is the raw number the
-  user entered
 
 ### Show all field errors at once
 - Given the user is signed in and filling in a new account

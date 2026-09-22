@@ -7,8 +7,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
-import dev.raiseexception.odin.testutil.CategoryBuilder
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.Rule
 import org.junit.Test
@@ -18,10 +18,14 @@ class CreateExpenseScreenTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
-    private val expenseCategory: Category = CategoryBuilder()
-        .name("Alimentación")
-        .type(CategoryType.EXPENSE)
-        .build()
+    private val expenseCategory: Category = Category.restore(
+        "expense-category-id",
+        "Alimentación",
+        CategoryType.EXPENSE,
+        "",
+        "#E57373",
+        Instant.parse("2026-01-01T00:00:00Z"),
+    )
 
     @Test
     fun given_idle_state_when_displayed_then_shows_amount_date_category_and_description_fields() {
@@ -59,7 +63,7 @@ class CreateExpenseScreenTest {
                 onNavigateBack = {}
             )
         }
-        composeTestRule.onNodeWithTag("amount_field").performTextInput("500.00")
+        composeTestRule.onNodeWithTag("amount_field").performTextInput("500,00")
         composeTestRule.onNodeWithTag("category_field").performClick()
         composeTestRule.onNodeWithTag("category_option_${expenseCategory.id}").performClick()
         composeTestRule.onNodeWithTag("save_button").performClick()
