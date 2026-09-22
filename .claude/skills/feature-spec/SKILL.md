@@ -73,6 +73,51 @@ Only when the picture is complete do you proceed to write the spec.
 - **Update to an existing feature** → follow "Updating an existing feature".
 - **Bug fix** → follow "Fixing a bug in an existing feature".
 
+Before committing to any of those three, check whether the change is actually
+**cross-cutting** (see below) — this applies to a new feature, an update, or a
+bug fix alike.
+
+## When the change is cross-cutting (shared by several features)
+
+Some behavior is not owned by any single feature — it shows up identically in
+many of them (every amount field, every form, every list). Burying such behavior
+in one feature's `spec.md`/`design.md` is a mistake: the other features inherit
+it invisibly, there is no single source of truth, and it regresses unevenly.
+Before assuming a change belongs to one feature, ask whether the behavior is
+shared across features. If it is, route by ONE question:
+
+**Does the change have user-observable behavior a product person could describe?**
+
+- **Yes → a shared FEATURE.** Give it its own three-doc folder under
+  `specs/shared/<feature>/` (spec, design, plan), same lifecycle as any feature.
+  Its `spec.md` states the WHAT in business language — everyday user words like
+  "amount", "field", or "keyboard" are fine; the ban is on *implementation*
+  jargon (Compose, Room, ViewModel…), not on UI vocabulary a user would say.
+  Each consumer feature's `spec.md` **references** the shared spec in one line
+  instead of duplicating the rule. Examples: how every amount field formats what
+  the user types; keeping the field the user is editing visible above the
+  on-screen keyboard on every form.
+
+  **The hydrate gate for a cross-cutting change touches MANY files, not one.**
+  Create the shared feature's `design.md`, then **sweep every consumer feature's
+  `design.md` (and `spec.md`)** — a consumer may describe the old behavior in
+  more than one place (a decision bullet AND a Screen/Data-Flow section), and
+  several consumers may each have their own stale copy. `grep` across all
+  `design.md`/`spec.md` for the old approach; for each hit, delete or rewrite it
+  in the present tense and replace it with a one-line pointer to the shared
+  design. Do NOT assume only the feature you started from is affected — the whole
+  point of a cross-cutting change is that it reaches all of them.
+- **No → NOT this skill.** A change with no user-observable behavior (pure
+  refactor, infra swap, internal cleanup) uses the `technical-plan` skill
+  (`specs/technical/<topic>/`). Examples: swapping the local store from in-memory
+  to Room, replacing Retrofit with Ktor. Because plans reference ports not
+  adapters, many such changes touch no feature plan at all.
+
+Do NOT split on "business logic vs UI." A visible UX rule (the keyboard must not
+cover the active field) is user-observable and belongs in a spec, even though its
+implementation is entirely technical. The only test is whether a product person
+can state the expected behavior.
+
 ## Files this skill owns
 
 - `spec-template.md` — canonical structure for every `spec.md`
@@ -228,11 +273,13 @@ Discovery (above) must be complete first.
 ## Updating an existing feature
 
 First confirm it really IS an update to THIS feature — a change to this
-feature's own behavior or implementation. If the change is cross-cutting or
-infrastructural (e.g. swapping the local store from in-memory to Room, or
-Retrofit for Ktor), it is a NEW feature with its own `specs/` folder, not an
-update here. And because plans reference ports, not adapters, many infrastructure
-changes touch no feature plan at all — check before assuming this path applies.
+feature's own behavior or implementation. If the behavior is shared across
+several features, it is a **cross-cutting** change, not an update here — see
+**When the change is cross-cutting** above to route it (a shared feature under
+`specs/shared/…` when it has user-observable behavior, or the `technical-plan`
+skill for internal-only changes). And because plans reference ports, not
+adapters, many infrastructure changes touch no feature plan at all — check
+before assuming this path applies.
 
 Discovery (above) must be complete first — including what is changing and why.
 
@@ -266,7 +313,10 @@ spec or rewrite the old one to match the buggy code — that makes the spec lie.
 
 First confirm it really is a bug in THIS feature (the code diverges from this
 feature's own spec), not a missing capability. A missing capability is an
-update or a new feature, not a bug fix.
+update or a new feature, not a bug fix. And if the broken behavior is shared
+across several features (it manifests the same on many screens), it is a
+cross-cutting bug — see **When the change is cross-cutting** above: fix it once
+in the shared feature (`specs/shared/…`), not in each feature that shows it.
 
 **MANDATORY: failing tests that reproduce the bug come first.** Before any fix
 is written, there MUST be at least one test that exercises the broken behavior
