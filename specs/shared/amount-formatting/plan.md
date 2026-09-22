@@ -151,12 +151,12 @@ fun AmountField(
 **Green:** adjust only the capture point if the wiring moved it; run `./gradlew check` (tests + detekt + Kover) GREEN.
 
 ## Design decisions to hydrate into design.md
-- [ ] Create `design.md` for this new shared feature from the template.
-- [ ] Two representations: on-screen text holds the comma form; the dot form is what the domain/DB receive; `BigDecimal` never sees a comma. Rationale + rejected alternative (store dot form → ambiguous keystroke filter).
-- [ ] Single shared `AmountField` composable enforces identical behavior across all amount fields; rejected alternative (shared helpers wired per screen → drift risk).
-- [ ] `AmountField` is stateless (screen owns the comma-form string); comma→dot conversion happens once in each screen's submit via the shared `amountInputToRaw`, so ViewModels never see a comma. Rejected alternative (`AmountField` owns an internal buffer and reports dot form → dual-state sync, the classic hoisted-TextField pitfall, in the one component that most needs to be robust).
-- [ ] Separators are parameters with one app-wide default; rejected alternative (hardcoded glyphs / live per-currency now → spec + edge-case expansion). Note: per-currency formatting is a future feature this component is built to support.
-- [ ] Input filter rule: digits + first decimal separator only; everything else dropped; the decimal part is capped at `maxDecimals` (default 2), a parameter for consistency with the configurable separators. The domain's "too many decimals" rule remains as an unreachable safety net.
-- [ ] Display transformation groups only the integer part and maps the caret; domain parsing stays on dot-decimal and is unchanged.
-- [ ] `accounts/creation/spec.md` now references this shared spec instead of duplicating the formatting rule (single source of truth).
-- [ ] Quality Pillars (all four) for the shared amount input.
+- [x] Create `design.md` for this new shared feature from the template.
+- [x] Two representations: on-screen text holds the comma form; the dot form is what the domain/DB receive; `BigDecimal` never sees a comma. Rationale + rejected alternative (store dot form → ambiguous keystroke filter).
+- [x] Single shared `AmountField` composable enforces identical behavior across all amount fields; rejected alternative (shared helpers wired per screen → drift risk).
+- [x] `AmountField` is stateless (screen owns the comma-form string); comma→dot conversion happens once in each screen's submit via the shared `amountInputToRaw`, so ViewModels never see a comma. Rejected alternative (`AmountField` owns an internal buffer and reports dot form → dual-state sync, the classic hoisted-TextField pitfall, in the one component that most needs to be robust).
+- [x] Separators are parameters with one app-wide default; rejected alternative (hardcoded glyphs / live per-currency now → spec + edge-case expansion). Note: per-currency formatting is a future feature this component is built to support.
+- [x] Input filter rule: digits + first decimal separator only; everything else dropped; the decimal part is capped at `maxDecimals` (default 2), a parameter for consistency with the configurable separators. The domain's "too many decimals" rule remains as an unreachable safety net.
+- [x] Display transformation groups only the integer part and maps the caret; domain parsing stays on dot-decimal and is unchanged.
+- [x] `accounts/creation/spec.md` now references this shared spec instead of duplicating the formatting rule (single source of truth).
+- [x] Quality Pillars (all four) for the shared amount input.
