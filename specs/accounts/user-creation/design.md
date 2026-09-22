@@ -224,6 +224,7 @@ specs/accounts/user-creation/
 - Password field (masked by default, with an independent reveal toggle)
 - Password confirmation field (masked by default, with an independent reveal toggle)
 - Recommendation message about choosing a strong password
+- Password recovery warning: no recovery possible, recommends saving in a password manager
 - "Registrarse" button (replaced by a loading spinner during `Loading`)
 - Inline error next to the relevant field on validation failure
 - General error message on system failure

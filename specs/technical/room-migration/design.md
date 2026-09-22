@@ -69,11 +69,11 @@ encryption key in raw hex format. See
 - **`UserEntity` no longer has a `salt` column.** Salt moved to Preferences
   DataStore. The `users` table holds only `(id, wrappedMasterKey)`.
 
-- **`fallbackToDestructiveMigration` during development.** The database is created
-  with `fallbackToDestructiveMigration(dropAllTables = true)` so schema changes
-  don't require manual migration scripts during active development. This must be
-  replaced with proper migrations before MVP — the schema version must be reset to
-  1 at that point. Tracked in `TASKS.md`.
+- **Explicit migrations required.** Schema exports are enabled
+  (`exportSchema = true`) and written to `app/schemas/`. The database starts at
+  version 1. Every schema change requires bumping the version and providing a
+  `Migration(oldVersion, newVersion)` with the SQL — Room will crash at runtime
+  if a migration is missing.
 
 - **`DevDataSeeder` skips if data exists.** Since data now persists across process
   death, the seeder checks `accountLister.list().first()` and returns early if
