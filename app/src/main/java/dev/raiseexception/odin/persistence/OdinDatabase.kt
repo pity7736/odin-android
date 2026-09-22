@@ -21,8 +21,8 @@ import dev.raiseexception.odin.accounts.infrastructure.repository.UserEntity
         TransactionEntity::class,
         TransferEntity::class,
     ],
-    version = 4,
-    exportSchema = false
+    version = 1,
+    exportSchema = true
 )
 abstract class OdinDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao

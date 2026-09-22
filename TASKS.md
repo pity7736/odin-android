@@ -29,27 +29,27 @@ locally.
 
 Tasks are listed in priority order.
 
-- [ ] Change `applicationId` to `io.sitia.odin` before first upload (permanent, cannot change after publishing)
-- [ ] Signed release build (generate and securely store the signing key — same key used for Play Store later)
-- [ ] Registration screen must warn users that the password cannot be recovered — losing it means losing all data. Zero-knowledge design has no forgot-password flow
+- [x] Change `applicationId` to `io.sitia.odin` before first upload (permanent, cannot change after publishing)
+- [x] Signed release build (generate and securely store the signing key — same key used for Play Store later)
+- [x] Registration screen must warn users that the password cannot be recovered — losing it means losing all data. Zero-knowledge design has no forgot-password flow
 - [x] Home screen shortcuts for creating income, expense, and transfer without navigating to an account first. Creation forms need an account selector field
-- [ ] Replace `fallbackToDestructiveMigration` with proper Room migrations. Must be done before any alpha update that changes the schema, otherwise testers lose all data
-- [ ] Enable R8 for release build (shrink unused code from dependencies to reduce APK size)
+- [x] Replace `fallbackToDestructiveMigration` with proper Room migrations. Must be done before any alpha update that changes the schema, otherwise testers lose all data
+- [x] Enable R8 for release build (shrink unused code from dependencies to reduce APK size)
 
 ### Pre-launch (blocks Play Store release)
 
-- [ ] Registration rollback is incomplete after vault unlock. If any step fails after `vaultUnlocker.unlock()` (user persistence, post-registration setup), only the salt is deleted. The SQLCipher database file remains encrypted with the first attempt's key, blocking future registration retries on app restart
-- [ ] App briefly flashes a content screen (e.g. account details) before navigating to login/registration on cold start. `StartupViewModel` check is async and the default navigation route renders before it resolves
-- [ ] Privacy policy: hosted page describing data handling, required by Play Store for finance apps
-- [ ] Play Store listing: app icon (512x512), feature graphic (1024x500), screenshots, descriptions, content rating questionnaire, Data Safety section declaration
-- [ ] Crash reporting (Crashlytics or Sentry) so production crashes are visible
 - [ ] Session management + biometric unlock (ship together): lock when the app goes to background, clear master key, close SQLCipher database. Biometric as the fast path back in; password as fallback
+- [ ] Crash reporting (Crashlytics or Sentry) so production crashes are visible
 - [ ] Update accounts
 - [ ] Update incomes
 - [ ] Update expenses
 - [ ] Update categories
 - [ ] Basic reporting (expenses by category, income vs expenses for a period)
 - [ ] AI assistant (create transactions in natural language, e.g. "me gasté una hamburguesa por 20K cop con la tarjeta débito"). Requires server — alpha testers get free trial to stress-test the feature
+- [ ] Registration rollback is incomplete after vault unlock. If any step fails after `vaultUnlocker.unlock()` (user persistence, post-registration setup), only the salt is deleted. The SQLCipher database file remains encrypted with the first attempt's key, blocking future registration retries on app restart
+- [ ] App briefly flashes a content screen (e.g. account details) before navigating to login/registration on cold start. `StartupViewModel` check is async and the default navigation route renders before it resolves. Pending alpha tester feedback on old devices before prioritizing
+- [ ] Privacy policy: hosted page describing data handling, required by Play Store for finance apps
+- [ ] Play Store listing: app icon (512x512), feature graphic (1024x500), screenshots, descriptions, content rating questionnaire, Data Safety section declaration
 
 ## v0.2.0 — Post-launch
 

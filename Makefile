@@ -1,10 +1,10 @@
 AVD       := Pixel_7
-PACKAGE   := dev.raiseexception.odin
-ACTIVITY  := $(PACKAGE)/.MainActivity
+PACKAGE   := io.sitia.odin
+ACTIVITY  := $(PACKAGE)/dev.raiseexception.odin.MainActivity
 ADB       := adb
 EMULATOR  := emulator
 
-.PHONY: run clear
+.PHONY: run release clear
 
 run:
 	@if ! $(ADB) devices | grep -q emulator; then \
@@ -16,6 +16,9 @@ run:
 	fi
 	./gradlew installDebug
 	$(ADB) shell am start -n $(ACTIVITY)
+
+release:
+	./gradlew assembleRelease
 
 clear:
 	$(ADB) shell pm clear $(PACKAGE)

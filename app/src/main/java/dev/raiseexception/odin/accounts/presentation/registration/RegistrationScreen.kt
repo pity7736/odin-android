@@ -3,21 +3,27 @@
 package dev.raiseexception.odin.accounts.presentation.registration
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -85,6 +91,8 @@ fun RegistrationScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.testTag("recommendation_message"),
         )
+        Spacer(modifier = Modifier.height(16.dp))
+        PasswordRecoveryWarning()
         Spacer(modifier = Modifier.height(24.dp))
         PasswordField(
             value = password,
@@ -109,6 +117,36 @@ fun RegistrationScreen(
             onRegister = { onRegister(password, passwordConfirmation) },
         )
         GeneralMessage(uiState)
+    }
+}
+
+@Composable
+private fun PasswordRecoveryWarning() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(10.dp),
+            )
+            .padding(14.dp)
+            .testTag("password_recovery_warning"),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Warning,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = "Si olvida su contraseña, no podrá recuperar sus datos. " +
+                "No existe opción de restablecer contraseña. " +
+                "Le recomendamos guardarla en un gestor de contraseñas.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+        )
     }
 }
 
