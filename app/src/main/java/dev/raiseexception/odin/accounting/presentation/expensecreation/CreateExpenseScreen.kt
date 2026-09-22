@@ -46,13 +46,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.shared.presentation.AccountAutocomplete
-import dev.raiseexception.odin.shared.presentation.ThousandSeparatorTransformation
+import dev.raiseexception.odin.shared.presentation.AmountField
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.Slate200
@@ -194,14 +193,12 @@ private fun ExpenseForm(
             )
             Spacer(modifier = Modifier.height(16.dp))
         }
-        OdinField(
+        AmountField(
             value = amount,
             onValueChange = { amount = it },
             label = "Monto",
             testTag = "amount_field",
             errorMessage = validation?.amountError,
-            keyboardType = KeyboardType.Decimal,
-            visualTransformation = ThousandSeparatorTransformation,
         )
         Spacer(modifier = Modifier.height(16.dp))
         DatePickerField(rawDate, { rawDate = it }, validation?.dateError, accountCreatedAt)
@@ -264,8 +261,6 @@ private fun OdinField(
     label: String,
     testTag: String,
     errorMessage: String?,
-    keyboardType: KeyboardType = KeyboardType.Text,
-    visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -285,8 +280,7 @@ private fun OdinField(
                 unfocusedBorderColor = if (errorMessage != null) ExpenseRed else Slate200,
                 focusedBorderColor = if (errorMessage != null) ExpenseRed else Slate200,
             ),
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-            visualTransformation = visualTransformation,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag(testTag),
