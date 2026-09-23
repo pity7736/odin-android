@@ -1,6 +1,7 @@
 AVD       := Pixel_7
-PACKAGE   := io.sitia.odin
-ACTIVITY  := $(PACKAGE)/dev.raiseexception.odin.MainActivity
+PACKAGE       := io.sitia.odin
+DEBUG_PACKAGE := io.sitia.odin.debug
+ACTIVITY_CLASS := dev.raiseexception.odin.MainActivity
 ADB       := adb
 EMULATOR  := emulator
 APK_RELEASE := app/build/outputs/apk/release/app-release.apk
@@ -15,9 +16,9 @@ run:
 		until [ "$$($(ADB) shell getprop sys.boot_completed 2>/dev/null)" = "1" ]; do sleep 2; done; \
 		$(ADB) shell input keyevent 82; \
 	fi
-	-$(ADB) uninstall $(PACKAGE) 2>/dev/null
+	-$(ADB) uninstall $(DEBUG_PACKAGE) 2>/dev/null
 	./gradlew installDebug
-	$(ADB) shell am start -n $(ACTIVITY)
+	$(ADB) shell am start -n $(DEBUG_PACKAGE)/$(ACTIVITY_CLASS)
 
 run-release:
 	@if ! $(ADB) devices | grep -q emulator; then \
@@ -30,7 +31,7 @@ run-release:
 	-$(ADB) uninstall $(PACKAGE) 2>/dev/null
 	./gradlew assembleRelease
 	$(ADB) install $(APK_RELEASE)
-	$(ADB) shell am start -n $(ACTIVITY)
+	$(ADB) shell am start -n $(PACKAGE)/$(ACTIVITY_CLASS)
 
 build:
 	./gradlew assembleDebug
@@ -39,4 +40,4 @@ release:
 	./gradlew assembleRelease
 
 clear:
-	$(ADB) shell pm clear $(PACKAGE)
+	$(ADB) shell pm clear $(DEBUG_PACKAGE)
