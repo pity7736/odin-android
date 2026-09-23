@@ -67,6 +67,39 @@ class RoomAccountRepositoryTest {
     }
 
     @Test
+    fun `given an existing account, when update, then stored account reflects the new values`() = runTest {
+        val original = AccountBuilder()
+            .id("acc-1")
+            .name("Ahorros")
+            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
+            .type(AccountType.SAVINGS)
+            .description("Fondo")
+            .createdAt(Instant.parse("2026-08-01T10:00:00Z"))
+            .build()
+        repository.add(original)
+        val editOutcome = original.edit(
+            name = "Corriente",
+            initialBalance = "2000.00",
+            currency = Currency.USD,
+            type = AccountType.CASH,
+            description = "Gastos diarios"
+        )
+        val edited = (editOutcome as Outcome.Success).value
+
+        val updateOutcome = repository.update(edited)
+
+        assertTrue(updateOutcome is Outcome.Success)
+        val result = repository.findById("acc-1").first()
+        assertTrue(result is Outcome.Success)
+        val stored = (result as Outcome.Success).value
+        assertEquals("Corriente", stored.name)
+        assertEquals(Money.of(BigDecimal("2000.00"), Currency.USD), stored.initialBalance)
+        assertEquals(AccountType.CASH, stored.type)
+        assertEquals("Gastos diarios", stored.description)
+        assertEquals(Instant.parse("2026-08-01T10:00:00Z"), stored.createdAt)
+    }
+
+    @Test
     fun `given an existing name, when checking existsByName, then returns true`() = runTest {
         repository.add(AccountBuilder().name("Ahorros").build())
         val result = repository.existsByName("Ahorros")

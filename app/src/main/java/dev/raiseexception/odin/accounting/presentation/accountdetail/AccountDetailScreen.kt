@@ -86,6 +86,8 @@ fun AccountDetailScreen(
     onCreateExpense: () -> Unit,
     onCreateTransfer: () -> Unit,
     onNavigateToTransactionDetail: (String) -> Unit,
+    onEditAccount: () -> Unit,
+    onNavigateToEditAccount: (String) -> Unit,
     onTransactionSelected: (String) -> Unit,
     onFilterChanged: (TransactionFilter) -> Unit,
     onNavigateToHome: () -> Unit,
@@ -101,6 +103,8 @@ fun AccountDetailScreen(
                 is AccountDetailNavigationTarget.CreateTransfer -> onCreateTransfer()
                 is AccountDetailNavigationTarget.TransactionDetail ->
                     onNavigateToTransactionDetail(target.transactionId)
+                is AccountDetailNavigationTarget.EditAccount ->
+                    onNavigateToEditAccount(target.accountId)
             }
         }
     }
@@ -148,6 +152,7 @@ fun AccountDetailScreen(
                     account = uiState.account,
                     transactions = uiState.transactions,
                     activeFilter = uiState.activeFilter,
+                    onEditAccount = onEditAccount,
                     onTransactionSelected = onTransactionSelected,
                     onFilterChanged = onFilterChanged,
                     modifier = Modifier
@@ -195,6 +200,7 @@ private fun AccountDetailContent(
     account: Account,
     transactions: List<AccountTransaction>,
     activeFilter: TransactionFilter,
+    onEditAccount: () -> Unit,
     onTransactionSelected: (String) -> Unit,
     onFilterChanged: (TransactionFilter) -> Unit,
     modifier: Modifier = Modifier
@@ -204,6 +210,7 @@ private fun AccountDetailContent(
         item(key = "header") {
             AccountHeaderCard(
                 account = account,
+                onEditAccount = onEditAccount,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 8.dp),
@@ -263,19 +270,35 @@ private fun AccountDetailContent(
 }
 
 @Composable
-private fun AccountHeaderCard(account: Account, modifier: Modifier = Modifier) {
+private fun AccountHeaderCard(account: Account, onEditAccount: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
             .background(Slate800)
             .padding(20.dp),
     ) {
-        Text(
-            text = capitalizeFirst(account.name),
-            style = MaterialTheme.typography.headlineMedium,
-            fontFamily = SoraFamily,
-            color = Slate50,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top,
+        ) {
+            Text(
+                text = capitalizeFirst(account.name),
+                style = MaterialTheme.typography.headlineMedium,
+                fontFamily = SoraFamily,
+                color = Slate50,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "Editar",
+                style = MaterialTheme.typography.labelLarge,
+                color = Slate400,
+                modifier = Modifier
+                    .clickable(onClick = onEditAccount)
+                    .padding(start = 12.dp)
+                    .testTag("edit_account_button"),
+            )
+        }
         Text(
             text = accountTypeLabels[account.type] ?: account.type.name,
             style = MaterialTheme.typography.labelLarge,

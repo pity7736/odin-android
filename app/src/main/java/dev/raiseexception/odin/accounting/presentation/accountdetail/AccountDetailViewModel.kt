@@ -85,6 +85,14 @@ class AccountDetailViewModel(
         }
     }
 
+    fun onEditAccount() {
+        this.viewModelScope.launch {
+            this@AccountDetailViewModel.navigationChannel.send(
+                AccountDetailNavigationTarget.EditAccount(this@AccountDetailViewModel.accountId)
+            )
+        }
+    }
+
     fun onTransactionSelected(transactionId: String) {
         this.viewModelScope.launch {
             this@AccountDetailViewModel.navigationChannel.send(

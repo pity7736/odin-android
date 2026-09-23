@@ -2,6 +2,7 @@ package dev.raiseexception.odin.accounting.domain.model
 
 import com.github.f4b6a3.uuid.UuidCreator
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
+import dev.raiseexception.odin.accounting.domain.AccountUpdateError
 import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -107,6 +108,49 @@ class Account private constructor(
         this._expenses.add(expense)
         return Outcome.Success(expense)
     }
+
+    @Suppress("LongParameterList")
+    fun edit(
+        name: String,
+        initialBalance: String,
+        currency: Currency?,
+        type: AccountType?,
+        description: String
+    ): Outcome<Account> {
+        val trimmedName = name.trim()
+        val trimmedDescription = description.trim()
+        val amount = Account.parseAmount(initialBalance)
+        val nameError = validateName(trimmedName)
+        val balanceError = validateBalance(initialBalance, amount)
+        val currencyError = if (currency == null) "La moneda es obligatoria." else null
+        val typeError = if (type == null) "El tipo de cuenta es obligatorio." else null
+        val descriptionError = validateDescription(trimmedDescription)
+        if (anyError(nameError, balanceError, currencyError, typeError, descriptionError)) {
+            return Outcome.Failure(
+                AccountUpdateError.InvalidInput(
+                    nameError = nameError,
+                    balanceError = balanceError,
+                    currencyError = currencyError,
+                    typeError = typeError,
+                    descriptionError = descriptionError
+                )
+            )
+        }
+        return Outcome.Success(
+            Account(
+                id = this.id,
+                name = trimmedName,
+                initialBalance = Money.of(amount!!, currency!!),
+                type = type!!,
+                description = trimmedDescription,
+                createdAt = this.createdAt,
+                incomes = this._incomes.toList(),
+                expenses = this._expenses.toList()
+            )
+        )
+    }
+
+    fun hasTransactions(): Boolean = this._incomes.isNotEmpty() || this._expenses.isNotEmpty()
 
     private fun parseAmount(rawAmount: String): BigDecimal? = try {
         val parsed = BigDecimal(rawAmount.trim())

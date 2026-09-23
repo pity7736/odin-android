@@ -28,6 +28,8 @@ import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAcc
 import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAccountViewModel
 import dev.raiseexception.odin.accounting.presentation.accountdetail.AccountDetailScreen
 import dev.raiseexception.odin.accounting.presentation.accountdetail.AccountDetailViewModel
+import dev.raiseexception.odin.accounting.presentation.accountedit.EditAccountScreen
+import dev.raiseexception.odin.accounting.presentation.accountedit.EditAccountViewModel
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListScreen
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListViewModel
 import dev.raiseexception.odin.accounting.presentation.categorieslist.CategoriesListScreen
@@ -111,6 +113,10 @@ private fun AppNavHost(startRoute: String) {
             composable(Routes.ACCOUNT_DETAIL) { backStackEntry ->
                 val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
                 AccountDetailDestination(accountId, navController)
+            }
+            composable(Routes.ACCOUNT_EDIT) { backStackEntry ->
+                val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
+                EditAccountDestination(accountId, navController)
             }
             composable(
                 Routes.INCOME_CREATE,
@@ -273,6 +279,10 @@ private fun AccountDetailDestination(accountId: String, navController: NavHostCo
         onNavigateToTransactionDetail = { transactionId ->
             navController.navigate(Routes.transactionDetail(transactionId))
         },
+        onEditAccount = accountDetailViewModel::onEditAccount,
+        onNavigateToEditAccount = { editableAccountId ->
+            navController.navigate(Routes.accountEdit(editableAccountId))
+        },
         onTransactionSelected = accountDetailViewModel::onTransactionSelected,
         onFilterChanged = accountDetailViewModel::onFilterChanged,
         onNavigateToHome = {
@@ -290,6 +300,22 @@ private fun AccountDetailDestination(accountId: String, navController: NavHostCo
                 popUpTo(Routes.HOME)
             }
         },
+    )
+}
+
+@Composable
+private fun EditAccountDestination(accountId: String, navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val editAccountViewModel: EditAccountViewModel = viewModel(
+        factory = application.appContainer.editAccountViewModelFactory(accountId)
+    )
+    val uiState by editAccountViewModel.uiState.collectAsStateWithLifecycle()
+    EditAccountScreen(
+        uiState = uiState,
+        onSave = editAccountViewModel::save,
+        navigationEvent = editAccountViewModel.navigationEvent,
+        onSaved = { navController.popBackStack() },
+        onCancel = { navController.popBackStack() }
     )
 }
 
