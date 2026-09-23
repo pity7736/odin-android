@@ -12,6 +12,7 @@ import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.application.usecase.AccountTransactionLister
+import dev.raiseexception.odin.accounting.application.usecase.AccountUpdater
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.application.usecase.CategoryFinder
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
@@ -34,6 +35,7 @@ import dev.raiseexception.odin.accounting.infrastructure.repository.RoomTransact
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomTransferRepository
 import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAccountViewModel
 import dev.raiseexception.odin.accounting.presentation.accountdetail.AccountDetailViewModel
+import dev.raiseexception.odin.accounting.presentation.accountedit.EditAccountViewModel
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListViewModel
 import dev.raiseexception.odin.accounting.presentation.categorieslist.CategoriesListViewModel
 import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryViewModel
@@ -112,6 +114,7 @@ class AppContainer(context: Context) {
     private val accountCreator by lazy { AccountCreator(accountRepository) }
     private val accountLister by lazy { AccountLister(accountRepository) }
     private val accountFinder by lazy { AccountFinder(accountRepository) }
+    private val accountUpdater by lazy { AccountUpdater(accountFinder, accountRepository) }
     private val accountTransactionLister by lazy { AccountTransactionLister() }
     private val recentTransactionLister by lazy { RecentTransactionLister() }
     private val categoryRepository: CategoryRepository by lazy {
@@ -192,6 +195,13 @@ class AppContainer(context: Context) {
         viewModelFactory {
             initializer {
                 AccountDetailViewModel(accountId, accountFinder, accountTransactionLister, ioDispatcher)
+            }
+        }
+
+    fun editAccountViewModelFactory(accountId: String): ViewModelProvider.Factory =
+        viewModelFactory {
+            initializer {
+                EditAccountViewModel(accountId, accountFinder, accountUpdater, ioDispatcher)
             }
         }
 

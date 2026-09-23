@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -11,6 +12,9 @@ interface AccountDao {
 
     @Insert
     suspend fun insert(account: AccountEntity)
+
+    @Update
+    suspend fun update(account: AccountEntity)
 
     @Query("SELECT EXISTS(SELECT 1 FROM accounts WHERE LOWER(name) = LOWER(:name))")
     suspend fun existsByName(name: String): Boolean

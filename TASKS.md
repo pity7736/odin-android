@@ -40,7 +40,7 @@ Tasks are listed in priority order.
 
 - [ ] Session management + biometric unlock (ship together): lock when the app goes to background, clear master key, close SQLCipher database. Biometric as the fast path back in; password as fallback
 - [ ] Crash reporting (Crashlytics or Sentry) so production crashes are visible
-- [ ] Update accounts
+- [x] Update accounts
 - [ ] Update incomes
 - [ ] Update expenses
 - [ ] Update categories

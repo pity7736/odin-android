@@ -2,6 +2,7 @@ package dev.raiseexception.odin.accounting.infrastructure.repository
 
 import android.database.sqlite.SQLiteException
 import dev.raiseexception.odin.accounting.domain.AccountLookupError
+import dev.raiseexception.odin.accounting.domain.AccountUpdateError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
@@ -30,6 +31,19 @@ class RoomAccountRepository(
             Outcome.Success(Unit)
         } catch (e: SQLiteException) {
             this.storageError(e.message ?: "Failed to add account")
+        }
+
+    override suspend fun update(account: Account): Outcome<Unit> =
+        try {
+            this.accountDao.update(account.toEntity())
+            Outcome.Success(Unit)
+        } catch (e: SQLiteException) {
+            Outcome.Failure(
+                AccountUpdateError.StorageFailure(
+                    internalMessage = e.message ?: "Failed to update account",
+                    externalMessage = "No se pudo guardar la cuenta. Inténtalo de nuevo."
+                )
+            )
         }
 
     override fun findById(id: String, criteria: AccountCriteria): Flow<Outcome<Account>> {
