@@ -6,6 +6,7 @@ import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.AccountUpdater
 import dev.raiseexception.odin.accounting.domain.AccountUpdateError
 import dev.raiseexception.odin.accounting.domain.model.Account
+import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
@@ -84,14 +85,17 @@ class EditAccountViewModel(
 
     private fun buildEditing(account: Account): EditAccountUiState.Editing {
         val locked = account.hasTransactions()
+        val initialBalance = when (val funding = account.funding) {
+            is AccountFunding.Funds -> funding.initialBalance
+        }
         return EditAccountUiState.Editing(
             name = account.name,
-            initialBalance = account.initialBalance.amount.toPlainString(),
+            initialBalance = initialBalance.amount.toPlainString(),
             currency = account.currency,
             type = account.type,
             description = account.description,
             locked = locked,
-            lockedBalanceDisplay = if (locked) formatMoney(account.initialBalance) else null
+            lockedBalanceDisplay = if (locked) formatMoney(initialBalance) else null
         )
     }
 

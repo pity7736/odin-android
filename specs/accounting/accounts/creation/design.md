@@ -41,9 +41,24 @@ accounts list.
   meaningless without a currency (Fowler), so `Money` holds amount + currency and
   enforces the precision invariant (scale ≤ 2); it is sign-agnostic (negative
   amounts are legal in general — future expenses). `Account` holds no separate
-  currency field; `currency` delegates to `initialBalance.currency` (single source
+  currency field; `currency` delegates to `funding.currency` (single source
   of truth, safe because both are immutable). The initial-balance ≥ 0 rule is an
   account-creation rule enforced inside `create`, not a `Money` rule.
+- **An account's money is a sealed `AccountFunding`, not a bare balance field.**
+  `Account` holds `funding: AccountFunding`, and both `currency` and `balance`
+  derive from it. The single variant is `Funds(initialBalance)` (savings and
+  cash). The sum type exists so a debt-bearing money-kind — a credit card's limit
+  and debt — joins as a sibling variant instead of being bolted onto a money-only
+  shape. Rejected alternatives: nullable fields on `Account` (an optional credit
+  limit), whose "valid only for some types" partiality the sum type removes; and a
+  separate entity per money-kind, which fragments identity, name uniqueness,
+  transfers and the accounts list — surfaces that treat every account uniformly.
+- **Money-kind behavior dispatches by delegating to the funding variant, not by
+  branching in `Account`.** With the single `Funds` variant `Account.balance`
+  reads it through an exhaustive `when`; each variant owns its own balance and
+  rules and `Account` delegates, so `Account` never accumulates per-kind branches.
+  Rejected alternative: `when (funding)` spread across `Account`'s methods, which
+  centralizes every money-kind's behavior in the aggregate.
 - **The use case is pure orchestration.** `AccountCreator` calls `Account.create`,
   then (on success) checks name uniqueness via the repository, then persists. It
   owns no rules and no parsing.
@@ -94,7 +109,7 @@ accounts list.
 app/src/main/java/dev/raiseexception/odin/
 ├── accounting/
 │   ├── domain/
-│   │   ├── model/            # Account (+ create factory: the validation authority; createdAt: Instant captured via injected clock), Money, Currency, AccountType
+│   │   ├── model/            # Account (+ create factory: the validation authority; createdAt: Instant captured via injected clock), AccountFunding (sealed money-kind: Funds), Money, Currency, AccountType
 │   │   ├── AccountCreationError (sealed DomainError)
 │   │   └── repository/       # AccountRepository (port)
 │   ├── application/usecase/   # AccountCreator (orchestration only)
@@ -145,8 +160,10 @@ specs/accounting/accounts/creation/
 
 ## Known Limitations
 
-- **Out of scope** (per spec): editing/deleting accounts, transactions, credit-card
-  and other account types, and currencies beyond USD/EUR/COP.
+- **Out of scope** (per spec): editing/deleting accounts, transactions, account
+  types beyond savings and cash, and currencies beyond USD/EUR/COP.
+- **Single funding variant.** `AccountFunding` has only `Funds`; a debt-bearing
+  `Credit` variant (credit cards) is not yet implemented — the seam exists for it.
 
 ## Quality Pillars
 

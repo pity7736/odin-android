@@ -17,7 +17,7 @@ import java.math.BigDecimal
 class Account private constructor(
     val id: String,
     val name: String,
-    val initialBalance: Money,
+    val funding: AccountFunding,
     val type: AccountType,
     val description: String,
     val createdAt: Instant,
@@ -33,12 +33,14 @@ class Account private constructor(
 
     val transactions: List<Transaction> get() = this._incomes + this._expenses
 
-    val currency: Currency get() = this.initialBalance.currency
+    val currency: Currency get() = this.funding.currency
 
-    val balance: Money get() {
-        val incomeSum = this._incomes.fold(BigDecimal.ZERO) { acc, income -> acc.add(income.amount.amount) }
-        val expenseSum = this._expenses.fold(BigDecimal.ZERO) { acc, expense -> acc.add(expense.amount.amount) }
-        return Money.of(this.initialBalance.amount.add(incomeSum).subtract(expenseSum), this.initialBalance.currency)
+    val balance: Money get() = when (val funding = this.funding) {
+        is AccountFunding.Funds -> {
+            val incomeSum = this._incomes.fold(BigDecimal.ZERO) { acc, income -> acc.add(income.amount.amount) }
+            val expenseSum = this._expenses.fold(BigDecimal.ZERO) { acc, expense -> acc.add(expense.amount.amount) }
+            Money.of(funding.initialBalance.amount.add(incomeSum).subtract(expenseSum), this.currency)
+        }
     }
 
     fun createIncome(
@@ -140,7 +142,7 @@ class Account private constructor(
             Account(
                 id = this.id,
                 name = trimmedName,
-                initialBalance = Money.of(amount!!, currency!!),
+                funding = AccountFunding.Funds(Money.of(amount!!, currency!!)),
                 type = type!!,
                 description = trimmedDescription,
                 createdAt = this.createdAt,
@@ -199,7 +201,7 @@ class Account private constructor(
         fun restore(
             id: String,
             name: String,
-            initialBalance: Money,
+            funding: AccountFunding,
             type: AccountType,
             description: String,
             createdAt: Instant,
@@ -208,7 +210,7 @@ class Account private constructor(
         ): Account = Account(
             id = id,
             name = name,
-            initialBalance = initialBalance,
+            funding = funding,
             type = type,
             description = description,
             createdAt = createdAt,
@@ -248,7 +250,7 @@ class Account private constructor(
                 Account(
                     id = UuidCreator.getTimeOrderedEpoch().toString(),
                     name = trimmedName,
-                    initialBalance = Money.of(amount!!, currency!!),
+                    funding = AccountFunding.Funds(Money.of(amount!!, currency!!)),
                     type = type!!,
                     description = trimmedDescription,
                     createdAt = clock.now()

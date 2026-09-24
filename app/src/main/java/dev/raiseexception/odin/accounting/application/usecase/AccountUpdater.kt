@@ -2,6 +2,7 @@ package dev.raiseexception.odin.accounting.application.usecase
 
 import dev.raiseexception.odin.accounting.domain.AccountUpdateError
 import dev.raiseexception.odin.accounting.domain.model.Account
+import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
@@ -43,7 +44,13 @@ class AccountUpdater(
     }
 
     private fun effectiveBalance(existing: Account, incoming: String): String =
-        if (existing.hasTransactions()) existing.initialBalance.amount.toPlainString() else incoming
+        if (existing.hasTransactions()) {
+            when (val funding = existing.funding) {
+                is AccountFunding.Funds -> funding.initialBalance.amount.toPlainString()
+            }
+        } else {
+            incoming
+        }
 
     private fun effectiveCurrency(existing: Account, incoming: Currency?): Currency? =
         if (existing.hasTransactions()) existing.currency else incoming

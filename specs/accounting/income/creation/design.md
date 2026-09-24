@@ -10,7 +10,7 @@ Records an income against an existing account. The user navigates from the accou
 
 - **`Income` is an entity within the `Account` aggregate, created via `Account.createIncome()`** — the `Income` constructor is `internal`; only `Account` can create incomes. This keeps all date and amount invariants enforced at the aggregate root. `Income.restore()` exists for hydration from the repository. Alternative rejected: a standalone factory — it cannot enforce aggregate invariants.
 
-- **`Account.balance` is a computed property: `initialBalance + sum(incomes) - sum(expenses)`** — balance is never stored separately. It is always derived from the current lists of incomes and expenses on the `Account` instance. Alternative rejected: a stored balance updated on each transaction — introduces sync risk between the stored value and the actual records.
+- **`Account.balance` is a computed property derived from the account's funding and its transactions** — for a money account it is the `Funds` funding's initial balance plus the sum of incomes minus the sum of expenses. Balance is never stored separately; it is always derived from the current lists of incomes and expenses on the `Account` instance. Alternative rejected: a stored balance updated on each transaction — introduces sync risk between the stored value and the actual records.
 
 - **Private validation helpers in `Account` are shared between `createIncome()` and `createExpense()`** — `parseAmount`, `validateAmount`, and `parseAndValidateDate` are generic private methods. Each creation method returns its own error type (`IncomeCreationError` / `ExpenseCreationError`). Alternative rejected: duplicating the validation logic — identical rules would drift independently.
 
