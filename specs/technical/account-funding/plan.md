@@ -157,6 +157,7 @@ End with `./gradlew check` GREEN.
 ### `specs/accounting/accounts/creation/design.md`
 - [ ] Rewrite the "Money is the one value object" decision so `Account` holds a sealed `AccountFunding` (`Funds(initialBalance)` today), and `currency` delegates to `funding.currency` (not `initialBalance.currency`).
 - [ ] Record the durable decision: money representation is a sum type to admit a future `Credit` variant; the single-variant `when` is the intended seam. Note the rejected alternative (nullable fields on `Account`).
+- [ ] Record the intended dispatch style: money-kind behavior (balance, spend/withdrawal rules) lives on the `AccountFunding` variants and `Account` delegates, rather than `Account` branching on the variant with `when`. Adopted when the second variant lands, so `Account` does not accumulate per-kind knowledge. Note the rejected alternative (`when (funding)` inside `Account`'s methods, which centralizes every kind's behavior in the aggregate).
 - [ ] Present tense only; no reference to the former `initialBalance` field or to this change.
 
 ### `specs/accounting/expense/creation/design.md`
