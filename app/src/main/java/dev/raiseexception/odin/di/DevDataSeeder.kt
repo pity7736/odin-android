@@ -5,6 +5,7 @@ import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.domain.model.Account
+import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
@@ -44,7 +45,7 @@ class DevDataSeeder(
         val savingsAccount = Account.restore(
             id = UuidCreator.getTimeOrderedEpoch().toString(),
             name = "Ahorros",
-            initialBalance = Money.of(BigDecimal("1000000"), Currency.COP),
+            funding = AccountFunding.Funds(Money.of(BigDecimal("1000000"), Currency.COP)),
             type = AccountType.SAVINGS,
             description = "",
             createdAt = twoWeeksAgo
@@ -53,7 +54,7 @@ class DevDataSeeder(
         val cashAccount = Account.restore(
             id = UuidCreator.getTimeOrderedEpoch().toString(),
             name = "Efectivo",
-            initialBalance = Money.of(BigDecimal("50000"), Currency.COP),
+            funding = AccountFunding.Funds(Money.of(BigDecimal("50000"), Currency.COP)),
             type = AccountType.CASH,
             description = "",
             createdAt = twoWeeksAgo

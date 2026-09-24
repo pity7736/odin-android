@@ -1,6 +1,7 @@
 package dev.raiseexception.odin.testutil
 
 import dev.raiseexception.odin.accounting.domain.model.Account
+import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
@@ -102,7 +103,7 @@ class AccountBuilder {
         val account = Account.restore(
             id = this.id,
             name = this.name,
-            initialBalance = this.initialBalance,
+            funding = AccountFunding.Funds(this.initialBalance),
             type = this.type,
             description = this.description,
             createdAt = this.createdAt
@@ -130,7 +131,7 @@ class AccountBuilder {
         return Account.restore(
             id = this.id,
             name = this.name,
-            initialBalance = this.initialBalance,
+            funding = AccountFunding.Funds(this.initialBalance),
             type = this.type,
             description = this.description,
             createdAt = this.createdAt,

@@ -36,8 +36,9 @@ class AccountCreateTest {
 
         assertTrue(result is Outcome.Success)
         val account = (result as Outcome.Success).value
+        val funds = account.funding as AccountFunding.Funds
         assertEquals("Ahorros", account.name)
-        assertEquals(0, account.initialBalance.amount.compareTo(BigDecimal("1500.00")))
+        assertEquals(0, funds.initialBalance.amount.compareTo(BigDecimal("1500.00")))
         assertEquals(Currency.COP, account.currency)
         assertEquals(AccountType.SAVINGS, account.type)
         assertEquals("Fondo de emergencia", account.description)
@@ -57,7 +58,7 @@ class AccountCreateTest {
 
         assertTrue(result is Outcome.Success)
         val account = (result as Outcome.Success).value
-        assertEquals(0, account.initialBalance.amount.compareTo(BigDecimal.ZERO))
+        assertEquals(0, (account.funding as AccountFunding.Funds).initialBalance.amount.compareTo(BigDecimal.ZERO))
     }
 
     @Test
@@ -320,7 +321,7 @@ class AccountEditTest {
         assertTrue(result is Outcome.Success)
         val edited = (result as Outcome.Success).value
         assertEquals("Corriente", edited.name)
-        assertEquals(0, edited.initialBalance.amount.compareTo(BigDecimal("2000.00")))
+        assertEquals(0, (edited.funding as AccountFunding.Funds).initialBalance.amount.compareTo(BigDecimal("2000.00")))
         assertEquals(Currency.USD, edited.currency)
         assertEquals(AccountType.CASH, edited.type)
         assertEquals("Gastos diarios", edited.description)
@@ -515,7 +516,7 @@ class AccountRestoreTest {
         val account = Account.restore(
             id = "test-id-123",
             name = "Cuenta de Ahorros",
-            initialBalance = initialBalance,
+            funding = AccountFunding.Funds(initialBalance),
             type = AccountType.SAVINGS,
             description = "Mi cuenta principal",
             createdAt = knownInstant
@@ -523,7 +524,7 @@ class AccountRestoreTest {
 
         assertEquals("test-id-123", account.id)
         assertEquals("Cuenta de Ahorros", account.name)
-        assertEquals(initialBalance, account.initialBalance)
+        assertEquals(initialBalance, (account.funding as AccountFunding.Funds).initialBalance)
         assertEquals(AccountType.SAVINGS, account.type)
         assertEquals("Mi cuenta principal", account.description)
         assertEquals(knownInstant, account.createdAt)

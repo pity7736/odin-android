@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.Relation
 import dev.raiseexception.odin.accounting.domain.model.Account
+import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
@@ -34,7 +35,7 @@ internal fun AccountEntity.toDomain(incomes: List<Income>, expenses: List<Expens
     Account.restore(
         id = id,
         name = name,
-        initialBalance = Money.of(BigDecimal(initialBalanceAmount), Currency.valueOf(currency)),
+        funding = AccountFunding.Funds(Money.of(BigDecimal(initialBalanceAmount), Currency.valueOf(currency))),
         type = AccountType.valueOf(type),
         description = description,
         createdAt = Instant.parse(createdAt),
@@ -46,7 +47,9 @@ internal fun Account.toEntity(): AccountEntity =
     AccountEntity(
         id = id,
         name = name,
-        initialBalanceAmount = initialBalance.amount.toPlainString(),
+        initialBalanceAmount = when (val accountFunding = funding) {
+            is AccountFunding.Funds -> accountFunding.initialBalance.amount.toPlainString()
+        },
         currency = currency.name,
         type = type.name,
         description = description,

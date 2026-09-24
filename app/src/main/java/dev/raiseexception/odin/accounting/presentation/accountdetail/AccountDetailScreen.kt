@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.raiseexception.odin.accounting.application.usecase.AccountTransaction
 import dev.raiseexception.odin.accounting.domain.model.Account
+import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
@@ -334,7 +335,11 @@ private fun AccountHeaderCard(account: Account, onEditAccount: () -> Unit, modif
                     letterSpacing = 0.5.sp,
                 )
                 Text(
-                    text = formatMoney(account.initialBalance),
+                    text = formatMoney(
+                        when (val funding = account.funding) {
+                            is AccountFunding.Funds -> funding.initialBalance
+                        }
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Slate500,
                     modifier = Modifier.testTag("account_initial_balance"),

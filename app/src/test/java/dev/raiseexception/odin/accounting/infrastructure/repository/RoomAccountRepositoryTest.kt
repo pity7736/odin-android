@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import dev.raiseexception.odin.accounting.domain.AccountLookupError
+import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Money
@@ -60,7 +61,8 @@ class RoomAccountRepositoryTest {
         val restored = (result as Outcome.Success).value
         assertEquals("acc-1", restored.id)
         assertEquals("Ahorros", restored.name)
-        assertEquals(Money.of(BigDecimal("1500.00"), Currency.COP), restored.initialBalance)
+        val funds = restored.funding as AccountFunding.Funds
+        assertEquals(Money.of(BigDecimal("1500.00"), Currency.COP), funds.initialBalance)
         assertEquals(AccountType.SAVINGS, restored.type)
         assertEquals("Fondo de emergencia", restored.description)
         assertEquals(Instant.parse("2026-08-01T10:00:00Z"), restored.createdAt)
@@ -93,7 +95,8 @@ class RoomAccountRepositoryTest {
         assertTrue(result is Outcome.Success)
         val stored = (result as Outcome.Success).value
         assertEquals("Corriente", stored.name)
-        assertEquals(Money.of(BigDecimal("2000.00"), Currency.USD), stored.initialBalance)
+        val funds = stored.funding as AccountFunding.Funds
+        assertEquals(Money.of(BigDecimal("2000.00"), Currency.USD), funds.initialBalance)
         assertEquals(AccountType.CASH, stored.type)
         assertEquals("Gastos diarios", stored.description)
         assertEquals(Instant.parse("2026-08-01T10:00:00Z"), stored.createdAt)

@@ -2,6 +2,7 @@ package dev.raiseexception.odin.accounting.application.usecase
 
 import dev.raiseexception.odin.accounting.domain.AccountLookupError
 import dev.raiseexception.odin.accounting.domain.AccountUpdateError
+import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Money
@@ -130,7 +131,8 @@ class AccountUpdaterTest {
 
         assertTrue(result is Outcome.Success)
         assertEquals(Currency.COP, savedAccount.captured.currency)
-        assertEquals(0, savedAccount.captured.initialBalance.amount.compareTo(BigDecimal("1000.00")))
+        val funds = savedAccount.captured.funding as AccountFunding.Funds
+        assertEquals(0, funds.initialBalance.amount.compareTo(BigDecimal("1000.00")))
     }
 
     @Test
@@ -155,7 +157,8 @@ class AccountUpdaterTest {
 
         assertTrue(result is Outcome.Success)
         assertEquals(Currency.USD, savedAccount.captured.currency)
-        assertEquals(0, savedAccount.captured.initialBalance.amount.compareTo(BigDecimal("2000.00")))
+        val funds = savedAccount.captured.funding as AccountFunding.Funds
+        assertEquals(0, funds.initialBalance.amount.compareTo(BigDecimal("2000.00")))
     }
 
     @Test
