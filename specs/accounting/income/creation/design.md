@@ -18,7 +18,7 @@ Records an income against an existing account. The user navigates from the accou
 
 - **`IncomeCreator` resolves `CategoryInput` and delegates to the Account aggregate** — resolves `CategoryInput` (validating `CategoryType.INCOME`), delegates to `Account.createIncome()`, saves via `IncomeRepository`, wraps in `TransactionRunner`. Alternative rejected: putting category resolution in the domain — category lookup is an application concern.
 
-- **`RoomTransactionRunner` wraps `database.withTransaction {}`** — provides atomicity for category creation + income save. Implements the `TransactionRunner` domain port.
+- **Category resolution and the income save run in one transaction** — `IncomeCreator` resolves the category (existing or new) and saves the income inside `TransactionRunner.run {}`. A returned failure rolls back every write, so a rejected or failed save keeps neither the income nor a newly created category. See `specs/technical/transaction-atomicity/design.md`.
 
 - **`CategoryCreationError.DuplicateName` maps to a field error, not a full-screen error** — when creating a new income category inline and the name already exists, the error appears next to the category field as an `InvalidInput.categoryError`. Alternative rejected: a separate error state — inconsistent with the field-level validation pattern.
 
@@ -101,6 +101,6 @@ specs/accounting/income/creation/
 ## Quality Pillars
 
 - **Security:** Data is stored as plaintext in Room during development; SQLCipher encryption at rest is a separate subsequent task. No plaintext financial data is logged. User-facing error messages contain no internal detail.
-- **Reliability:** All field validation errors produce per-field messages rather than generic failures. Category resolution (existing vs. new) and date validation (including before-creation rejection) are handled before the save attempt. The `RoomTransactionRunner` wraps category creation and income save atomically. Room repos catch `SQLiteException` and return `Outcome.Failure(StorageError(...))`.
+- **Reliability:** All field validation errors produce per-field messages rather than generic failures. Category resolution (existing vs. new) and date validation (including before-creation rejection) are handled before the save attempt. Category creation and the income save run in one transaction; any failure rolls both back. Room repos catch `SQLiteException` and return `Outcome.Failure(StorageError(...))`.
 - **Performance:** Loading account and categories in parallel in the ViewModel `init` block. Acceptable for current data volumes.
 - **Observability:** Internal error messages from the storage layer are preserved in error types' `internalMessage` fields, available for future structured logging without being surfaced to the user.

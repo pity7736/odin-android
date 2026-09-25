@@ -4,7 +4,7 @@
 
 ## Overview
 
-A transfer atomically creates an expense on the source account and an income on the destination account, linked by a `Transfer` domain entity persisted in its own table. Both transaction entries use a system "Transfer" category that is hidden from the user-facing categories list. Descriptions are auto-generated in Spanish. The transfer is initiated from the account detail screen with the source account pre-filled but changeable. Transfers are immutable after creation.
+A transfer atomically (see `specs/technical/transaction-atomicity/design.md`) creates an expense on the source account and an income on the destination account, linked by a `Transfer` domain entity persisted in its own table. Both transaction entries use a system "Transfer" category that is hidden from the user-facing categories list. Descriptions are auto-generated in Spanish. The transfer is initiated from the account detail screen with the source account pre-filled but changeable. Transfers are immutable after creation.
 
 ## Design Decisions & Rationale
 
@@ -91,7 +91,7 @@ specs/accounting/transfers/
 5. `CreateTransferViewModel.save()` delegates to `TransferCreator.create()` with the raw source id, destination id, amount, and date strings
 6. `TransferCreator` validates blank account ids, loads both accounts (source with `AccountCriteria(includeIncomes = true, includeExpenses = true)` for balance validation, destination with defaults), and finds the Transfer category via `CategoryRepository.findByType(TRANSFER)`
 7. Inside `TransactionRunner`, `Transfer.create()` validates cross-account rules, delegates to `Account.createExpense()` and `Account.createIncome()`, and constructs the `Transfer`
-8. `ExpenseRepository.add()`, `IncomeRepository.add()`, and `TransferRepository.add()` persist all three records atomically
+8. `ExpenseRepository.add()`, `IncomeRepository.add()`, and `TransferRepository.add()` persist all three records in one transaction; a failure from any of them rolls back all three
 9. On success, ViewModel emits `NavigationTarget.AccountDetail(sourceAccountId)` and the nav controller pops back
 
 ## Screen & States
@@ -112,6 +112,6 @@ specs/accounting/transfers/
 ## Quality Pillars
 
 - **Security:** Transfer data follows the same encryption-at-rest path as all other financial data (SQLCipher). No financial amounts or account names are logged. User-facing error messages contain no internal detail.
-- **Reliability:** All field validation errors produce per-field messages. Cross-account validation (same account, same currency) and amount validation (balance ceiling) are enforced in the domain. The expense, income, and transfer records are saved atomically inside `TransactionRunner`. `TransferCreator` catches repository failures and wraps them as `StorageFailure`.
+- **Reliability:** All field validation errors produce per-field messages. Cross-account validation (same account, same currency) and amount validation (balance ceiling) are enforced in the domain. The expense, income, and transfer records are saved in one `TransactionRunner` transaction; any failure rolls all three back. `TransferCreator` catches repository failures and wraps them as `StorageFailure`.
 - **Performance:** Loading all accounts for the dropdowns uses a single query without transactions (default `AccountCriteria`). The source account is loaded with full criteria for balance validation. Acceptable for current account counts.
 - **Observability:** Internal error messages from storage failures are preserved in `TransferCreationError.StorageFailure.internalMessage` and `TransferCategoryNotFound.internalMessage`, available for future structured logging.

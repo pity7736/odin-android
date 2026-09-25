@@ -28,7 +28,7 @@ Records an expense against an existing account. The user navigates from the acco
 
 - **`ExpenseCreator` mirrors `IncomeCreator`** — resolves `CategoryInput` (validating `CategoryType.EXPENSE`), delegates to `Account.createExpense()`, saves via `ExpenseRepository`, wraps in `TransactionRunner`. `CategoryInput` is reused as-is; the existing-vs-new category distinction is the same for both income and expense. Alternative rejected: a generic `TransactionCreator` for both — income and expense have diverging validation rules (balance ceiling), so merging them adds conditional complexity without reducing code.
 
-- **`RoomTransactionRunner` wraps `database.withTransaction {}`** — provides atomicity for category creation + expense save. Implements the `TransactionRunner` domain port.
+- **Category resolution and the expense save run in one transaction** — `ExpenseCreator` resolves the category (existing or new) and saves the expense inside `TransactionRunner.run {}`. A returned failure rolls back every write, so a rejected or failed save keeps neither the expense nor a newly created category. See `specs/technical/transaction-atomicity/design.md`.
 
 - **`CategoryCreationError.DuplicateName` maps to a field error, not a full-screen error** — when creating a new expense category inline and the name already exists, the error appears next to the category field as an `InvalidInput.categoryError`. Alternative rejected: a separate error state — inconsistent with the field-level validation pattern used for all other input errors.
 
@@ -122,6 +122,6 @@ specs/accounting/expense/creation/
 - **Security:** Data is stored as plaintext in Room during development;
   SQLCipher encryption at rest is a separate subsequent task. No plaintext
   financial data is logged. User-facing error messages contain no internal detail.
-- **Reliability:** All field validation errors produce per-field messages rather than generic failures. Category resolution (existing vs. new) and balance validation are handled before the save attempt. The `RoomTransactionRunner` wraps category creation and expense save atomically. Room repos catch `SQLiteException` and return `Outcome.Failure(StorageError(...))`.
+- **Reliability:** All field validation errors produce per-field messages rather than generic failures. Category resolution (existing vs. new) and balance validation are handled before the save attempt. Category creation and the expense save run in one transaction; any failure rolls both back. Room repos catch `SQLiteException` and return `Outcome.Failure(StorageError(...))`.
 - **Performance:** Loading account with full criteria (incomes + expenses) for balance validation uses Room's `@Relation` eager loading (two queries). Acceptable for current data volumes; a SQL-based balance query is tracked in `TASKS.md` for when transaction counts grow.
 - **Observability:** Internal error messages from the storage layer are preserved in error types' `internalMessage` fields, available for future structured logging without being surfaced to the user.

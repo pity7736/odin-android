@@ -54,10 +54,11 @@ encryption key in raw hex format. See
   `Outcome.Failure(StorageError(...))` — a shared `DomainError` implementation in
   `shared/domain/`. Non-SQLite exceptions are rethrown.
 
-- **`RoomTransactionRunner` for atomicity.** Wraps `database.withTransaction {}`
-  to satisfy the `TransactionRunner` domain interface. Used by `IncomeCreator` and
-  `ExpenseCreator` to ensure category resolution and transaction insertion are
-  atomic.
+- **`RoomTransactionRunner` for atomicity.** Implements the `TransactionRunner`
+  domain interface on top of `database.withTransaction {}`. Used by
+  `IncomeCreator`, `ExpenseCreator` and `TransferCreator` so their writes commit
+  or roll back together; the rollback-on-failure rule is described in
+  `specs/technical/transaction-atomicity/design.md`.
 
 - **`DatabaseProvider` wraps the Room database lifecycle.** It builds the database
   with `SupportOpenHelperFactory` (SQLCipher) and exposes `requireDatabase()` for
