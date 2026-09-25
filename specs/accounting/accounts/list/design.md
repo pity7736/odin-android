@@ -127,7 +127,9 @@ creation.
 
 ## Known Limitations
 
-None.
+- **Credit cards are excluded.** The ViewModel filters out `CREDIT_CARD` accounts,
+  so a credit card does not appear in the list — a temporary hide until a
+  card-display feature.
 
 ## Quality Pillars
 

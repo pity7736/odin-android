@@ -4,11 +4,13 @@
 
 ## Overview
 
-The first feature of the `accounting` module: creating a financial account
-(name, initial balance, currency, type, optional description). A signed-in user
-fills a form; invalid input is rejected with per-field errors shown together; the
-account is persisted to a Room database; creation navigates to a placeholder
-accounts list.
+Creating a financial account in the `accounting` module. An account is one of
+three types — savings, cash, or credit card. A signed-in user fills a form: name,
+currency, type, optional description, and the figures for the chosen type — an
+initial balance for a money account, or a credit limit (cupo) and existing debt
+for a credit card. Invalid input is rejected with per-field errors shown together;
+the account is persisted to a Room database; creation navigates to the accounts
+list.
 
 ## Design Decisions & Rationale
 
@@ -46,22 +48,52 @@ accounts list.
   account-creation rule enforced inside `create`, not a `Money` rule.
 - **An account's money is a sealed `AccountFunding`, not a bare balance field.**
   `Account` holds `funding: AccountFunding`, and both `currency` and `balance`
-  derive from it. The single variant is `Funds(initialBalance)` (savings and
-  cash). The sum type exists so a debt-bearing money-kind — a credit card's limit
-  and debt — joins as a sibling variant instead of being bolted onto a money-only
-  shape. Rejected alternatives: nullable fields on `Account` (an optional credit
-  limit), whose "valid only for some types" partiality the sum type removes; and a
-  separate entity per money-kind, which fragments identity, name uniqueness,
-  transfers and the accounts list — surfaces that treat every account uniformly.
-- **Money-kind behavior dispatches by delegating to the funding variant, not by
-  branching in `Account`.** With the single `Funds` variant `Account.balance`
-  reads it through an exhaustive `when`; each variant owns its own balance and
-  rules and `Account` delegates, so `Account` never accumulates per-kind branches.
-  Rejected alternative: `when (funding)` spread across `Account`'s methods, which
-  centralizes every money-kind's behavior in the aggregate.
-- **The use case is pure orchestration.** `AccountCreator` calls `Account.create`,
-  then (on success) checks name uniqueness via the repository, then persists. It
-  owns no rules and no parsing.
+  derive from it. `Funds(initialBalance)` funds savings and cash;
+  `Credit(creditLimit, debt)` funds a credit card and exposes `availableCredit`
+  (`creditLimit − debt`). The sum type keeps the debt-bearing kind a sibling
+  variant instead of bolting it onto a money-only shape. Rejected alternatives:
+  nullable fields on `Account` (an optional credit limit), whose "valid only for
+  some types" partiality the sum type removes; and a separate entity per
+  money-kind, which fragments identity, name uniqueness, transfers and the
+  accounts list — surfaces that treat every account uniformly.
+- **Money-kind behavior lives on the funding variant; `Account` delegates.**
+  `AccountFunding` declares `balance(incomes, expenses)`; `Funds` computes
+  `initialBalance + incomes − expenses`, and `Credit` returns its `debt`.
+  `Account.balance` delegates to `funding.balance(...)` — no `when` in `Account`,
+  so it never accumulates per-kind branches. A credit card's `balance` is its
+  debt, which is never shown as money while cards are filtered from the summary
+  and accounts list. Rejected alternative: `when (funding)` spread across
+  `Account`'s methods, centralizing every money-kind's behavior in the aggregate.
+- **Creation is kind-specific; the use case routes on a command.** Each kind has
+  its own domain factory — `Account.create` (money) and `Account.createCreditCard`
+  (credit card, validating cupo > 0 and existing debt in `[0, cupo]`, a blank debt
+  defaulting to zero) — each aggregating all field errors at once. The screen
+  builds a sealed `CreateAccountCommand` (`MoneyAccount` | `CreditCard`) from the
+  form, and `AccountCreator.create(command)` routes with a `when` to the matching
+  factory. Routing lives in the application layer, not the dumb ViewModel, and
+  honest per-kind signatures avoid a single grab-bag `create`.
+- **A credit card is `type = CREDIT_CARD` with `Credit` funding, consistent by
+  construction.** `createCreditCard` is the only way to build one, so the
+  discriminator and the funding can never disagree.
+  `AccountCreationError.InvalidInput` carries per-field
+  `creditLimitError`/`debtError` alongside the money fields.
+- **The creation form is type-first with type-gated amount fields.** Order is
+  name → type → currency → amount → description; the amount inputs (initial
+  balance, or cupo + debt) are emitted only after a type is chosen, so a user
+  never fills an amount that then disappears. The edit form offers money types
+  only, so a money account cannot be turned into a credit card (which would break
+  the type/funding invariant and hide the account behind the temporary filter).
+- **Persistence keeps three honest amount columns; the schema is versioned.**
+  `AccountEntity` has nullable `initialBalanceAmount` plus nullable
+  `creditLimitAmount`/`debtAmount`, read and written by variant. Relaxing
+  `initialBalanceAmount` to nullable cannot be done in place (SQLite cannot drop a
+  `NOT NULL` constraint), so `MIGRATION_1_2` (schema v2) recreates the accounts
+  table, copying existing rows and leaving the new columns null. Overloading
+  `initialBalanceAmount` to hold a card's debt is rejected: a debt sitting in a
+  "balance" column would corrupt any naive aggregate over it.
+- **The use case is pure orchestration.** `AccountCreator` routes the command to
+  the matching factory, then (on success) checks name uniqueness via the
+  repository, then persists. It owns no rules and no parsing.
 - **The ViewModel is dumb.** It forwards the raw form fields to the use case and
   maps the resulting `Outcome` to `UiState`. No validation, no parsing, no
   user-facing messages live in it.
@@ -109,10 +141,10 @@ accounts list.
 app/src/main/java/dev/raiseexception/odin/
 ├── accounting/
 │   ├── domain/
-│   │   ├── model/            # Account (+ create factory: the validation authority; createdAt: Instant captured via injected clock), AccountFunding (sealed money-kind: Funds), Money, Currency, AccountType
+│   │   ├── model/            # Account (+ create/createCreditCard factories; createdAt via injected clock), AccountFunding (sealed: Funds | Credit), Money, Currency, AccountType (SAVINGS/CASH/CREDIT_CARD)
 │   │   ├── AccountCreationError (sealed DomainError)
 │   │   └── repository/       # AccountRepository (port)
-│   ├── application/usecase/   # AccountCreator (orchestration only)
+│   ├── application/usecase/   # AccountCreator (routes CreateAccountCommand), CreateAccountCommand (MoneyAccount | CreditCard)
 │   ├── infrastructure/
 │   │   └── repository/       # RoomAccountRepository, AccountEntity, AccountDao
 │   └── presentation/
@@ -130,11 +162,13 @@ specs/accounting/accounts/creation/
 
 ## Data Flow
 
-1. The create screen collects the raw form fields and calls the ViewModel.
-2. **ViewModel (dumb):** sets `Loading`, forwards the raw fields to
+1. The create screen collects the form fields and builds a `CreateAccountCommand`
+   (`MoneyAccount` or `CreditCard`) for the chosen type, then calls the ViewModel.
+2. **ViewModel (dumb):** sets `Loading`, forwards the command to
    `AccountCreator.create`, and maps the result to `UiState`.
-3. **Use case (orchestration):** calls `Account.create`; on success checks name
-   uniqueness via the repository, then persists.
+3. **Use case (orchestration):** routes the command to `Account.create` or
+   `Account.createCreditCard`; on success checks name uniqueness via the
+   repository, then persists.
 4. **Domain (`Account.create`) — the single validation authority:** validates
    everything (presence, balance parse, value rules), captures `createdAt` via
    `clock.now()`, and returns either the built `Account` or one `InvalidInput`
@@ -160,10 +194,13 @@ specs/accounting/accounts/creation/
 
 ## Known Limitations
 
-- **Out of scope** (per spec): editing/deleting accounts, transactions, account
-  types beyond savings and cash, and currencies beyond USD/EUR/COP.
-- **Single funding variant.** `AccountFunding` has only `Funds`; a debt-bearing
-  `Credit` variant (credit cards) is not yet implemented — the seam exists for it.
+- **Credit cards are created but not yet shown or used.** A created credit card is
+  filtered out of the home summary and the accounts list (in their ViewModels) and
+  has no detail or edit screen — a deliberate temporary hide until a card-display
+  feature. Recording transactions on a card, paying it down, transfers and cash
+  advances are out of scope.
+- **Out of scope** (per spec): deleting accounts, account types beyond savings,
+  cash and credit card, and currencies beyond USD/EUR/COP.
 
 ## Quality Pillars
 

@@ -70,10 +70,12 @@ encryption key in raw hex format. See
   DataStore. The `users` table holds only `(id, wrappedMasterKey)`.
 
 - **Explicit migrations required.** Schema exports are enabled
-  (`exportSchema = true`) and written to `app/schemas/`. The database starts at
-  version 1. Every schema change requires bumping the version and providing a
-  `Migration(oldVersion, newVersion)` with the SQL — Room will crash at runtime
-  if a migration is missing.
+  (`exportSchema = true`) and written to `app/schemas/`. The database is at
+  version 2. Every schema change bumps the version and provides a
+  `Migration(oldVersion, newVersion)` with the SQL — Room crashes at runtime if a
+  migration is missing. `MIGRATION_1_2` (in `OdinMigrations`) recreates the
+  accounts table to make `initialBalanceAmount` nullable and add the credit-card
+  columns, since SQLite cannot relax a `NOT NULL` constraint in place.
 
 - **`DevDataSeeder` skips if data exists.** Since data now persists across process
   death, the seeder checks `accountLister.list().first()` and returns early if
@@ -118,7 +120,8 @@ app/src/main/java/dev/raiseexception/odin/
 
 ```sql
 users (id PK, wrappedMasterKey BLOB)
-accounts (id PK, name, initialBalanceAmount, currency, type, description, createdAt)
+accounts (id PK, name, initialBalanceAmount?, currency, type, description, createdAt,
+          creditLimitAmount?, debtAmount?)   -- ? nullable; credit cards use creditLimitAmount/debtAmount
 categories (id PK, name, type, description, color, createdAt)
 transactions (id PK, type, accountId FK→accounts, amount, currency, date,
               categoryId FK→categories, description, createdAt)

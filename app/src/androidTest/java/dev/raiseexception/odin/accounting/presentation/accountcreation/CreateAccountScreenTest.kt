@@ -32,7 +32,7 @@ class CreateAccountScreenTest {
             )
         }
         composeTestRule.onNodeWithTag("name_field").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("balance_field").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("type_option_SAVINGS").assertIsDisplayed()
         composeTestRule.onNodeWithTag("description_field").assertIsDisplayed()
         composeTestRule.onNodeWithTag("create_button").assertIsDisplayed()
     }
@@ -83,6 +83,7 @@ class CreateAccountScreenTest {
                 onCreateSuccess = {}
             )
         }
+        composeTestRule.onNodeWithTag("type_option_SAVINGS").performClick()
         composeTestRule.onNodeWithTag("name_field_error").assertIsDisplayed()
         composeTestRule.onNodeWithTag("balance_field_error").assertIsDisplayed()
         composeTestRule.onNodeWithTag("currency_field_error").assertIsDisplayed()
@@ -116,10 +117,10 @@ class CreateAccountScreenTest {
             )
         }
         composeTestRule.onNodeWithTag("name_field").performTextInput("Ahorros")
+        composeTestRule.onNodeWithTag("type_option_SAVINGS").performClick()
+        composeTestRule.onNodeWithTag("currency_option_COP").performClick()
         composeTestRule.onNodeWithTag("balance_field").performTextInput("1500,00")
         composeTestRule.onNodeWithTag("description_field").performTextInput("Fondo de emergencia")
-        composeTestRule.onNodeWithTag("currency_option_COP").performClick()
-        composeTestRule.onNodeWithTag("type_option_SAVINGS").performClick()
         composeTestRule.onNodeWithTag("create_button").performClick()
         val money = captured as CreateAccountCommand.MoneyAccount
         assertEquals("Ahorros", money.name)
@@ -139,6 +140,7 @@ class CreateAccountScreenTest {
                 onCreateSuccess = {}
             )
         }
+        composeTestRule.onNodeWithTag("type_option_SAVINGS").performClick()
         composeTestRule.onNodeWithTag("balance_field").performTextInput("1500000")
         composeTestRule.onNodeWithText("1.500.000").assertIsDisplayed()
         composeTestRule.onNodeWithTag("create_button").performClick()
@@ -156,6 +158,7 @@ class CreateAccountScreenTest {
                 onCreateSuccess = {}
             )
         }
+        composeTestRule.onNodeWithTag("type_option_SAVINGS").performClick()
         composeTestRule.onNodeWithTag("balance_field").performTextInput("111176,46")
         composeTestRule.onNodeWithText("111.176,46").assertIsDisplayed()
         composeTestRule.onNodeWithTag("create_button").performClick()
