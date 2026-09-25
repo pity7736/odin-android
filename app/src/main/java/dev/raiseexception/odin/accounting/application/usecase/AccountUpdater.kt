@@ -47,6 +47,7 @@ class AccountUpdater(
         if (existing.hasTransactions()) {
             when (val funding = existing.funding) {
                 is AccountFunding.Funds -> funding.initialBalance.amount.toPlainString()
+                is AccountFunding.Credit -> funding.debt.amount.toPlainString()
             }
         } else {
             incoming

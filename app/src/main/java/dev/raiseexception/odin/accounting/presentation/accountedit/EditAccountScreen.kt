@@ -153,7 +153,7 @@ private fun EditAccountForm(
             errorMessage = editing.typeError,
             errorTestTag = "type_field_error",
         ) {
-            for (type in AccountType.entries) {
+            for (type in AccountType.entries.filter { it != AccountType.CREDIT_CARD }) {
                 FilterChipItem(
                     label = typeLabel(type),
                     selected = selectedType == type,
@@ -406,4 +406,5 @@ private fun currencyLabel(currency: Currency): String = when (currency) {
 private fun typeLabel(type: AccountType): String = when (type) {
     AccountType.SAVINGS -> "Ahorros"
     AccountType.CASH -> "Efectivo"
+    AccountType.CREDIT_CARD -> "Tarjeta de crédito"
 }

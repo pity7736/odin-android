@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.domain.model.Account
+import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.home.application.usecase.RecentTransactionLister
@@ -41,7 +42,9 @@ class HomeViewModel(
             val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
             this@HomeViewModel.accountLister.list(criteria).collect { outcome ->
                 this@HomeViewModel.mutableUiState.value = when (outcome) {
-                    is Outcome.Success -> this@HomeViewModel.mapToUiState(outcome.value)
+                    is Outcome.Success -> this@HomeViewModel.mapToUiState(
+                        outcome.value.filter { it.type != AccountType.CREDIT_CARD }
+                    )
                     is Outcome.Failure -> HomeUiState.Error("Error al cargar la información")
                 }
             }

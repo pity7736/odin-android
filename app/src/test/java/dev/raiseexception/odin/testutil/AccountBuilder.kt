@@ -17,6 +17,8 @@ class AccountBuilder {
     private var id = UUID.randomUUID().toString()
     private var name = "Ahorros"
     private var initialBalance = Money.of(BigDecimal("100000.00"), Currency.COP)
+    private var creditLimit: Money? = null
+    private var debt: Money? = null
     private var type = AccountType.SAVINGS
     private var description = ""
     private var createdAt = Instant.parse("2026-01-01T00:00:00Z")
@@ -42,6 +44,13 @@ class AccountBuilder {
 
     fun type(type: AccountType): AccountBuilder {
         this.type = type
+        return this
+    }
+
+    fun creditCard(creditLimit: Money, debt: Money): AccountBuilder {
+        this.creditLimit = creditLimit
+        this.debt = debt
+        this.type = AccountType.CREDIT_CARD
         return this
     }
 
@@ -103,7 +112,7 @@ class AccountBuilder {
         val account = Account.restore(
             id = this.id,
             name = this.name,
-            funding = AccountFunding.Funds(this.initialBalance),
+            funding = this.funding(),
             type = this.type,
             description = this.description,
             createdAt = this.createdAt
@@ -131,13 +140,23 @@ class AccountBuilder {
         return Account.restore(
             id = this.id,
             name = this.name,
-            funding = AccountFunding.Funds(this.initialBalance),
+            funding = this.funding(),
             type = this.type,
             description = this.description,
             createdAt = this.createdAt,
             incomes = this.incomes + createdIncomes,
             expenses = this.expenses + createdExpenses
         )
+    }
+
+    private fun funding(): AccountFunding {
+        val limit = this.creditLimit
+        val currentDebt = this.debt
+        return if (limit != null && currentDebt != null) {
+            AccountFunding.Credit(limit, currentDebt)
+        } else {
+            AccountFunding.Funds(this.initialBalance)
+        }
     }
 
     private data class IncomeCreationParams(

@@ -18,11 +18,13 @@ import java.math.BigDecimal
 data class AccountEntity(
     @PrimaryKey val id: String,
     val name: String,
-    val initialBalanceAmount: String,
+    val initialBalanceAmount: String?,
     val currency: String,
     val type: String,
     val description: String,
-    val createdAt: String
+    val createdAt: String,
+    val creditLimitAmount: String? = null,
+    val debtAmount: String? = null
 )
 
 data class AccountWithTransactions(
@@ -35,7 +37,7 @@ internal fun AccountEntity.toDomain(incomes: List<Income>, expenses: List<Expens
     Account.restore(
         id = id,
         name = name,
-        funding = AccountFunding.Funds(Money.of(BigDecimal(initialBalanceAmount), Currency.valueOf(currency))),
+        funding = toFunding(),
         type = AccountType.valueOf(type),
         description = description,
         createdAt = Instant.parse(createdAt),
@@ -43,15 +45,36 @@ internal fun AccountEntity.toDomain(incomes: List<Income>, expenses: List<Expens
         expenses = expenses
     )
 
-internal fun Account.toEntity(): AccountEntity =
-    AccountEntity(
+private fun AccountEntity.toFunding(): AccountFunding = when (AccountType.valueOf(type)) {
+    AccountType.CREDIT_CARD -> AccountFunding.Credit(
+        creditLimit = Money.of(BigDecimal(creditLimitAmount!!), Currency.valueOf(currency)),
+        debt = Money.of(BigDecimal(debtAmount!!), Currency.valueOf(currency))
+    )
+    AccountType.SAVINGS, AccountType.CASH ->
+        AccountFunding.Funds(Money.of(BigDecimal(initialBalanceAmount!!), Currency.valueOf(currency)))
+}
+
+internal fun Account.toEntity(): AccountEntity = when (val accountFunding = funding) {
+    is AccountFunding.Funds -> AccountEntity(
         id = id,
         name = name,
-        initialBalanceAmount = when (val accountFunding = funding) {
-            is AccountFunding.Funds -> accountFunding.initialBalance.amount.toPlainString()
-        },
+        initialBalanceAmount = accountFunding.initialBalance.amount.toPlainString(),
         currency = currency.name,
         type = type.name,
         description = description,
-        createdAt = createdAt.toString()
+        createdAt = createdAt.toString(),
+        creditLimitAmount = null,
+        debtAmount = null
     )
+    is AccountFunding.Credit -> AccountEntity(
+        id = id,
+        name = name,
+        initialBalanceAmount = null,
+        currency = currency.name,
+        type = type.name,
+        description = description,
+        createdAt = createdAt.toString(),
+        creditLimitAmount = accountFunding.creditLimit.amount.toPlainString(),
+        debtAmount = accountFunding.debt.amount.toPlainString()
+    )
+}

@@ -3,6 +3,7 @@ package dev.raiseexception.odin.accounting.presentation.accountslist
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
+import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.coroutines.CoroutineDispatcher
@@ -30,10 +31,13 @@ class AccountsListViewModel(
             val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
             this@AccountsListViewModel.accountLister.list(criteria).collect { outcome ->
                 this@AccountsListViewModel.mutableUiState.value = when (outcome) {
-                    is Outcome.Success -> if (outcome.value.isEmpty()) {
-                        AccountsListUiState.Empty
-                    } else {
-                        AccountsListUiState.Content(outcome.value)
+                    is Outcome.Success -> {
+                        val visibleAccounts = outcome.value.filter { it.type != AccountType.CREDIT_CARD }
+                        if (visibleAccounts.isEmpty()) {
+                            AccountsListUiState.Empty
+                        } else {
+                            AccountsListUiState.Content(visibleAccounts)
+                        }
                     }
                     is Outcome.Failure -> AccountsListUiState.Error("Error al cargar las cuentas")
                 }

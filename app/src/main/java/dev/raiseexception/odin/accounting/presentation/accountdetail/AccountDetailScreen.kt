@@ -338,6 +338,7 @@ private fun AccountHeaderCard(account: Account, onEditAccount: () -> Unit, modif
                     text = formatMoney(
                         when (val funding = account.funding) {
                             is AccountFunding.Funds -> funding.initialBalance
+                            is AccountFunding.Credit -> funding.creditLimit
                         }
                     ),
                     style = MaterialTheme.typography.bodyMedium,

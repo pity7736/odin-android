@@ -3,9 +3,8 @@ package dev.raiseexception.odin.accounting.presentation.accountcreation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
+import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
-import dev.raiseexception.odin.accounting.domain.model.AccountType
-import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.coroutines.channels.Channel
@@ -26,18 +25,11 @@ class CreateAccountViewModel(
     private val navigationChannel = Channel<NavigationTarget>(Channel.BUFFERED)
     val navigationEvent: Flow<NavigationTarget> = this.navigationChannel.receiveAsFlow()
 
-    fun create(
-        rawName: String,
-        rawBalance: String,
-        currency: Currency?,
-        type: AccountType?,
-        rawDescription: String
-    ) {
+    fun create(command: CreateAccountCommand) {
         if (this.mutableUiState.value is CreateAccountUiState.Loading) return
         this.mutableUiState.value = CreateAccountUiState.Loading
         this.viewModelScope.launch {
-            val outcome = accountCreator.create(rawName, rawBalance, currency, type, rawDescription)
-            when (outcome) {
+            when (val outcome = accountCreator.create(command)) {
                 is Outcome.Success -> navigationChannel.send(NavigationTarget.AccountsList)
                 is Outcome.Failure -> mutableUiState.value = mapError(outcome.error)
             }
@@ -50,7 +42,9 @@ class CreateAccountViewModel(
             balanceError = error.balanceError,
             currencyError = error.currencyError,
             typeError = error.typeError,
-            descriptionError = error.descriptionError
+            descriptionError = error.descriptionError,
+            creditLimitError = error.creditLimitError,
+            debtError = error.debtError
         )
 
         is AccountCreationError.DuplicateName -> CreateAccountUiState.ValidationError(

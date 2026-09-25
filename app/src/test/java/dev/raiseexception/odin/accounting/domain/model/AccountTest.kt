@@ -530,3 +530,191 @@ class AccountRestoreTest {
         assertEquals(knownInstant, account.createdAt)
     }
 }
+
+class AccountCreateCreditCardTest {
+
+    @Test
+    fun `given valid fields with a debt, when creating a credit card, then returns success storing limit and debt`() {
+        val fixedInstant = Instant.parse("2026-01-01T00:00:00Z")
+        val fakeClock = object : Clock {
+            override fun now(): Instant = fixedInstant
+        }
+
+        val result = Account.createCreditCard(
+            name = "Visa",
+            currency = Currency.COP,
+            description = "",
+            creditLimit = "3000000",
+            existingDebt = "500000",
+            clock = fakeClock
+        )
+
+        assertTrue(result is Outcome.Success)
+        val account = (result as Outcome.Success).value
+        val credit = account.funding as AccountFunding.Credit
+        assertEquals("Visa", account.name)
+        assertEquals(AccountType.CREDIT_CARD, account.type)
+        assertEquals(Money.of(BigDecimal("3000000"), Currency.COP), credit.creditLimit)
+        assertEquals(Money.of(BigDecimal("500000"), Currency.COP), credit.debt)
+        assertEquals(Currency.COP, account.currency)
+        assertEquals(fixedInstant, account.createdAt)
+    }
+
+    @Test
+    fun `given a blank existing debt, when creating a credit card, then debt defaults to zero`() {
+        val result = Account.createCreditCard(
+            name = "Visa",
+            currency = Currency.COP,
+            description = "",
+            creditLimit = "3000000",
+            existingDebt = ""
+        )
+
+        assertTrue(result is Outcome.Success)
+        val credit = (result as Outcome.Success).value.funding as AccountFunding.Credit
+        assertEquals(0, credit.debt.amount.compareTo(BigDecimal.ZERO))
+    }
+
+    @Test
+    fun `given a missing credit limit, when creating a credit card, then returns credit limit required error`() {
+        val result = Account.createCreditCard(
+            name = "Visa",
+            currency = Currency.COP,
+            description = "",
+            creditLimit = "",
+            existingDebt = "0"
+        )
+
+        assertEquals("El cupo es obligatorio.", failureInvalidInput(result).creditLimitError)
+    }
+
+    @Test
+    fun `given a zero credit limit, when creating a credit card, then returns greater than zero error`() {
+        val result = Account.createCreditCard(
+            name = "Visa",
+            currency = Currency.COP,
+            description = "",
+            creditLimit = "0",
+            existingDebt = "0"
+        )
+
+        assertEquals("El cupo debe ser mayor que cero.", failureInvalidInput(result).creditLimitError)
+    }
+
+    @Test
+    fun `given a negative credit limit, when creating a credit card, then returns greater than zero error`() {
+        val result = Account.createCreditCard(
+            name = "Visa",
+            currency = Currency.COP,
+            description = "",
+            creditLimit = "-100",
+            existingDebt = "0"
+        )
+
+        assertEquals("El cupo debe ser mayor que cero.", failureInvalidInput(result).creditLimitError)
+    }
+
+    @Test
+    fun `given a credit limit with more than two decimals, when creating a credit card, then returns decimals error`() {
+        val result = Account.createCreditCard(
+            name = "Visa",
+            currency = Currency.COP,
+            description = "",
+            creditLimit = "1000.255",
+            existingDebt = "0"
+        )
+
+        assertEquals("El cupo admite máximo 2 decimales.", failureInvalidInput(result).creditLimitError)
+    }
+
+    @Test
+    fun `given a negative existing debt, when creating a credit card, then returns debt cannot be negative error`() {
+        val result = Account.createCreditCard(
+            name = "Visa",
+            currency = Currency.COP,
+            description = "",
+            creditLimit = "3000000",
+            existingDebt = "-1"
+        )
+
+        assertEquals("La deuda actual no puede ser negativa.", failureInvalidInput(result).debtError)
+    }
+
+    @Test
+    fun `given a debt with too many decimals, when creating a credit card, then returns decimals error`() {
+        val result = Account.createCreditCard(
+            name = "Visa",
+            currency = Currency.COP,
+            description = "",
+            creditLimit = "3000000",
+            existingDebt = "100.255"
+        )
+
+        assertEquals("La deuda actual admite máximo 2 decimales.", failureInvalidInput(result).debtError)
+    }
+
+    @Test
+    fun `given a debt over the credit limit, when creating a credit card, then returns exceeds error`() {
+        val result = Account.createCreditCard(
+            name = "Visa",
+            currency = Currency.COP,
+            description = "",
+            creditLimit = "1000000",
+            existingDebt = "1500000"
+        )
+
+        assertEquals("La deuda actual no puede superar el cupo.", failureInvalidInput(result).debtError)
+    }
+
+    @Test
+    fun `given an existing debt equal to the credit limit, when creating a credit card, then returns success`() {
+        val result = Account.createCreditCard(
+            name = "Visa",
+            currency = Currency.COP,
+            description = "",
+            creditLimit = "1000000",
+            existingDebt = "1000000"
+        )
+
+        assertTrue(result is Outcome.Success)
+        val credit = (result as Outcome.Success).value.funding as AccountFunding.Credit
+        assertEquals(Money.of(BigDecimal("1000000"), Currency.COP), credit.debt)
+    }
+
+    @Test
+    fun `given no currency, when creating a credit card, then returns currency required error`() {
+        val result = Account.createCreditCard(
+            name = "Visa",
+            currency = null,
+            description = "",
+            creditLimit = "3000000",
+            existingDebt = "0"
+        )
+
+        assertEquals("La moneda es obligatoria.", failureInvalidInput(result).currencyError)
+    }
+
+    @Test
+    fun `given several invalid fields, when creating a credit card, then InvalidInput carries every field error`() {
+        val result = Account.createCreditCard(
+            name = "",
+            currency = Currency.COP,
+            description = "",
+            creditLimit = "0",
+            existingDebt = "0"
+        )
+
+        val error = failureInvalidInput(result)
+        assertEquals("El nombre es obligatorio.", error.nameError)
+        assertEquals("El cupo debe ser mayor que cero.", error.creditLimitError)
+        assertNull(error.balanceError)
+        assertNull(error.typeError)
+    }
+
+    private fun failureInvalidInput(result: Outcome<Account>): AccountCreationError.InvalidInput {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is AccountCreationError.InvalidInput)
+        return error as AccountCreationError.InvalidInput
+    }
+}

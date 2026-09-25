@@ -69,6 +69,31 @@ class RoomAccountRepositoryTest {
     }
 
     @Test
+    fun `given a credit card, when added and read back, then credit funding is restored`() = runTest {
+        val card = AccountBuilder()
+            .id("card-1")
+            .name("Visa")
+            .creditCard(
+                creditLimit = Money.of(BigDecimal("3000000.00"), Currency.COP),
+                debt = Money.of(BigDecimal("500000.00"), Currency.COP)
+            )
+            .description("Tarjeta principal")
+            .createdAt(Instant.parse("2026-08-01T10:00:00Z"))
+            .build()
+        repository.add(card)
+        val result = repository.findById("card-1").first()
+        assertTrue(result is Outcome.Success)
+        val restored = (result as Outcome.Success).value
+        assertEquals("card-1", restored.id)
+        assertEquals("Visa", restored.name)
+        assertEquals(AccountType.CREDIT_CARD, restored.type)
+        val credit = restored.funding as AccountFunding.Credit
+        assertEquals(Money.of(BigDecimal("3000000.00"), Currency.COP), credit.creditLimit)
+        assertEquals(Money.of(BigDecimal("500000.00"), Currency.COP), credit.debt)
+        assertEquals(Instant.parse("2026-08-01T10:00:00Z"), restored.createdAt)
+    }
+
+    @Test
     fun `given an existing account, when update, then stored account reflects the new values`() = runTest {
         val original = AccountBuilder()
             .id("acc-1")

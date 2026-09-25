@@ -6,7 +6,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
-import dev.raiseexception.odin.accounting.domain.model.AccountType
+import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.emptyFlow
@@ -26,13 +26,13 @@ class CreateAccountScreenTest {
         composeTestRule.setContent {
             CreateAccountScreen(
                 uiState = CreateAccountUiState.Idle,
-                onCreate = { _, _, _, _, _ -> },
+                onCreate = {},
                 navigationEvent = emptyFlow(),
                 onCreateSuccess = {}
             )
         }
         composeTestRule.onNodeWithTag("name_field").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("balance_field").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("type_option_SAVINGS").assertIsDisplayed()
         composeTestRule.onNodeWithTag("description_field").assertIsDisplayed()
         composeTestRule.onNodeWithTag("create_button").assertIsDisplayed()
     }
@@ -42,7 +42,7 @@ class CreateAccountScreenTest {
         composeTestRule.setContent {
             CreateAccountScreen(
                 uiState = CreateAccountUiState.Loading,
-                onCreate = { _, _, _, _, _ -> },
+                onCreate = {},
                 navigationEvent = emptyFlow(),
                 onCreateSuccess = {}
             )
@@ -57,7 +57,7 @@ class CreateAccountScreenTest {
         composeTestRule.setContent {
             CreateAccountScreen(
                 uiState = CreateAccountUiState.Idle,
-                onCreate = { _, _, _, _, _ -> },
+                onCreate = {},
                 navigationEvent = channel.receiveAsFlow(),
                 onCreateSuccess = { callbackInvoked = true }
             )
@@ -78,11 +78,12 @@ class CreateAccountScreenTest {
                     typeError = "El tipo de cuenta es obligatorio.",
                     descriptionError = "La descripción no puede superar los 500 caracteres."
                 ),
-                onCreate = { _, _, _, _, _ -> },
+                onCreate = {},
                 navigationEvent = emptyFlow(),
                 onCreateSuccess = {}
             )
         }
+        composeTestRule.onNodeWithTag("type_option_SAVINGS").performClick()
         composeTestRule.onNodeWithTag("name_field_error").assertIsDisplayed()
         composeTestRule.onNodeWithTag("balance_field_error").assertIsDisplayed()
         composeTestRule.onNodeWithTag("currency_field_error").assertIsDisplayed()
@@ -95,7 +96,7 @@ class CreateAccountScreenTest {
         composeTestRule.setContent {
             CreateAccountScreen(
                 uiState = CreateAccountUiState.Error("Algo salió mal. Intente de nuevo más tarde"),
-                onCreate = { _, _, _, _, _ -> },
+                onCreate = {},
                 navigationEvent = emptyFlow(),
                 onCreateSuccess = {}
             )
@@ -105,74 +106,62 @@ class CreateAccountScreenTest {
     }
 
     @Test
-    fun given_filled_fields_when_create_clicked_then_onCreate_receives_the_typed_values() {
-        var capturedName = ""
-        var capturedBalance = ""
-        var capturedCurrency: Currency? = null
-        var capturedType: AccountType? = null
-        var capturedDescription = ""
+    fun given_filled_fields_when_create_clicked_then_onCreate_receives_a_money_command_with_the_typed_values() {
+        var captured: CreateAccountCommand? = null
         composeTestRule.setContent {
             CreateAccountScreen(
                 uiState = CreateAccountUiState.Idle,
-                onCreate = { name, balance, currency, type, description ->
-                    capturedName = name
-                    capturedBalance = balance
-                    capturedCurrency = currency
-                    capturedType = type
-                    capturedDescription = description
-                },
+                onCreate = { captured = it },
                 navigationEvent = emptyFlow(),
                 onCreateSuccess = {}
             )
         }
         composeTestRule.onNodeWithTag("name_field").performTextInput("Ahorros")
+        composeTestRule.onNodeWithTag("type_option_SAVINGS").performClick()
+        composeTestRule.onNodeWithTag("currency_option_COP").performClick()
         composeTestRule.onNodeWithTag("balance_field").performTextInput("1500,00")
         composeTestRule.onNodeWithTag("description_field").performTextInput("Fondo de emergencia")
-        composeTestRule.onNodeWithTag("currency_option_COP").performClick()
-        composeTestRule.onNodeWithTag("type_option_SAVINGS").performClick()
         composeTestRule.onNodeWithTag("create_button").performClick()
-        assertEquals("Ahorros", capturedName)
-        assertEquals("1500.00", capturedBalance)
-        assertEquals(Currency.COP, capturedCurrency)
-        assertEquals(AccountType.SAVINGS, capturedType)
-        assertEquals("Fondo de emergencia", capturedDescription)
+        val money = captured as CreateAccountCommand.MoneyAccount
+        assertEquals("Ahorros", money.name)
+        assertEquals("1500.00", money.balance)
+        assertEquals(Currency.COP, money.currency)
+        assertEquals("Fondo de emergencia", money.description)
     }
 
     @Test
     fun given_balance_field_when_user_types_1500000_then_field_displays_formatted_amount_with_thousand_separators() {
-        var capturedBalance = ""
+        var captured: CreateAccountCommand? = null
         composeTestRule.setContent {
             CreateAccountScreen(
                 uiState = CreateAccountUiState.Idle,
-                onCreate = { _, balance, _, _, _ ->
-                    capturedBalance = balance
-                },
+                onCreate = { captured = it },
                 navigationEvent = emptyFlow(),
                 onCreateSuccess = {}
             )
         }
+        composeTestRule.onNodeWithTag("type_option_SAVINGS").performClick()
         composeTestRule.onNodeWithTag("balance_field").performTextInput("1500000")
         composeTestRule.onNodeWithText("1.500.000").assertIsDisplayed()
         composeTestRule.onNodeWithTag("create_button").performClick()
-        assertEquals("1500000", capturedBalance)
+        assertEquals("1500000", (captured as CreateAccountCommand.MoneyAccount).balance)
     }
 
     @Test
     fun given_balance_field_when_user_types_a_comma_decimal_then_it_is_formatted_and_saved_as_a_dot_decimal() {
-        var capturedBalance = ""
+        var captured: CreateAccountCommand? = null
         composeTestRule.setContent {
             CreateAccountScreen(
                 uiState = CreateAccountUiState.Idle,
-                onCreate = { _, balance, _, _, _ ->
-                    capturedBalance = balance
-                },
+                onCreate = { captured = it },
                 navigationEvent = emptyFlow(),
                 onCreateSuccess = {}
             )
         }
+        composeTestRule.onNodeWithTag("type_option_SAVINGS").performClick()
         composeTestRule.onNodeWithTag("balance_field").performTextInput("111176,46")
         composeTestRule.onNodeWithText("111.176,46").assertIsDisplayed()
         composeTestRule.onNodeWithTag("create_button").performClick()
-        assertEquals("111176.46", capturedBalance)
+        assertEquals("111176.46", (captured as CreateAccountCommand.MoneyAccount).balance)
     }
 }

@@ -128,6 +128,9 @@ Bottom navigation bar: Home (selected), Accounts, Categories.
 
 ## Known Limitations
 
+- **Credit cards are excluded.** The ViewModel filters out `CREDIT_CARD` accounts,
+  so a credit card never appears in the summary or its totals — a temporary hide
+  until a card-display feature.
 - **`RecentTransactionLister` loads all accounts with all transactions.** At
   current scale this is negligible. If the number of transactions grows
   large, a dedicated repository query returning only the N most recent
