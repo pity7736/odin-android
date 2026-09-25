@@ -95,30 +95,19 @@ fun CreateAccountScreen(
             errorMessage = validation?.nameError,
         )
         Spacer(modifier = Modifier.height(16.dp))
-        if (selectedType == AccountType.CREDIT_CARD) {
-            AmountField(
-                value = creditLimit,
-                onValueChange = { creditLimit = it },
-                label = "Cupo",
-                testTag = "credit_limit_field",
-                errorMessage = validation?.creditLimitError,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            AmountField(
-                value = debt,
-                onValueChange = { debt = it },
-                label = "Deuda actual",
-                testTag = "debt_field",
-                errorMessage = validation?.debtError,
-            )
-        } else {
-            AmountField(
-                value = balance,
-                onValueChange = { balance = it },
-                label = "Saldo inicial",
-                testTag = "balance_field",
-                errorMessage = validation?.balanceError,
-            )
+        ChipPicker(
+            label = "Tipo",
+            errorMessage = validation?.typeError,
+            errorTestTag = "type_field_error",
+        ) {
+            for (type in AccountType.entries) {
+                FilterChipItem(
+                    label = typeLabel(type),
+                    selected = selectedType == type,
+                    onClick = { selectedType = type },
+                    testTag = "type_option_${type.name}",
+                )
+            }
         }
         Spacer(modifier = Modifier.height(16.dp))
         ChipPicker(
@@ -135,20 +124,32 @@ fun CreateAccountScreen(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(16.dp))
-        ChipPicker(
-            label = "Tipo",
-            errorMessage = validation?.typeError,
-            errorTestTag = "type_field_error",
-        ) {
-            for (type in AccountType.entries) {
-                FilterChipItem(
-                    label = typeLabel(type),
-                    selected = selectedType == type,
-                    onClick = { selectedType = type },
-                    testTag = "type_option_${type.name}",
-                )
-            }
+        if (selectedType == AccountType.CREDIT_CARD) {
+            Spacer(modifier = Modifier.height(16.dp))
+            AmountField(
+                value = creditLimit,
+                onValueChange = { creditLimit = it },
+                label = "Cupo",
+                testTag = "credit_limit_field",
+                errorMessage = validation?.creditLimitError,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            AmountField(
+                value = debt,
+                onValueChange = { debt = it },
+                label = "Deuda actual",
+                testTag = "debt_field",
+                errorMessage = validation?.debtError,
+            )
+        } else if (selectedType != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            AmountField(
+                value = balance,
+                onValueChange = { balance = it },
+                label = "Saldo inicial",
+                testTag = "balance_field",
+                errorMessage = validation?.balanceError,
+            )
         }
         Spacer(modifier = Modifier.height(16.dp))
         OdinField(

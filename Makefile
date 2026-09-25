@@ -16,7 +16,6 @@ run:
 		until [ "$$($(ADB) shell getprop sys.boot_completed 2>/dev/null)" = "1" ]; do sleep 2; done; \
 		$(ADB) shell input keyevent 82; \
 	fi
-	-$(ADB) uninstall $(DEBUG_PACKAGE) 2>/dev/null
 	./gradlew installDebug
 	$(ADB) shell am start -n $(DEBUG_PACKAGE)/$(ACTIVITY_CLASS)
 

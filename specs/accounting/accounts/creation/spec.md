@@ -67,7 +67,8 @@ see how long I have been tracking it.
 - The set of fields the user fills in depends on the type: choosing a money type
   (savings or cash) asks for an initial balance; choosing credit card replaces
   the initial balance with a credit limit and an existing debt. The name,
-  currency and description fields are the same for every type.
+  currency and description fields are the same for every type. The type is chosen
+  before the amount fields, which appear only after a type is selected.
 
 ### Money accounts (savings and cash)
 - The initial balance is required, cannot be negative, and can have at most two
