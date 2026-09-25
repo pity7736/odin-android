@@ -68,6 +68,12 @@ As a user, I want to record an expense amount against an account I am viewing, s
 - When they leave the amount, date, or category empty and attempt to save
 - Then an error is shown next to each missing field and the expense is not saved
 
+### Rejection — new category is not kept when the expense is rejected
+
+- Given the user is recording an expense and types the name of a new category
+- When the expense is rejected (for example, the amount is zero)
+- Then the expense is not saved and the new category is not created
+
 ## Out of Scope
 
 - Editing or deleting a previously recorded expense entry

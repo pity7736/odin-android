@@ -52,6 +52,11 @@ As a user, I want to record an income amount against an account I am viewing, so
 - When the user leaves the amount, date, or category empty and attempts to save
 - Then an error is shown next to each missing field and the income is not saved
 
+### Rejection — new category is not kept when the income is rejected
+- Given the user is recording an income and types the name of a new category
+- When the income is rejected (for example, the amount is zero)
+- Then the income is not saved and the new category is not created
+
 ## Out of Scope
 - Editing or deleting a previously recorded income entry
 - Listing or viewing recorded income entries

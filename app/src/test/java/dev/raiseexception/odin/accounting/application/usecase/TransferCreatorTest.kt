@@ -38,7 +38,7 @@ class TransferCreatorTest {
     private val expenseRepository = mockk<ExpenseRepository>()
     private val incomeRepository = mockk<IncomeRepository>()
     private val transactionRunner = object : TransactionRunner {
-        override suspend fun <T> run(block: suspend () -> T): T = block()
+        override suspend fun <T> run(block: suspend () -> Outcome<T>): Outcome<T> = block()
     }
     private val fixedInstant = Instant.parse("2026-08-29T12:00:00Z")
     private val fixedClock = object : Clock {

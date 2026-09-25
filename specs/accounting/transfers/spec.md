@@ -95,6 +95,14 @@ manually.
 - Then the transfer is rejected with a message explaining that both accounts
   must use the same currency
 
+### Failed save — nothing is recorded
+
+- Given the user is creating a valid transfer
+- When the app cannot finish saving it
+- Then no part of the transfer is recorded: neither account's balance nor
+  history changes
+- And the user is told the transfer could not be saved
+
 ### Entry from account details
 
 - Given the user is viewing a specific account's details
