@@ -33,7 +33,7 @@ class ExpenseCreatorTest {
     private val categoryRepository = mockk<dev.raiseexception.odin.accounting.domain.repository.CategoryRepository>()
     private val categoryCreator = mockk<CategoryCreator>()
     private val transactionRunner = object : TransactionRunner {
-        override suspend fun <T> run(block: suspend () -> T): T = block()
+        override suspend fun <T> run(block: suspend () -> Outcome<T>): Outcome<T> = block()
     }
     private val fixedInstant = Instant.parse("2026-08-29T12:00:00Z")
     private val fixedClock = object : Clock {

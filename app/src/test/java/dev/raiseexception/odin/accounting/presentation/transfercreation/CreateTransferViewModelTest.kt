@@ -176,6 +176,30 @@ class CreateTransferViewModelTest {
         }
 
     @Test
+    fun `given Idle state, when saving and the transfer fails to save, then emits Error with the external message`() =
+        runTest {
+            every { accountLister.list() } returns flowOf(
+                Outcome.Success(listOf(sourceAccount, destinationAccount))
+            )
+            coEvery {
+                transferCreator.create(any(), any(), any(), any())
+            } returns Outcome.Failure(
+                TransferCreationError.StorageFailure(
+                    internalMessage = "Failed to add income",
+                    externalMessage = "No se pudo guardar la transferencia."
+                )
+            )
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.save("src-1", "dst-1", "100", "2026-08-29")
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.uiState.test {
+                assertEquals(CreateTransferUiState.Error("No se pudo guardar la transferencia."), awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
     fun `given no preselected account, when initialized, then no source account is selected`() =
         runTest {
             every { accountLister.list() } returns flowOf(

@@ -5,6 +5,8 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import dev.raiseexception.odin.accounting.infrastructure.repository.AccountEntity
 import dev.raiseexception.odin.persistence.OdinDatabase
+import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.domain.StorageError
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -36,15 +38,42 @@ class RoomTransactionRunnerTest {
     }
 
     @Test
-    fun `given two inserts in a transaction, when block succeeds, then both are committed`() = runTest {
+    fun `given two inserts in a transaction, when block returns a success, then both are committed`() = runTest {
+        val firstAccount = buildAccountEntity("acc-1", "Ahorros")
+        val secondAccount = buildAccountEntity("acc-2", "Efectivo")
+        val result = transactionRunner.run {
+            database.accountDao().insert(firstAccount)
+            database.accountDao().insert(secondAccount)
+            Outcome.Success(secondAccount.id)
+        }
+        val accounts = database.accountDao().getAll().first()
+        assertEquals(2, accounts.size)
+        assertEquals(Outcome.Success("acc-2"), result)
+    }
+
+    @Test
+    fun `given two inserts in a transaction, when block returns a failure, then neither is committed`() = runTest {
         val firstAccount = buildAccountEntity("acc-1", "Ahorros")
         val secondAccount = buildAccountEntity("acc-2", "Efectivo")
         transactionRunner.run {
             database.accountDao().insert(firstAccount)
             database.accountDao().insert(secondAccount)
+            Outcome.Failure(StorageError("Simulated storage failure"))
         }
         val accounts = database.accountDao().getAll().first()
-        assertEquals(2, accounts.size)
+        assertTrue(accounts.isEmpty())
+    }
+
+    @Test
+    fun `given a block that returns a failure, when run, then the same failure is returned`() = runTest {
+        val failure = Outcome.Failure(StorageError("Simulated storage failure"))
+        val result = runCatching {
+            transactionRunner.run {
+                database.accountDao().insert(buildAccountEntity("acc-1", "Ahorros"))
+                failure
+            }
+        }
+        assertEquals(failure, result.getOrThrow())
     }
 
     @Test
@@ -52,7 +81,7 @@ class RoomTransactionRunnerTest {
         val firstAccount = buildAccountEntity("acc-1", "Ahorros")
         val secondAccount = buildAccountEntity("acc-2", "Efectivo")
         val result = runCatching {
-            transactionRunner.run {
+            transactionRunner.run<Unit> {
                 database.accountDao().insert(firstAccount)
                 database.accountDao().insert(secondAccount)
                 error("Simulated failure")
