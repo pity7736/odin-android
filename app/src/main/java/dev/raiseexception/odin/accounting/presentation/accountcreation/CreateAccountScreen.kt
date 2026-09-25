@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.shared.presentation.AmountField
@@ -54,7 +55,7 @@ import kotlinx.coroutines.flow.Flow
 @Composable
 fun CreateAccountScreen(
     uiState: CreateAccountUiState,
-    onCreate: (String, String, Currency?, AccountType?, String) -> Unit,
+    onCreate: (CreateAccountCommand) -> Unit,
     navigationEvent: Flow<NavigationTarget>,
     onCreateSuccess: () -> Unit,
     modifier: Modifier = Modifier,
@@ -64,6 +65,8 @@ fun CreateAccountScreen(
     }
     var name by rememberSaveable { mutableStateOf("") }
     var balance by rememberSaveable { mutableStateOf("") }
+    var creditLimit by rememberSaveable { mutableStateOf("") }
+    var debt by rememberSaveable { mutableStateOf("0") }
     var description by rememberSaveable { mutableStateOf("") }
     var selectedCurrency by rememberSaveable { mutableStateOf<Currency?>(null) }
     var selectedType by rememberSaveable { mutableStateOf<AccountType?>(null) }
@@ -92,13 +95,31 @@ fun CreateAccountScreen(
             errorMessage = validation?.nameError,
         )
         Spacer(modifier = Modifier.height(16.dp))
-        AmountField(
-            value = balance,
-            onValueChange = { balance = it },
-            label = "Saldo inicial",
-            testTag = "balance_field",
-            errorMessage = validation?.balanceError,
-        )
+        if (selectedType == AccountType.CREDIT_CARD) {
+            AmountField(
+                value = creditLimit,
+                onValueChange = { creditLimit = it },
+                label = "Cupo",
+                testTag = "credit_limit_field",
+                errorMessage = validation?.creditLimitError,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            AmountField(
+                value = debt,
+                onValueChange = { debt = it },
+                label = "Deuda actual",
+                testTag = "debt_field",
+                errorMessage = validation?.debtError,
+            )
+        } else {
+            AmountField(
+                value = balance,
+                onValueChange = { balance = it },
+                label = "Saldo inicial",
+                testTag = "balance_field",
+                errorMessage = validation?.balanceError,
+            )
+        }
         Spacer(modifier = Modifier.height(16.dp))
         ChipPicker(
             label = "Moneda",
@@ -139,7 +160,7 @@ fun CreateAccountScreen(
         )
         Spacer(modifier = Modifier.height(24.dp))
         CreateAction(uiState) {
-            onCreate(name, amountInputToRaw(balance), selectedCurrency, selectedType, description)
+            onCreate(buildCommand(name, balance, creditLimit, debt, selectedCurrency, selectedType, description))
         }
         GeneralMessage(uiState)
         Spacer(modifier = Modifier.height(24.dp))
@@ -299,4 +320,32 @@ private fun currencyLabel(currency: Currency): String = when (currency) {
 private fun typeLabel(type: AccountType): String = when (type) {
     AccountType.SAVINGS -> "Ahorros"
     AccountType.CASH -> "Efectivo"
+    AccountType.CREDIT_CARD -> "Tarjeta de crédito"
 }
+
+private fun buildCommand(
+    name: String,
+    balance: String,
+    creditLimit: String,
+    debt: String,
+    currency: Currency?,
+    type: AccountType?,
+    description: String,
+): CreateAccountCommand =
+    if (type == AccountType.CREDIT_CARD) {
+        CreateAccountCommand.CreditCard(
+            name = name,
+            creditLimit = amountInputToRaw(creditLimit),
+            existingDebt = amountInputToRaw(debt),
+            currency = currency,
+            description = description,
+        )
+    } else {
+        CreateAccountCommand.MoneyAccount(
+            name = name,
+            balance = amountInputToRaw(balance),
+            currency = currency,
+            type = type,
+            description = description,
+        )
+    }

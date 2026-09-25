@@ -196,6 +196,7 @@ private fun AccountRow(account: Account, backgroundColor: Color, onClick: () -> 
                 imageVector = when (account.type) {
                     AccountType.SAVINGS -> Icons.Outlined.CreditCard
                     AccountType.CASH -> Icons.Filled.Payments
+                    AccountType.CREDIT_CARD -> Icons.Filled.CreditCard
                 },
                 contentDescription = null,
                 tint = Slate600,
@@ -239,4 +240,5 @@ private fun ErrorContent(message: String, modifier: Modifier = Modifier) {
 private fun accountTypeLabel(type: AccountType): String = when (type) {
     AccountType.SAVINGS -> "Ahorro"
     AccountType.CASH -> "Efectivo"
+    AccountType.CREDIT_CARD -> "Tarjeta de crédito"
 }

@@ -35,13 +35,7 @@ class Account private constructor(
 
     val currency: Currency get() = this.funding.currency
 
-    val balance: Money get() = when (val funding = this.funding) {
-        is AccountFunding.Funds -> {
-            val incomeSum = this._incomes.fold(BigDecimal.ZERO) { acc, income -> acc.add(income.amount.amount) }
-            val expenseSum = this._expenses.fold(BigDecimal.ZERO) { acc, expense -> acc.add(expense.amount.amount) }
-            Money.of(funding.initialBalance.amount.add(incomeSum).subtract(expenseSum), this.currency)
-        }
-    }
+    val balance: Money get() = this.funding.balance(this.incomes, this.expenses)
 
     fun createIncome(
         amount: String,
@@ -192,6 +186,7 @@ class Account private constructor(
 
     private fun anyError(vararg errors: String?): Boolean = errors.any { it != null }
 
+    @Suppress("TooManyFunctions")
     companion object {
         private const val MAX_NAME_LENGTH = 200
         private const val MAX_DESCRIPTION_LENGTH = 500
@@ -258,6 +253,52 @@ class Account private constructor(
             )
         }
 
+        @Suppress("LongParameterList")
+        fun createCreditCard(
+            name: String,
+            currency: Currency?,
+            description: String,
+            creditLimit: String,
+            existingDebt: String,
+            clock: Clock = Clock.System
+        ): Outcome<Account> {
+            val trimmedName = name.trim()
+            val trimmedDescription = description.trim()
+            val parsedCreditLimit = parseAmount(creditLimit)
+            val parsedDebt = parseDebt(existingDebt)
+            val nameError = validateName(trimmedName)
+            val currencyError = if (currency == null) "La moneda es obligatoria." else null
+            val descriptionError = validateDescription(trimmedDescription)
+            val creditLimitError = validateCreditLimit(creditLimit, parsedCreditLimit)
+            val debtError = validateDebt(existingDebt, parsedDebt, parsedCreditLimit, creditLimitError)
+            if (anyError(nameError, currencyError, descriptionError, creditLimitError, debtError)) {
+                return Outcome.Failure(
+                    AccountCreationError.InvalidInput(
+                        nameError = nameError,
+                        balanceError = null,
+                        currencyError = currencyError,
+                        typeError = null,
+                        descriptionError = descriptionError,
+                        creditLimitError = creditLimitError,
+                        debtError = debtError
+                    )
+                )
+            }
+            return Outcome.Success(
+                Account(
+                    id = UuidCreator.getTimeOrderedEpoch().toString(),
+                    name = trimmedName,
+                    funding = AccountFunding.Credit(
+                        creditLimit = Money.of(parsedCreditLimit!!, currency!!),
+                        debt = Money.of(parsedDebt!!, currency)
+                    ),
+                    type = AccountType.CREDIT_CARD,
+                    description = trimmedDescription,
+                    createdAt = clock.now()
+                )
+            )
+        }
+
         private fun parseAmount(rawBalance: String): BigDecimal? = try {
             BigDecimal(rawBalance.trim())
         } catch (@Suppress("SwallowedException") exception: NumberFormatException) {
@@ -282,6 +323,30 @@ class Account private constructor(
         private fun validateDescription(trimmedDescription: String): String? = when {
             trimmedDescription.length > MAX_DESCRIPTION_LENGTH ->
                 "La descripción no puede superar los $MAX_DESCRIPTION_LENGTH caracteres."
+            else -> null
+        }
+
+        private fun parseDebt(rawDebt: String): BigDecimal? =
+            if (rawDebt.isBlank()) BigDecimal.ZERO else parseAmount(rawDebt)
+
+        private fun validateCreditLimit(rawCreditLimit: String, amount: BigDecimal?): String? = when {
+            rawCreditLimit.isBlank() -> "El cupo es obligatorio."
+            amount == null || amount.signum() <= 0 -> "El cupo debe ser mayor que cero."
+            amount.scale() > MAX_DECIMAL_PLACES -> "El cupo admite máximo $MAX_DECIMAL_PLACES decimales."
+            else -> null
+        }
+
+        private fun validateDebt(
+            rawDebt: String,
+            amount: BigDecimal?,
+            creditLimit: BigDecimal?,
+            creditLimitError: String?
+        ): String? = when {
+            rawDebt.isBlank() -> null
+            amount == null || amount.signum() < 0 -> "La deuda actual no puede ser negativa."
+            amount.scale() > MAX_DECIMAL_PLACES -> "La deuda actual admite máximo $MAX_DECIMAL_PLACES decimales."
+            creditLimitError == null && creditLimit != null && amount > creditLimit ->
+                "La deuda actual no puede superar el cupo."
             else -> null
         }
 

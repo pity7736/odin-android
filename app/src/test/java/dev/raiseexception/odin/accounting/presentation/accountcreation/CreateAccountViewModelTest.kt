@@ -2,6 +2,7 @@ package dev.raiseexception.odin.accounting.presentation.accountcreation
 
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
+import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
@@ -32,6 +33,22 @@ class CreateAccountViewModelTest {
 
     private val savingsAccount = AccountBuilder().build()
 
+    private val moneyCommand = CreateAccountCommand.MoneyAccount(
+        name = "Ahorros",
+        balance = "1500.00",
+        currency = Currency.COP,
+        type = AccountType.SAVINGS,
+        description = "Fondo de emergencia"
+    )
+
+    private val creditCardCommand = CreateAccountCommand.CreditCard(
+        name = "Visa",
+        creditLimit = "3000000",
+        existingDebt = "500000",
+        currency = Currency.COP,
+        description = ""
+    )
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
@@ -52,29 +69,29 @@ class CreateAccountViewModelTest {
 
     @Test
     fun `given a valid account, when creating, then emits navigation to the accounts list`() = runTest {
-        coEvery { accountCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Success(savingsAccount)
-        viewModel.create("Ahorros", "1500.00", Currency.COP, AccountType.SAVINGS, "Fondo de emergencia")
+        coEvery { accountCreator.create(any()) } returns Outcome.Success(savingsAccount)
+        viewModel.create(moneyCommand)
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(NavigationTarget.AccountsList, viewModel.navigationEvent.first())
     }
 
     @Test
     fun `given a creation in progress, when creating again, then ignores the second attempt`() = runTest {
-        coEvery { accountCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Success(savingsAccount)
+        coEvery { accountCreator.create(any()) } returns Outcome.Success(savingsAccount)
 
-        viewModel.create("Ahorros", "1500.00", Currency.COP, AccountType.SAVINGS, "")
-        viewModel.create("Ahorros", "1500.00", Currency.COP, AccountType.SAVINGS, "")
+        viewModel.create(moneyCommand)
+        viewModel.create(moneyCommand)
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coVerify(exactly = 1) { accountCreator.create(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 1) { accountCreator.create(any()) }
     }
 
     @Test
     fun `given a valid account, when creating, then emits Loading and stays Loading`() = runTest {
-        coEvery { accountCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Success(savingsAccount)
+        coEvery { accountCreator.create(any()) } returns Outcome.Success(savingsAccount)
         viewModel.uiState.test {
             assertEquals(CreateAccountUiState.Idle, awaitItem())
-            viewModel.create("Ahorros", "1500.00", Currency.COP, AccountType.SAVINGS, "")
+            viewModel.create(moneyCommand)
             assertEquals(CreateAccountUiState.Loading, awaitItem())
             expectNoEvents()
         }
@@ -82,7 +99,7 @@ class CreateAccountViewModelTest {
 
     @Test
     fun `given invalid input, when creating, then maps each field error into the validation state`() = runTest {
-        coEvery { accountCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Failure(
+        coEvery { accountCreator.create(any()) } returns Outcome.Failure(
             AccountCreationError.InvalidInput(
                 nameError = "El nombre es obligatorio.",
                 balanceError = "El saldo inicial es obligatorio.",
@@ -93,7 +110,7 @@ class CreateAccountViewModelTest {
         )
         viewModel.uiState.test {
             assertEquals(CreateAccountUiState.Idle, awaitItem())
-            viewModel.create("", "", null, null, "")
+            viewModel.create(moneyCommand)
             assertEquals(CreateAccountUiState.Loading, awaitItem())
             val error = awaitItem() as CreateAccountUiState.ValidationError
             assertEquals("El nombre es obligatorio.", error.nameError)
@@ -105,8 +122,31 @@ class CreateAccountViewModelTest {
     }
 
     @Test
+    fun `given invalid credit card input, when creating, then maps the credit limit and debt errors`() = runTest {
+        coEvery { accountCreator.create(any()) } returns Outcome.Failure(
+            AccountCreationError.InvalidInput(
+                nameError = null,
+                balanceError = null,
+                currencyError = null,
+                typeError = null,
+                descriptionError = null,
+                creditLimitError = "El cupo es obligatorio.",
+                debtError = "La deuda actual no puede ser negativa."
+            )
+        )
+        viewModel.uiState.test {
+            assertEquals(CreateAccountUiState.Idle, awaitItem())
+            viewModel.create(creditCardCommand)
+            assertEquals(CreateAccountUiState.Loading, awaitItem())
+            val error = awaitItem() as CreateAccountUiState.ValidationError
+            assertEquals("El cupo es obligatorio.", error.creditLimitError)
+            assertEquals("La deuda actual no puede ser negativa.", error.debtError)
+        }
+    }
+
+    @Test
     fun `given a duplicate name, when creating, then emits validation error next to the name`() = runTest {
-        coEvery { accountCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Failure(
+        coEvery { accountCreator.create(any()) } returns Outcome.Failure(
             AccountCreationError.DuplicateName(
                 internalMessage = "duplicate",
                 externalMessage = "Ya tienes una cuenta con ese nombre."
@@ -114,7 +154,7 @@ class CreateAccountViewModelTest {
         )
         viewModel.uiState.test {
             assertEquals(CreateAccountUiState.Idle, awaitItem())
-            viewModel.create("Ahorros", "10.00", Currency.COP, AccountType.SAVINGS, "")
+            viewModel.create(moneyCommand)
             assertEquals(CreateAccountUiState.Loading, awaitItem())
             val error = awaitItem() as CreateAccountUiState.ValidationError
             assertEquals("Ya tienes una cuenta con ese nombre.", error.nameError)
@@ -123,7 +163,7 @@ class CreateAccountViewModelTest {
 
     @Test
     fun `given a crypto failure, when creating, then emits a general error`() = runTest {
-        coEvery { accountCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Failure(
+        coEvery { accountCreator.create(any()) } returns Outcome.Failure(
             AccountCreationError.CryptoFailure(
                 internalMessage = "crypto",
                 externalMessage = "Algo salió mal. Intente de nuevo más tarde"
@@ -131,7 +171,7 @@ class CreateAccountViewModelTest {
         )
         viewModel.uiState.test {
             assertEquals(CreateAccountUiState.Idle, awaitItem())
-            viewModel.create("Ahorros", "10.00", Currency.COP, AccountType.SAVINGS, "")
+            viewModel.create(moneyCommand)
             assertEquals(CreateAccountUiState.Loading, awaitItem())
             val state = awaitItem()
             assertTrue(state is CreateAccountUiState.Error)
@@ -141,7 +181,7 @@ class CreateAccountViewModelTest {
 
     @Test
     fun `given a storage failure, when creating, then emits a general error`() = runTest {
-        coEvery { accountCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Failure(
+        coEvery { accountCreator.create(any()) } returns Outcome.Failure(
             AccountCreationError.StorageFailure(
                 internalMessage = "storage",
                 externalMessage = "Algo salió mal. Intente de nuevo más tarde"
@@ -149,7 +189,7 @@ class CreateAccountViewModelTest {
         )
         viewModel.uiState.test {
             assertEquals(CreateAccountUiState.Idle, awaitItem())
-            viewModel.create("Ahorros", "10.00", Currency.COP, AccountType.SAVINGS, "")
+            viewModel.create(moneyCommand)
             assertEquals(CreateAccountUiState.Loading, awaitItem())
             val state = awaitItem()
             assertTrue(state is CreateAccountUiState.Error)

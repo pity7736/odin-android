@@ -7,12 +7,15 @@ sealed class AccountCreationError(
     override val externalMessage: String
 ) : DomainError {
 
+    @Suppress("LongParameterList")
     class InvalidInput(
         val nameError: String?,
         val balanceError: String?,
         val currencyError: String?,
         val typeError: String?,
-        val descriptionError: String?
+        val descriptionError: String?,
+        val creditLimitError: String? = null,
+        val debtError: String? = null
     ) : AccountCreationError(
         internalMessage = "One or more account fields are invalid",
         externalMessage = "Revisa los datos de la cuenta"

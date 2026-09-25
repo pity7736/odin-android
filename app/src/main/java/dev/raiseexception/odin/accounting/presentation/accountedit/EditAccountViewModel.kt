@@ -87,6 +87,7 @@ class EditAccountViewModel(
         val locked = account.hasTransactions()
         val initialBalance = when (val funding = account.funding) {
             is AccountFunding.Funds -> funding.initialBalance
+            is AccountFunding.Credit -> funding.creditLimit
         }
         return EditAccountUiState.Editing(
             name = account.name,

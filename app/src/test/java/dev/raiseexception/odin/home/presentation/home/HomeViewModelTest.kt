@@ -282,6 +282,34 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `given a credit card account, when initialized, then it is excluded from the summary`() = runTest {
+        val savings = AccountBuilder()
+            .id("acc-1")
+            .name("Ahorros")
+            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
+            .build()
+        val creditCard = AccountBuilder()
+            .id("card-1")
+            .name("Visa")
+            .creditCard(
+                creditLimit = Money.of(BigDecimal("3000000.00"), Currency.COP),
+                debt = Money.of(BigDecimal("500000.00"), Currency.COP)
+            )
+            .build()
+        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(savings, creditCard)))
+        val viewModel = buildViewModel()
+        viewModel.uiState.test {
+            assertEquals(HomeUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            val content = awaitItem() as HomeUiState.Content
+            assertEquals(1, content.accounts.size)
+            assertEquals("acc-1", content.accounts.first().id)
+            assertEquals(1, content.totalBalances.size)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `given accounts in different currencies, when initialized, then emits one total per currency`() = runTest {
         val copAccount1 = AccountBuilder()
             .id("acc-1")

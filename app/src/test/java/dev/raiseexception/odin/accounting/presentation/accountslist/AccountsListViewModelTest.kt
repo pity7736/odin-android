@@ -2,6 +2,8 @@ package dev.raiseexception.odin.accounting.presentation.accountslist
 
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
+import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -20,6 +22,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.math.BigDecimal
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AccountsListViewModelTest {
@@ -90,6 +93,53 @@ class AccountsListViewModelTest {
             val event = awaitItem()
             assertTrue(event is AccountsListNavigationTarget.AccountDetail)
             assertEquals("aaa", (event as AccountsListNavigationTarget.AccountDetail).accountId)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given a credit card among accounts, when initialized, then the credit card is excluded`() = runTest {
+        val savings = account("acc-1", "Ahorros")
+        val creditCard = AccountBuilder()
+            .id("card-1")
+            .name("Visa")
+            .creditCard(
+                creditLimit = Money.of(BigDecimal("3000000.00"), Currency.COP),
+                debt = Money.of(BigDecimal("500000.00"), Currency.COP)
+            )
+            .build()
+        every {
+            accountLister.list(criteriaWithTransactions)
+        } returns flowOf(Outcome.Success(listOf(savings, creditCard)))
+        val viewModel = buildViewModel()
+
+        viewModel.uiState.test {
+            assertEquals(AccountsListUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            val content = awaitItem() as AccountsListUiState.Content
+            assertEquals(1, content.accounts.size)
+            assertEquals("acc-1", content.accounts.first().id)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given only a credit card, when initialized, then ui state is Empty`() = runTest {
+        val creditCard = AccountBuilder()
+            .id("card-1")
+            .name("Visa")
+            .creditCard(
+                creditLimit = Money.of(BigDecimal("3000000.00"), Currency.COP),
+                debt = Money.of(BigDecimal("500000.00"), Currency.COP)
+            )
+            .build()
+        every { accountLister.list(criteriaWithTransactions) } returns flowOf(Outcome.Success(listOf(creditCard)))
+        val viewModel = buildViewModel()
+
+        viewModel.uiState.test {
+            assertEquals(AccountsListUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(AccountsListUiState.Empty, awaitItem())
             cancelAndIgnoreRemainingEvents()
         }
     }

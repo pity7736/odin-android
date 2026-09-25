@@ -8,7 +8,9 @@ sealed interface CreateAccountUiState {
         val balanceError: String? = null,
         val currencyError: String? = null,
         val typeError: String? = null,
-        val descriptionError: String? = null
+        val descriptionError: String? = null,
+        val creditLimitError: String? = null,
+        val debtError: String? = null
     ) : CreateAccountUiState
     data class Error(val message: String) : CreateAccountUiState
 }

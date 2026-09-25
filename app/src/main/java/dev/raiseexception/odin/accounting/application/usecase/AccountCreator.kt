@@ -2,8 +2,6 @@ package dev.raiseexception.odin.accounting.application.usecase
 
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
 import dev.raiseexception.odin.accounting.domain.model.Account
-import dev.raiseexception.odin.accounting.domain.model.AccountType
-import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.shared.domain.Outcome
 
@@ -11,14 +9,8 @@ class AccountCreator(
     private val accountRepository: AccountRepository
 ) {
 
-    suspend fun create(
-        name: String,
-        initialBalance: String,
-        currency: Currency?,
-        type: AccountType?,
-        description: String
-    ): Outcome<Account> {
-        val account = when (val creationOutcome = Account.create(name, initialBalance, currency, type, description)) {
+    suspend fun create(command: CreateAccountCommand): Outcome<Account> {
+        val account = when (val creationOutcome = this.build(command)) {
             is Outcome.Success -> creationOutcome.value
             is Outcome.Failure -> return creationOutcome
         }
@@ -30,6 +22,23 @@ class AccountCreator(
                 this.persist(account)
             }
         }
+    }
+
+    private fun build(command: CreateAccountCommand): Outcome<Account> = when (command) {
+        is CreateAccountCommand.MoneyAccount -> Account.create(
+            name = command.name,
+            initialBalance = command.balance,
+            currency = command.currency,
+            type = command.type,
+            description = command.description
+        )
+        is CreateAccountCommand.CreditCard -> Account.createCreditCard(
+            name = command.name,
+            currency = command.currency,
+            description = command.description,
+            creditLimit = command.creditLimit,
+            existingDebt = command.existingDebt
+        )
     }
 
     private suspend fun persist(account: Account): Outcome<Account> =

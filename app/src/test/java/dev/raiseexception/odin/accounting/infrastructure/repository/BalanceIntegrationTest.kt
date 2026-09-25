@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
+import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.domain.model.AccountType
@@ -81,14 +82,18 @@ class BalanceIntegrationTest {
     fun `given seeder data, when loading ahorros via account finder, then balance is 3500000`() = runTest {
         val ahorros = (
             accountCreator.create(
-                "Ahorros",
-                "1000000",
-                Currency.COP,
-                AccountType.SAVINGS,
-                ""
+                CreateAccountCommand.MoneyAccount(
+                    "Ahorros",
+                    "1000000",
+                    Currency.COP,
+                    AccountType.SAVINGS,
+                    ""
+                )
             ) as Outcome.Success
             ).value
-        accountCreator.create("Efectivo", "50000", Currency.COP, AccountType.CASH, "")
+        accountCreator.create(
+            CreateAccountCommand.MoneyAccount("Efectivo", "50000", Currency.COP, AccountType.CASH, "")
+        )
         categoryCreator.create("Alimentación", CategoryType.EXPENSE, "", null)
         categoryCreator.create("Transporte", CategoryType.EXPENSE, "", null)
         categoryCreator.create("Entretenimiento", CategoryType.EXPENSE, "", null)
@@ -123,11 +128,13 @@ class BalanceIntegrationTest {
     fun `given account with income, when loading via account finder, then balance includes income`() = runTest {
         val account = (
             accountCreator.create(
-                "Ahorros",
-                "1000000",
-                Currency.COP,
-                AccountType.SAVINGS,
-                ""
+                CreateAccountCommand.MoneyAccount(
+                    "Ahorros",
+                    "1000000",
+                    Currency.COP,
+                    AccountType.SAVINGS,
+                    ""
+                )
             ) as Outcome.Success
             ).value
         val incomeResult = incomeCreator.create(
@@ -152,11 +159,13 @@ class BalanceIntegrationTest {
     fun `given account with expense, when loading via account finder, then balance includes expense`() = runTest {
         val account = (
             accountCreator.create(
-                "Ahorros",
-                "1000000",
-                Currency.COP,
-                AccountType.SAVINGS,
-                ""
+                CreateAccountCommand.MoneyAccount(
+                    "Ahorros",
+                    "1000000",
+                    Currency.COP,
+                    AccountType.SAVINGS,
+                    ""
+                )
             ) as Outcome.Success
             ).value
         val expenseResult = expenseCreator.create(
