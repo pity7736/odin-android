@@ -19,7 +19,10 @@ the full information about any income or expense I have recorded.
   name, and description.
 - Income and expense transactions are visually distinguished following the
   existing convention (color coding used elsewhere in the app).
-- The view is read-only — no modifications can be made from here.
+- The details themselves are read-only. From the details of an expense that is
+  not one side of a transfer, the user can open the edit for that expense (see
+  `specs/accounting/expense/update/spec.md`); no other transaction offers a way
+  to edit it.
 
 ## Expected Behavior
 
@@ -45,6 +48,6 @@ the full information about any income or expense I have recorded.
 
 ## Out of Scope
 
-- Editing a transaction.
+- Editing an income or a transfer.
 - Deleting a transaction.
 - Navigating to the related category or account from this view.

@@ -2,10 +2,13 @@ package dev.raiseexception.odin.accounting.domain.model
 
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
 import dev.raiseexception.odin.accounting.domain.AccountUpdateError
+import dev.raiseexception.odin.accounting.domain.ExpenseUpdateError
+import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -716,5 +719,285 @@ class AccountCreateCreditCardTest {
         val error = (result as Outcome.Failure).error
         assertTrue(error is AccountCreationError.InvalidInput)
         return error as AccountCreationError.InvalidInput
+    }
+}
+
+class AccountEditExpenseTest {
+
+    private val fixedInstant = Instant.parse("2026-08-29T12:00:00Z")
+    private val fixedClock = object : Clock {
+        override fun now(): Instant = fixedInstant
+    }
+    private val expenseCreatedAt = Instant.parse("2026-03-10T12:00:00Z")
+    private val expenseClock = object : Clock {
+        override fun now(): Instant = expenseCreatedAt
+    }
+
+    @Test
+    fun `given an expense, when editing every field validly, then returns it keeping id account and createdAt`() {
+        val account = this.accountWithExpense(description = "Mercado")
+        val original = account.expenses.first()
+
+        val result = account.editExpense(
+            expenseId = original.id,
+            amount = "45000",
+            date = "2026-04-02",
+            categoryId = "cat-2",
+            description = "  Restaurante  ",
+            clock = this.fixedClock
+        )
+
+        assertTrue(result is Outcome.Success)
+        val edited = (result as Outcome.Success).value
+        assertEquals(original.id, edited.id)
+        assertEquals("acc-1", edited.accountId)
+        assertEquals(this.expenseCreatedAt, edited.createdAt)
+        assertEquals(Money.of(BigDecimal("45000"), Currency.COP), edited.amount)
+        assertEquals(LocalDate.parse("2026-04-02"), edited.date)
+        assertEquals("cat-2", edited.categoryId)
+        assertEquals("Restaurante", edited.description)
+    }
+
+    @Test
+    fun `given an expense, when editing it, then the account holds the edited expense and the balance reflects it`() {
+        val account = this.accountWithExpense()
+        val original = account.expenses.first()
+
+        account.editExpense(
+            expenseId = original.id,
+            amount = "20000",
+            date = "2026-03-10",
+            categoryId = "cat-1",
+            description = "",
+            clock = this.fixedClock
+        )
+
+        assertEquals(1, account.expenses.size)
+        assertEquals(original.id, account.expenses.first().id)
+        assertEquals(Money.of(BigDecimal("20000"), Currency.COP), account.expenses.first().amount)
+        assertEquals(Money.of(BigDecimal("80000"), Currency.COP), account.balance)
+    }
+
+    @Test
+    fun `given expense 30000 and balance 70000, when editing amount to 90000, then succeeds and balance is 10000`() {
+        val account = this.accountWithExpense()
+
+        val result = this.editAmount(account, "90000")
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(Money.of(BigDecimal("10000"), Currency.COP), account.balance)
+    }
+
+    @Test
+    fun `given expense 30000 and balance 70000, when editing amount to 100000, then succeeds and balance is 0`() {
+        val account = this.accountWithExpense()
+
+        val result = this.editAmount(account, "100000")
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(Money.of(BigDecimal.ZERO, Currency.COP), account.balance)
+    }
+
+    @Test
+    fun `given expense 30000 and balance 70000, when editing amount to 100001, then fails with exceeds error`() {
+        val account = this.accountWithExpense()
+
+        val result = this.editAmount(account, "100001")
+
+        val error = this.failureInvalidInput(result)
+        assertEquals("El monto supera el saldo disponible.", error.amountError)
+        assertNull(error.dateError)
+        assertNull(error.categoryError)
+        assertEquals(Money.of(BigDecimal("70000"), Currency.COP), account.balance)
+    }
+
+    @Test
+    fun `given an expense of 30000, when editing the amount to 10000, then succeeds and balance is 90000`() {
+        val account = this.accountWithExpense()
+
+        val result = this.editAmount(account, "10000")
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(Money.of(BigDecimal("90000"), Currency.COP), account.balance)
+    }
+
+    @Test
+    fun `given an expense, when editing without changes, then succeeds with identical values`() {
+        val account = this.accountWithExpense(description = "Mercado")
+        val original = account.expenses.first()
+
+        val result = account.editExpense(
+            expenseId = original.id,
+            amount = original.amount.amount.toPlainString(),
+            date = original.date.toString(),
+            categoryId = original.categoryId,
+            description = original.description,
+            clock = this.fixedClock
+        )
+
+        assertTrue(result is Outcome.Success)
+        val edited = (result as Outcome.Success).value
+        assertEquals(original.id, edited.id)
+        assertEquals(original.accountId, edited.accountId)
+        assertEquals(original.amount, edited.amount)
+        assertEquals(original.date, edited.date)
+        assertEquals(original.categoryId, edited.categoryId)
+        assertEquals(original.description, edited.description)
+        assertEquals(original.createdAt, edited.createdAt)
+    }
+
+    @Test
+    fun `given an expense, when editing with zero negative blank or non-numeric amount, then fails as creation does`() {
+        val account = this.accountWithExpense()
+
+        val zeroError = this.failureInvalidInput(this.editAmount(account, "0"))
+        val negativeError = this.failureInvalidInput(this.editAmount(account, "-100"))
+        val blankError = this.failureInvalidInput(this.editAmount(account, ""))
+        val nonNumericError = this.failureInvalidInput(this.editAmount(account, "abc"))
+
+        assertEquals("El monto debe ser mayor que cero.", zeroError.amountError)
+        assertEquals("El monto debe ser mayor que cero.", negativeError.amountError)
+        assertEquals("El monto es obligatorio.", blankError.amountError)
+        assertEquals("El monto no es un número válido.", nonNumericError.amountError)
+    }
+
+    @Test
+    fun `given an expense, when editing with a future date, then fails with a date error`() {
+        val account = this.accountWithExpense()
+        val original = account.expenses.first()
+
+        val result = account.editExpense(
+            expenseId = original.id,
+            amount = "30000",
+            date = "2099-01-01",
+            categoryId = "cat-1",
+            description = "",
+            clock = this.fixedClock
+        )
+
+        val error = this.failureInvalidInput(result)
+        assertEquals("La fecha debe ser hoy o en el pasado.", error.dateError)
+        assertNull(error.amountError)
+        assertNull(error.categoryError)
+    }
+
+    @Test
+    fun `given an account created on March 1, when editing the date to February 28, then fails with date error`() {
+        val account = this.accountWithExpense()
+        val original = account.expenses.first()
+
+        val result = account.editExpense(
+            expenseId = original.id,
+            amount = "30000",
+            date = "2026-02-28",
+            categoryId = "cat-1",
+            description = "",
+            clock = this.fixedClock
+        )
+
+        val error = this.failureInvalidInput(result)
+        assertEquals("La fecha no puede ser anterior a la fecha de creación de la cuenta.", error.dateError)
+    }
+
+    @Test
+    fun `given an account created on March 1, when editing the date to March 1, then succeeds`() {
+        val account = this.accountWithExpense()
+        val original = account.expenses.first()
+
+        val result = account.editExpense(
+            expenseId = original.id,
+            amount = "30000",
+            date = "2026-03-01",
+            categoryId = "cat-1",
+            description = "",
+            clock = this.fixedClock
+        )
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(LocalDate.parse("2026-03-01"), (result as Outcome.Success).value.date)
+    }
+
+    @Test
+    fun `given an expense, when editing with blank amount date and category, then fails with all three errors`() {
+        val account = this.accountWithExpense()
+        val original = account.expenses.first()
+
+        val result = account.editExpense(
+            expenseId = original.id,
+            amount = "",
+            date = "",
+            categoryId = "",
+            description = "",
+            clock = this.fixedClock
+        )
+
+        val error = this.failureInvalidInput(result)
+        assertEquals("El monto es obligatorio.", error.amountError)
+        assertEquals("La fecha es obligatoria.", error.dateError)
+        assertEquals("La categoría es obligatoria.", error.categoryError)
+    }
+
+    @Test
+    fun `given an expense with a description, when editing with a blank one, then it has an empty description`() {
+        val account = this.accountWithExpense(description = "Mercado")
+        val original = account.expenses.first()
+
+        val result = account.editExpense(
+            expenseId = original.id,
+            amount = "30000",
+            date = "2026-03-10",
+            categoryId = "cat-1",
+            description = "   ",
+            clock = this.fixedClock
+        )
+
+        assertTrue(result is Outcome.Success)
+        assertEquals("", (result as Outcome.Success).value.description)
+    }
+
+    @Test
+    fun `given an expense id not in the account, when editing, then fails with TransactionLookupError NotFound`() {
+        val account = this.accountWithExpense()
+
+        val result = account.editExpense(
+            expenseId = "missing-expense",
+            amount = "30000",
+            date = "2026-03-10",
+            categoryId = "cat-1",
+            description = "",
+            clock = this.fixedClock
+        )
+
+        assertTrue(result is Outcome.Failure)
+        assertTrue((result as Outcome.Failure).error is TransactionLookupError.NotFound)
+    }
+
+    private fun accountWithExpense(description: String = ""): Account = AccountBuilder()
+        .id("acc-1")
+        .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+        .initialBalance(Money.of(BigDecimal("100000.00"), Currency.COP))
+        .withExpense(
+            amount = "30000",
+            date = "2026-03-10",
+            categoryId = "cat-1",
+            description = description,
+            clock = this.expenseClock
+        )
+        .build()
+
+    private fun editAmount(account: Account, amount: String): Outcome<Expense> = account.editExpense(
+        expenseId = account.expenses.first().id,
+        amount = amount,
+        date = "2026-03-10",
+        categoryId = "cat-1",
+        description = "",
+        clock = this.fixedClock
+    )
+
+    private fun failureInvalidInput(result: Outcome<Expense>): ExpenseUpdateError.InvalidInput {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is ExpenseUpdateError.InvalidInput)
+        return error as ExpenseUpdateError.InvalidInput
     }
 }

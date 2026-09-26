@@ -12,6 +12,7 @@ sealed interface TransactionDetailUiState {
         val accountName: String,
         val description: String,
         val isIncome: Boolean,
+        val isEditable: Boolean,
     ) : TransactionDetailUiState
     data object NotFound : TransactionDetailUiState
     data class Error(val message: String) : TransactionDetailUiState

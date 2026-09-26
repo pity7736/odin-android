@@ -17,6 +17,7 @@ import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.application.usecase.CategoryFinder
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
+import dev.raiseexception.odin.accounting.application.usecase.ExpenseUpdater
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
 import dev.raiseexception.odin.accounting.application.usecase.TransferCreator
@@ -41,6 +42,7 @@ import dev.raiseexception.odin.accounting.presentation.categorieslist.Categories
 import dev.raiseexception.odin.accounting.presentation.categorycreation.CreateCategoryViewModel
 import dev.raiseexception.odin.accounting.presentation.categorydetail.CategoryDetailViewModel
 import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExpenseViewModel
+import dev.raiseexception.odin.accounting.presentation.expenseedit.EditExpenseViewModel
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeViewModel
 import dev.raiseexception.odin.accounting.presentation.transactiondetail.TransactionDetailViewModel
 import dev.raiseexception.odin.accounting.presentation.transfercreation.CreateTransferViewModel
@@ -157,6 +159,16 @@ class AppContainer(context: Context) {
             transactionRunner = transactionRunner
         )
     }
+    private val expenseUpdater by lazy {
+        ExpenseUpdater(
+            transactionFinder = transactionFinder,
+            accountFinder = accountFinder,
+            expenseRepository = expenseRepository,
+            categoryRepository = categoryRepository,
+            categoryCreator = categoryCreator,
+            transactionRunner = transactionRunner
+        )
+    }
     private val transferCreator by lazy {
         TransferCreator(
             accountRepository = accountRepository,
@@ -202,6 +214,20 @@ class AppContainer(context: Context) {
         viewModelFactory {
             initializer {
                 EditAccountViewModel(accountId, accountFinder, accountUpdater, ioDispatcher)
+            }
+        }
+
+    fun editExpenseViewModelFactory(expenseId: String): ViewModelProvider.Factory =
+        viewModelFactory {
+            initializer {
+                EditExpenseViewModel(
+                    expenseId = expenseId,
+                    transactionFinder = transactionFinder,
+                    accountFinder = accountFinder,
+                    categoryLister = categoryLister,
+                    expenseUpdater = expenseUpdater,
+                    ioDispatcher = ioDispatcher
+                )
             }
         }
 

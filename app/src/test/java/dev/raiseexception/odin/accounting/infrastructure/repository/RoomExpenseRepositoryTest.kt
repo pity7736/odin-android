@@ -73,4 +73,52 @@ class RoomExpenseRepositoryTest {
         assertEquals("exp-1", stored.id)
         assertEquals("500.00", stored.amount)
     }
+
+    @Test
+    fun `given a stored expense, when updating, then the row has the new values keeping id account type createdAt`() =
+        runTest {
+            val account = AccountBuilder().id("acc-1").build()
+            database.accountDao().insert(account.toEntity())
+            database.categoryDao().insert(expenseCategory("cat-1", "Alimentación"))
+            database.categoryDao().insert(expenseCategory("cat-2", "Restaurantes"))
+            val original = Expense.restore(
+                id = "exp-1",
+                accountId = "acc-1",
+                amount = Money.of(BigDecimal("500.00"), Currency.COP),
+                date = LocalDate.parse("2026-08-01"),
+                categoryId = "cat-1",
+                description = "Mercado",
+                createdAt = Instant.parse("2026-08-01T10:00:00Z")
+            )
+            repository.add(original)
+            val edited = Expense.restore(
+                id = "exp-1",
+                accountId = "acc-1",
+                amount = Money.of(BigDecimal("750.50"), Currency.COP),
+                date = LocalDate.parse("2026-08-03"),
+                categoryId = "cat-2",
+                description = "Cena",
+                createdAt = Instant.parse("2026-08-01T10:00:00Z")
+            )
+            val result = repository.update(edited)
+            assertTrue(result is Outcome.Success)
+            val stored = database.accountDao().findByIdWithTransactions("acc-1").first()!!.transactions.single()
+            assertEquals("exp-1", stored.id)
+            assertEquals("acc-1", stored.accountId)
+            assertEquals("EXPENSE", stored.type)
+            assertEquals("2026-08-01T10:00:00Z", stored.createdAt)
+            assertEquals("750.50", stored.amount)
+            assertEquals("2026-08-03", stored.date)
+            assertEquals("cat-2", stored.categoryId)
+            assertEquals("Cena", stored.description)
+        }
+
+    private fun expenseCategory(id: String, name: String) = CategoryEntity(
+        id = id,
+        name = name,
+        type = "EXPENSE",
+        description = "",
+        color = "#FF0000",
+        createdAt = "2026-01-01T00:00:00Z"
+    )
 }

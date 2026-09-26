@@ -4,7 +4,9 @@ import com.github.f4b6a3.uuid.UuidCreator
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
 import dev.raiseexception.odin.accounting.domain.AccountUpdateError
 import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
+import dev.raiseexception.odin.accounting.domain.ExpenseUpdateError
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
+import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -80,7 +82,7 @@ class Account private constructor(
     ): Outcome<Expense> {
         val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         val parsedAmount = parseAmount(amount)
-        val amountError = validateExpenseAmount(amount, parsedAmount)
+        val amountError = validateExpenseAmount(amount, parsedAmount, this.balance.amount)
         val (parsedDate, dateError) = parseAndValidateDate(date, today)
         val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
         if (anyError(amountError, dateError, categoryError)) {
@@ -103,6 +105,53 @@ class Account private constructor(
         )
         this._expenses.add(expense)
         return Outcome.Success(expense)
+    }
+
+    fun editExpense(
+        expenseId: String,
+        amount: String,
+        date: String,
+        categoryId: String,
+        description: String,
+        clock: Clock = Clock.System
+    ): Outcome<Expense> {
+        val expenseIndex = this._expenses.indexOfFirst { it.id == expenseId }
+        if (expenseIndex < 0) {
+            return Outcome.Failure(
+                TransactionLookupError.NotFound(
+                    internalMessage = "Expense with id $expenseId not found in account ${this.id}",
+                    externalMessage = "Transacción no encontrada"
+                )
+            )
+        }
+        val original = this._expenses[expenseIndex]
+        val otherExpenses = this._expenses.filterIndexed { index, _ -> index != expenseIndex }
+        val ceiling = this.funding.balance(this._incomes, otherExpenses).amount
+        val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val parsedAmount = parseAmount(amount)
+        val amountError = validateExpenseAmount(amount, parsedAmount, ceiling)
+        val (parsedDate, dateError) = parseAndValidateDate(date, today)
+        val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
+        if (anyError(amountError, dateError, categoryError)) {
+            return Outcome.Failure(
+                ExpenseUpdateError.InvalidInput(
+                    amountError = amountError,
+                    dateError = dateError,
+                    categoryError = categoryError
+                )
+            )
+        }
+        val edited = Expense(
+            id = original.id,
+            accountId = original.accountId,
+            amount = Money.of(parsedAmount!!, this.currency),
+            date = parsedDate!!,
+            categoryId = categoryId,
+            description = description.trim(),
+            createdAt = original.createdAt
+        )
+        this._expenses[expenseIndex] = edited
+        return Outcome.Success(edited)
     }
 
     @Suppress("LongParameterList")
@@ -155,9 +204,9 @@ class Account private constructor(
         null
     }
 
-    private fun validateExpenseAmount(rawAmount: String, parsed: BigDecimal?): String? =
+    private fun validateExpenseAmount(rawAmount: String, parsed: BigDecimal?, ceiling: BigDecimal): String? =
         validateAmount(rawAmount, parsed)
-            ?: if (parsed != null && parsed > this.balance.amount) "El monto supera el saldo disponible." else null
+            ?: if (parsed != null && parsed > ceiling) "El monto supera el saldo disponible." else null
 
     private fun validateAmount(rawAmount: String, parsed: BigDecimal?): String? = when {
         rawAmount.isBlank() -> "El monto es obligatorio."
