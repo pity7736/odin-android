@@ -2,9 +2,6 @@
 
 package dev.raiseexception.odin.accounting.presentation.expensecreation
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -14,57 +11,39 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDefaults
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.PopupProperties
 import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.shared.presentation.AccountAutocomplete
 import dev.raiseexception.odin.shared.presentation.AmountField
+import dev.raiseexception.odin.shared.presentation.CategoryAutocomplete
+import dev.raiseexception.odin.shared.presentation.DatePickerField
+import dev.raiseexception.odin.shared.presentation.OdinField
 import dev.raiseexception.odin.shared.presentation.amountInputToRaw
-import dev.raiseexception.odin.shared.presentation.capitalizeFirst
+import dev.raiseexception.odin.shared.presentation.resolveCategoryInput
 import dev.raiseexception.odin.ui.theme.ExpenseRed
-import dev.raiseexception.odin.ui.theme.Slate200
 import dev.raiseexception.odin.ui.theme.Slate50
-import dev.raiseexception.odin.ui.theme.Slate500
 import dev.raiseexception.odin.ui.theme.Slate800
 import dev.raiseexception.odin.ui.theme.Slate900
 import dev.raiseexception.odin.ui.theme.SoraFamily
 import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -255,239 +234,3 @@ private fun ExpenseForm(
         Spacer(modifier = Modifier.height(24.dp))
     }
 }
-
-@Composable
-private fun OdinField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    testTag: String,
-    errorMessage: String?,
-    keyboardType: KeyboardType = KeyboardType.Text,
-    visualTransformation: VisualTransformation = VisualTransformation.None,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = Slate800,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            singleLine = true,
-            isError = errorMessage != null,
-            shape = RoundedCornerShape(10.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                unfocusedBorderColor = if (errorMessage != null) ExpenseRed else Slate200,
-                focusedBorderColor = if (errorMessage != null) ExpenseRed else Slate200,
-            ),
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-            visualTransformation = visualTransformation,
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag(testTag),
-        )
-        FieldError(errorMessage, "${testTag}_error")
-    }
-}
-
-@Composable
-private fun CategoryAutocomplete(
-    categories: List<Category>,
-    categoryText: String,
-    onCategoryTextChange: (String) -> Unit,
-    onSuggestionSelected: (Category) -> Unit,
-    errorMessage: String?,
-) {
-    val suggestions = categories.filter { it.name.contains(categoryText.trim(), ignoreCase = true) }
-    var isFocused by remember { mutableStateOf(false) }
-    var justSelected by remember { mutableStateOf(false) }
-    val showMenu = isFocused && !justSelected && suggestions.isNotEmpty()
-    LaunchedEffect(errorMessage) { justSelected = false }
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "Categoría",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = Slate800,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-        Box(modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(
-                value = categoryText,
-                onValueChange = { text ->
-                    onCategoryTextChange(text)
-                    justSelected = false
-                },
-                singleLine = true,
-                isError = errorMessage != null,
-                shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = if (errorMessage != null) ExpenseRed else Slate200,
-                    focusedBorderColor = if (errorMessage != null) ExpenseRed else Slate200,
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("category_field")
-                    .onFocusChanged { state ->
-                        isFocused = state.isFocused
-                        if (state.isFocused) justSelected = false
-                    },
-            )
-            DropdownMenu(
-                expanded = showMenu,
-                onDismissRequest = { justSelected = true },
-                properties = PopupProperties(focusable = false),
-                modifier = Modifier.background(Color.White),
-            ) {
-                suggestions.forEach { category ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = capitalizeFirst(category.name),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Slate800,
-                            )
-                        },
-                        onClick = {
-                            onSuggestionSelected(category)
-                            justSelected = true
-                        },
-                        modifier = Modifier.testTag("category_option_${category.id}"),
-                    )
-                }
-            }
-        }
-        FieldError(errorMessage, "category_field_error")
-    }
-}
-
-private fun resolveCategoryInput(
-    categoryText: String,
-    selectedCategoryId: String,
-    categories: List<Category>,
-): CategoryInput {
-    if (selectedCategoryId.isNotBlank()) {
-        val match = categories.firstOrNull { it.id == selectedCategoryId }
-        if (match != null) return CategoryInput.Existing(match.id)
-    }
-    val exactMatch = categories.firstOrNull { it.name.equals(categoryText.trim(), ignoreCase = true) }
-    if (exactMatch != null) return CategoryInput.Existing(exactMatch.id)
-    return CategoryInput.New(categoryText.trim())
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DatePickerField(
-    selectedDate: String,
-    onDateSelected: (String) -> Unit,
-    errorMessage: String?,
-    minDate: LocalDate?,
-) {
-    var showPicker by remember { mutableStateOf(false) }
-    val todayMillis = remember {
-        Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
-            .toEpochDays().toLong() * MILLIS_PER_DAY
-    }
-    val minDateMillis = remember(minDate) {
-        minDate?.toEpochDays()?.toLong()?.times(MILLIS_PER_DAY)
-    }
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = todayMillis,
-        selectableDates = object : SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                val aboveMin = minDateMillis == null || utcTimeMillis >= minDateMillis
-                return utcTimeMillis <= todayMillis && aboveMin
-            }
-        },
-    )
-    val interactionSource = remember { MutableInteractionSource() }
-    LaunchedEffect(interactionSource) {
-        interactionSource.interactions.collect {
-            if (it is PressInteraction.Release) showPicker = true
-        }
-    }
-    if (showPicker) {
-        DatePickerDialog(
-            onDismissRequest = { showPicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let {
-                        onDateSelected(Instant.fromEpochMilliseconds(it).toLocalDateTime(TimeZone.UTC).date.toString())
-                    }
-                    showPicker = false
-                }) { Text("OK", color = Slate800) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPicker = false }) { Text("Cancelar", color = Slate500) }
-            },
-            colors = DatePickerDefaults.colors(
-                containerColor = Color.White,
-            ),
-        ) {
-            DatePicker(
-                state = datePickerState,
-                colors = DatePickerDefaults.colors(
-                    containerColor = Color.White,
-                    titleContentColor = Slate900,
-                    headlineContentColor = Slate900,
-                    weekdayContentColor = Slate500,
-                    navigationContentColor = Slate800,
-                    yearContentColor = Slate800,
-                    selectedDayContainerColor = Slate800,
-                    selectedDayContentColor = Slate50,
-                    selectedYearContainerColor = Slate800,
-                    selectedYearContentColor = Slate50,
-                    todayContentColor = Slate800,
-                    todayDateBorderColor = Slate800,
-                    dayContentColor = Slate900,
-                ),
-            )
-        }
-    }
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "Fecha",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = Slate800,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-        OutlinedTextField(
-            value = selectedDate,
-            onValueChange = {},
-            singleLine = true,
-            readOnly = true,
-            isError = errorMessage != null,
-            interactionSource = interactionSource,
-            shape = RoundedCornerShape(10.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                unfocusedBorderColor = if (errorMessage != null) ExpenseRed else Slate200,
-                focusedBorderColor = if (errorMessage != null) ExpenseRed else Slate200,
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("date_field"),
-        )
-        FieldError(errorMessage, "date_field_error")
-    }
-}
-
-@Composable
-private fun FieldError(errorMessage: String?, testTag: String) {
-    if (errorMessage != null) {
-        Text(
-            text = errorMessage,
-            color = ExpenseRed,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier
-                .padding(top = 4.dp)
-                .testTag(testTag),
-        )
-    }
-}
-
-private const val MILLIS_PER_DAY = 86_400_000L

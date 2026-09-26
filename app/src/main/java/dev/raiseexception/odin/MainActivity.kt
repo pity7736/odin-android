@@ -40,6 +40,8 @@ import dev.raiseexception.odin.accounting.presentation.categorydetail.CategoryDe
 import dev.raiseexception.odin.accounting.presentation.categorydetail.CategoryDetailViewModel
 import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExpenseScreen
 import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExpenseViewModel
+import dev.raiseexception.odin.accounting.presentation.expenseedit.EditExpenseScreen
+import dev.raiseexception.odin.accounting.presentation.expenseedit.EditExpenseViewModel
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeScreen
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeViewModel
 import dev.raiseexception.odin.accounting.presentation.transactiondetail.TransactionDetailScreen
@@ -103,6 +105,10 @@ private fun AppNavHost(startRoute: String) {
             composable(Routes.TRANSACTION_DETAIL) { backStackEntry ->
                 val transactionId = backStackEntry.arguments?.getString("transactionId") ?: ""
                 TransactionDetailDestination(transactionId, navController)
+            }
+            composable(Routes.EXPENSE_EDIT) { backStackEntry ->
+                val expenseId = backStackEntry.arguments?.getString("expenseId") ?: ""
+                EditExpenseDestination(expenseId, navController)
             }
             composable(Routes.ACCOUNTS) {
                 AccountsListDestination(navController)
@@ -471,6 +477,23 @@ private fun TransactionDetailDestination(transactionId: String, navController: N
                 popUpTo(Routes.HOME)
             }
         },
+        onEditExpense = { navController.navigate(Routes.expenseEdit(transactionId)) { launchSingleTop = true } },
+    )
+}
+
+@Composable
+private fun EditExpenseDestination(expenseId: String, navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val editExpenseViewModel: EditExpenseViewModel = viewModel(
+        factory = application.appContainer.editExpenseViewModelFactory(expenseId)
+    )
+    val uiState by editExpenseViewModel.uiState.collectAsStateWithLifecycle()
+    EditExpenseScreen(
+        uiState = uiState,
+        onSave = editExpenseViewModel::save,
+        navigationEvent = editExpenseViewModel.navigationEvent,
+        onSaved = { navController.popBackStack() },
+        onCancel = { navController.popBackStack() }
     )
 }
 

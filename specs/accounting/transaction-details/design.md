@@ -5,7 +5,8 @@
 ## Overview
 
 A read-only screen that displays all data for a single transaction (income or
-expense). The screen observes a reactive stream from the transaction repository,
+expense), and the entry point for editing an expense that is not one side of a
+transfer (see `specs/accounting/expense/update/design.md`). The screen observes a reactive stream from the transaction repository,
 so any external change to the transaction, its category, or its account is
 reflected immediately. The screen is reachable from both the home screen and the
 account detail screen; the bottom bar has no tab selected since it does not
@@ -31,13 +32,27 @@ belong to a single tab.
   `ExpenseRepository`; merging all three into one repository (a valid future
   refactoring, but out of scope).
 
-- **A single JOIN query at the DAO level resolves category and account names.**
-  The DAO joins `transactions`, `categories`, and `accounts` in one query,
+- **A single JOIN query at the DAO level resolves category and account names
+  and transfer membership.** The DAO joins `transactions`, `categories`, and
+  `accounts`, and left-joins `transfers` on the expense side, in one query,
   returning a `TransactionDetailEntity` (a data class with `@Embedded` and
   `@ColumnInfo`, not a Room `@Entity` table). This avoids three separate
   queries and the complexity of combining three reactive streams. Rejected:
   the use case combining flows from `TransactionRepository`,
   `CategoryRepository`, and `AccountRepository`.
+
+- **`TransactionDetail.isTransfer` records whether the transaction is the
+  expense side of a transfer.** It is read from the transfer link itself, not
+  inferred from the system Transfer category. The detail screen uses it to decide
+  whether an expense is editable, and the expense update use case reads the same
+  fact to refuse editing a transfer. Rejected: inferring it from the category
+  type (a proxy that breaks silently if the convention changes).
+
+- **`Content.isEditable` controls the "Editar" action.** The ViewModel sets it
+  for an expense that is not a transfer side; incomes and transfer expenses get
+  `false`. The click navigates directly to the expense edit destination with
+  single-top navigation, so a double tap cannot stack two edit screens; no
+  ViewModel navigation channel is involved because no logic sits behind it.
 
 - **`TransactionLookupError.NotFound` is a dedicated domain error.** This
   mirrors `CategoryLookupError.NotFound` and `AccountLookupError.NotFound`,
@@ -127,7 +142,8 @@ specs/accounting/transaction-details/
 4. The repository implementation queries Room via
    `TransactionDao.findDetailById(id)`, which returns a
    `Flow<TransactionDetailEntity?>` from a JOIN across `transactions`,
-   `categories`, and `accounts`.
+   `categories`, and `accounts`, with a left join on `transfers` that yields
+   `isTransfer`.
 5. The repository maps: non-null entity →
    `Outcome.Success(entity.toDomain())` (using `toIncome()` or `toExpense()`
    based on the `type` column); null →
@@ -145,14 +161,17 @@ specs/accounting/transaction-details/
 
 - **`Loading`** — initial state while the repository emits.
 - **`Content`** — transaction found. Holds formatted amount (with sign prefix),
-  amount color, formatted date, category name, account name, description, and
-  whether it is income. All values are display-ready strings or colors.
+  amount color, formatted date, category name, account name, description,
+  whether it is income, and whether it is editable. All values are
+  display-ready strings, colors, or flags.
 - **`NotFound`** — the transaction ID does not exist. Shows "Transacción no
   encontrada".
 - **`Error`** — unexpected failure (storage error). Shows the error's external
   (Spanish) message.
 
-The screen has no outbound events beyond the bottom bar navigation callbacks.
+Besides the bottom bar navigation callbacks, the screen sends one event: the
+"Editar" action (shown only when `Content.isEditable`), which opens the expense
+edit destination.
 
 ## Known Limitations
 
@@ -167,7 +186,8 @@ The screen has no outbound events beyond the bottom bar navigation callbacks.
 - **Reliability:** Reactive observation via Room Flow means the UI stays
   consistent with the database. All storage errors are caught and surfaced as
   `UiState.Error`.
-- **Performance:** Single-row JOIN query by primary key; negligible cost. The
+- **Performance:** Single-row JOIN query by primary key, plus one indexed left
+  join on `transfers`; negligible cost. The
   Flow re-emits only on changes to the involved rows.
 - **Observability:** Storage failures carry an internal English message for logs
   and an external Spanish message for the user, following the project convention.

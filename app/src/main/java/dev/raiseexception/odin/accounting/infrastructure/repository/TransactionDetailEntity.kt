@@ -8,6 +8,7 @@ data class TransactionDetailEntity(
     @Embedded val transaction: TransactionEntity,
     @ColumnInfo(name = "categoryName") val categoryName: String,
     @ColumnInfo(name = "accountName") val accountName: String,
+    @ColumnInfo(name = "isTransfer") val isTransfer: Boolean,
 )
 
 internal fun TransactionDetailEntity.toDomain(): TransactionDetail {
@@ -19,5 +20,6 @@ internal fun TransactionDetailEntity.toDomain(): TransactionDetail {
         transaction = domainTransaction,
         categoryName = this.categoryName,
         accountName = this.accountName,
+        isTransfer = this.isTransfer,
     )
 }

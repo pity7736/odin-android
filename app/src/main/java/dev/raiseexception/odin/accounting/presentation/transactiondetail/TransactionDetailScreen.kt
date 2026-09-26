@@ -1,6 +1,7 @@
 package dev.raiseexception.odin.accounting.presentation.transactiondetail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,7 @@ fun TransactionDetailScreen(
     onNavigateToHome: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
+    onEditExpense: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -67,6 +69,7 @@ fun TransactionDetailScreen(
             )
             is TransactionDetailUiState.Content -> TransactionDetailContent(
                 uiState = uiState,
+                onEditExpense = onEditExpense,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -98,18 +101,26 @@ private fun TransactionDetailLoading(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TransactionDetailContent(uiState: TransactionDetailUiState.Content, modifier: Modifier = Modifier) {
+private fun TransactionDetailContent(
+    uiState: TransactionDetailUiState.Content,
+    onEditExpense: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier = modifier.padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
-        TransactionHeaderCard(uiState = uiState)
+        TransactionHeaderCard(uiState = uiState, onEditExpense = onEditExpense)
         Spacer(modifier = Modifier.height(16.dp))
         TransactionInfoSection(uiState = uiState)
     }
 }
 
 @Composable
-private fun TransactionHeaderCard(uiState: TransactionDetailUiState.Content, modifier: Modifier = Modifier) {
+private fun TransactionHeaderCard(
+    uiState: TransactionDetailUiState.Content,
+    onEditExpense: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -120,6 +131,7 @@ private fun TransactionHeaderCard(uiState: TransactionDetailUiState.Content, mod
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth(),
         ) {
             TransactionTypeIcon(isIncome = uiState.isIncome)
             Text(
@@ -127,8 +139,20 @@ private fun TransactionHeaderCard(uiState: TransactionDetailUiState.Content, mod
                 style = MaterialTheme.typography.headlineMedium,
                 fontFamily = SoraFamily,
                 color = Slate50,
-                modifier = Modifier.testTag("amount_text"),
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("amount_text"),
             )
+            if (uiState.isEditable) {
+                Text(
+                    text = "Editar",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Slate400,
+                    modifier = Modifier
+                        .clickable(onClick = onEditExpense)
+                        .testTag("edit_expense_button"),
+                )
+            }
         }
         Text(
             text = if (uiState.isIncome) "Ingreso" else "Gasto",

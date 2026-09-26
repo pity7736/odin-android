@@ -38,7 +38,8 @@ class TransactionFinderTest {
                 createdAt = Instant.parse("2026-09-14T10:00:00Z")
             ),
             categoryName = "Salario",
-            accountName = "Ahorros"
+            accountName = "Ahorros",
+            isTransfer = false
         )
         every { transactionRepository.findById("tx-123") } returns flowOf(Outcome.Success(detail))
         val result = transactionFinder.find("tx-123").first()

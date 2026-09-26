@@ -153,7 +153,8 @@ class TransactionDetailViewModelTest {
                 createdAt = Instant.parse("2026-09-14T10:00:00Z")
             ),
             categoryName = "Salario",
-            accountName = "Ahorros"
+            accountName = "Ahorros",
+            isTransfer = false
         )
         every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(detail))
         val viewModel = buildViewModel()
@@ -162,6 +163,47 @@ class TransactionDetailViewModelTest {
             testDispatcher.scheduler.advanceUntilIdle()
             val state = awaitItem() as TransactionDetailUiState.Content
             assertEquals("", state.description)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given a regular expense, when loaded, then Content isEditable is true`() = runTest {
+        every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(expenseDetail()))
+        val viewModel = buildViewModel()
+        viewModel.uiState.test {
+            assertEquals(TransactionDetailUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = awaitItem() as TransactionDetailUiState.Content
+            assertEquals(true, state.isEditable)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given the expense side of a transfer, when loaded, then Content isEditable is false`() = runTest {
+        every { transactionFinder.find(transactionId) } returns flowOf(
+            Outcome.Success(expenseDetail().copy(isTransfer = true))
+        )
+        val viewModel = buildViewModel()
+        viewModel.uiState.test {
+            assertEquals(TransactionDetailUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = awaitItem() as TransactionDetailUiState.Content
+            assertEquals(false, state.isEditable)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given an income, when loaded, then Content isEditable is false`() = runTest {
+        every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(incomeDetail()))
+        val viewModel = buildViewModel()
+        viewModel.uiState.test {
+            assertEquals(TransactionDetailUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = awaitItem() as TransactionDetailUiState.Content
+            assertEquals(false, state.isEditable)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -178,7 +220,8 @@ class TransactionDetailViewModelTest {
                 createdAt = Instant.parse("2026-09-14T10:00:00Z")
             ),
             categoryName = "Salario",
-            accountName = "Ahorros"
+            accountName = "Ahorros",
+            isTransfer = false
         )
 
     private fun expenseDetail(): TransactionDetail =
@@ -193,6 +236,7 @@ class TransactionDetailViewModelTest {
                 createdAt = Instant.parse("2026-09-15T10:00:00Z")
             ),
             categoryName = "Alimentación",
-            accountName = "Efectivo"
+            accountName = "Efectivo",
+            isTransfer = false
         )
 }

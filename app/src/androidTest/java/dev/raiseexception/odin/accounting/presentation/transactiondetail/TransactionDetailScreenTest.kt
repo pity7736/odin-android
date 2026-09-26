@@ -1,11 +1,13 @@
 package dev.raiseexception.odin.accounting.presentation.transactiondetail
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import dev.raiseexception.odin.ui.theme.IncomeGreen
 import dev.raiseexception.odin.ui.theme.ExpenseRed
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
@@ -26,10 +28,12 @@ class TransactionDetailScreenTest {
                     accountName = "Ahorros",
                     description = "Pago mensual",
                     isIncome = true,
+                    isEditable = false,
                 ),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onEditExpense = {},
             )
         }
         composeTestRule.onNodeWithText("+$1.000,00").assertIsDisplayed()
@@ -53,10 +57,12 @@ class TransactionDetailScreenTest {
                     accountName = "Efectivo",
                     description = "Mercado semanal",
                     isIncome = false,
+                    isEditable = true,
                 ),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onEditExpense = {},
             )
         }
         composeTestRule.onNodeWithText("-$500,00").assertIsDisplayed()
@@ -80,10 +86,12 @@ class TransactionDetailScreenTest {
                     accountName = "Ahorros",
                     description = "",
                     isIncome = true,
+                    isEditable = false,
                 ),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onEditExpense = {},
             )
         }
         composeTestRule.onNodeWithText("+$1.000,00").assertIsDisplayed()
@@ -98,6 +106,7 @@ class TransactionDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onEditExpense = {},
             )
         }
         composeTestRule.onNodeWithTag("loading_indicator").assertIsDisplayed()
@@ -111,6 +120,7 @@ class TransactionDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onEditExpense = {},
             )
         }
         composeTestRule.onNodeWithText("Transacción no encontrada").assertIsDisplayed()
@@ -124,8 +134,53 @@ class TransactionDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onEditExpense = {},
             )
         }
         composeTestRule.onNodeWithText("Error al acceder a los datos").assertIsDisplayed()
     }
+
+    @Test
+    fun given_editable_content_when_shown_then_the_editar_action_is_displayed_and_clicking_it_calls_on_edit_expense() {
+        var editClicks = 0
+        composeTestRule.setContent {
+            TransactionDetailScreen(
+                uiState = expenseContent(isEditable = true),
+                onNavigateToHome = {},
+                onNavigateToAccounts = {},
+                onNavigateToCategories = {},
+                onEditExpense = { editClicks++ },
+            )
+        }
+        composeTestRule.onNodeWithTag("edit_expense_button").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Editar").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("edit_expense_button").performClick()
+        assertEquals(1, editClicks)
+    }
+
+    @Test
+    fun given_non_editable_content_when_shown_then_no_editar_action_is_displayed() {
+        composeTestRule.setContent {
+            TransactionDetailScreen(
+                uiState = expenseContent(isEditable = false),
+                onNavigateToHome = {},
+                onNavigateToAccounts = {},
+                onNavigateToCategories = {},
+                onEditExpense = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("edit_expense_button").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Editar").assertDoesNotExist()
+    }
+
+    private fun expenseContent(isEditable: Boolean) = TransactionDetailUiState.Content(
+        formattedAmount = "-$500,00",
+        amountColor = ExpenseRed,
+        formattedDate = "15 de septiembre de 2026",
+        categoryName = "Alimentación",
+        accountName = "Efectivo",
+        description = "Mercado semanal",
+        isIncome = false,
+        isEditable = isEditable,
+    )
 }
