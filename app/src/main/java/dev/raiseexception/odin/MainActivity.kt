@@ -477,7 +477,7 @@ private fun TransactionDetailDestination(transactionId: String, navController: N
                 popUpTo(Routes.HOME)
             }
         },
-        onEditExpense = { navController.navigate(Routes.expenseEdit(transactionId)) },
+        onEditExpense = { navController.navigate(Routes.expenseEdit(transactionId)) { launchSingleTop = true } },
     )
 }
 
