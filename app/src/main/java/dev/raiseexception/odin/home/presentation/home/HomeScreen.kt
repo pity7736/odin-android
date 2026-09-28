@@ -24,7 +24,8 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.Savings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -208,7 +209,7 @@ private fun EmptyContent(onCreateAccount: () -> Unit, modifier: Modifier = Modif
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Outlined.CreditCard,
+                imageVector = Icons.Outlined.AccountBalanceWallet,
                 contentDescription = null,
                 tint = Slate400,
                 modifier = Modifier.size(36.dp),
@@ -454,7 +455,7 @@ private fun AccountRow(account: Account, onClick: () -> Unit) {
         ) {
             Icon(
                 imageVector = when (account.type) {
-                    AccountType.SAVINGS -> Icons.Outlined.CreditCard
+                    AccountType.SAVINGS -> Icons.Outlined.Savings
                     AccountType.CASH -> Icons.Filled.Payments
                     AccountType.CREDIT_CARD -> Icons.Filled.CreditCard
                 },

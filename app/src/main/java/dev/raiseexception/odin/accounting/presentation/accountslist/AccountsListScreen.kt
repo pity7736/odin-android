@@ -20,7 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.Savings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -239,7 +239,7 @@ private fun AccountRow(account: Account, backgroundColor: Color, onClick: () -> 
     ) {
         AccountIcon(
             imageVector = when (account.type) {
-                AccountType.SAVINGS -> Icons.Outlined.CreditCard
+                AccountType.SAVINGS -> Icons.Outlined.Savings
                 AccountType.CASH -> Icons.Filled.Payments
                 AccountType.CREDIT_CARD -> Icons.Filled.CreditCard
             },
