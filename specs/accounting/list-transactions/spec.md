@@ -29,7 +29,9 @@ can quickly identify which transactions had the biggest impact on my balance.
 - Transactions are grouped under date headers. Headers show the formatted date
   without the year when the transaction is from the current year (e.g.
   "2 de septiembre"), and with the year otherwise (e.g. "3 de junio de 2025").
-- Each transaction shows its amount, category, date, and description.
+- Each transaction shows its description (or "Ingreso" / "Gasto" when it has
+  none) and its amount, marked "+" for an income and "-" for an expense. Its
+  date is given by the date header it appears under.
 - When viewing all transactions, each entry also shows the account balance
   after that transaction (running balance).
 - When a filter is active (income or expenses only), the running balance is

@@ -4,10 +4,10 @@ package dev.raiseexception.odin.shared.presentation
 
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material3.Icon
@@ -54,9 +54,9 @@ fun OdinBottomBar(
             icon = {
                 Icon(
                     imageVector = if (selectedTab == BottomBarTab.ACCOUNTS) {
-                        Icons.Filled.CreditCard
+                        Icons.Filled.AccountBalanceWallet
                     } else {
-                        Icons.Outlined.CreditCard
+                        Icons.Outlined.AccountBalanceWallet
                     },
                     contentDescription = "Cuentas",
                 )

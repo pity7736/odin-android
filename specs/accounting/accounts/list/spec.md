@@ -17,9 +17,9 @@ As a user, I want to see all my credit cards with what I owe and how much
 credit I have left on each, so that I know my debt and my spending room at a
 glance.
 
-### Open an account
-As a user, I want to select a money account from the list, so that I can see
-its details.
+### Open an account or credit card
+As a user, I want to select a money account or a credit card from the list, so
+that I can see its details.
 
 ## Acceptance Criteria
 - The list shows every money account and every credit card the user has.
@@ -39,8 +39,8 @@ its details.
 - The available credit is the card's credit limit minus its current debt.
 - Money account balances, card debts, and available credit are all shown in
   the currency of their own account, formatted the same way.
-- Selecting a money account navigates to that account's detail view.
-- Selecting a credit card does nothing.
+- Selecting a money account or a credit card navigates to its detail view, as
+  described in `specs/accounting/accounts/detail/spec.md`.
 
 ## Expected Behavior
 
@@ -97,10 +97,10 @@ its details.
 - When they select a money account
 - Then they are taken to that account's detail view
 
-### Selecting a credit card
+### Navigating to a credit card
 - Given the user is looking at the account list
 - When they select a credit card
-- Then nothing happens and they stay on the account list
+- Then they are taken to that card's detail view
 
 ### Viewing the list when no accounts exist
 - Given no money accounts and no credit cards have been created yet
@@ -111,11 +111,10 @@ its details.
 ## Out of Scope
 - Showing credit cards in the home summary or counting them in its total
   (a later feature)
-- Viewing a credit card's details (a later feature)
 - Showing a credit card's total credit limit in the list
 - Editing or deleting accounts or credit cards from this list
 - Spending on a credit card, paying it off, transferring to or from it, or
   taking a cash advance
 - Searching or filtering accounts
 - Paginating a large account list
-- Viewing a money account's details (separate feature)
+- Viewing a money account's or credit card's details (separate feature)

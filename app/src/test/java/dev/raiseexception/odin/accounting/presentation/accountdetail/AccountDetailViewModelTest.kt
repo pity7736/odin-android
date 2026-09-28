@@ -65,7 +65,7 @@ class AccountDetailViewModelTest {
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
             testDispatcher.scheduler.advanceUntilIdle()
-            val state = awaitItem() as AccountDetailUiState.Content
+            val state = awaitItem() as AccountDetailUiState.MoneyAccountContent
             assertEquals(savings.id, state.account.id)
             cancelAndIgnoreRemainingEvents()
         }
@@ -122,7 +122,7 @@ class AccountDetailViewModelTest {
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
             testDispatcher.scheduler.advanceUntilIdle()
-            val state = awaitItem() as AccountDetailUiState.Content
+            val state = awaitItem() as AccountDetailUiState.MoneyAccountContent
             assertEquals(
                 0,
                 state.account.balance.amount.compareTo(BigDecimal("1500.00"))
@@ -139,7 +139,7 @@ class AccountDetailViewModelTest {
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
             testDispatcher.scheduler.advanceUntilIdle()
-            assertTrue(awaitItem() is AccountDetailUiState.Content)
+            assertTrue(awaitItem() is AccountDetailUiState.MoneyAccountContent)
             cancelAndIgnoreRemainingEvents()
         }
         verify { accountFinder.find(accountId, AccountCriteria(includeIncomes = true, includeExpenses = true)) }
@@ -158,7 +158,7 @@ class AccountDetailViewModelTest {
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
             testDispatcher.scheduler.advanceUntilIdle()
-            val state = awaitItem() as AccountDetailUiState.Content
+            val state = awaitItem() as AccountDetailUiState.MoneyAccountContent
             assertEquals(TransactionFilter.ALL, state.activeFilter)
             assertEquals(2, state.transactions.size)
             assertTrue(state.transactions[0].transaction is Expense)
@@ -182,7 +182,7 @@ class AccountDetailViewModelTest {
             testDispatcher.scheduler.advanceUntilIdle()
             awaitItem()
             viewModel.onFilterChanged(TransactionFilter.INCOME)
-            val state = awaitItem() as AccountDetailUiState.Content
+            val state = awaitItem() as AccountDetailUiState.MoneyAccountContent
             assertEquals(TransactionFilter.INCOME, state.activeFilter)
             assertEquals(1, state.transactions.size)
             assertTrue(state.transactions.all { it.transaction is Income })
@@ -205,7 +205,7 @@ class AccountDetailViewModelTest {
             testDispatcher.scheduler.advanceUntilIdle()
             awaitItem()
             viewModel.onFilterChanged(TransactionFilter.EXPENSE)
-            val state = awaitItem() as AccountDetailUiState.Content
+            val state = awaitItem() as AccountDetailUiState.MoneyAccountContent
             assertEquals(TransactionFilter.EXPENSE, state.activeFilter)
             assertEquals(1, state.transactions.size)
             assertTrue(state.transactions.all { it.transaction is Expense })
@@ -230,7 +230,7 @@ class AccountDetailViewModelTest {
             viewModel.onFilterChanged(TransactionFilter.INCOME)
             awaitItem()
             viewModel.onFilterChanged(TransactionFilter.ALL)
-            val state = awaitItem() as AccountDetailUiState.Content
+            val state = awaitItem() as AccountDetailUiState.MoneyAccountContent
             assertEquals(TransactionFilter.ALL, state.activeFilter)
             assertEquals(2, state.transactions.size)
             assertTrue(state.transactions.all { it.runningBalance != null })
@@ -246,7 +246,7 @@ class AccountDetailViewModelTest {
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
             testDispatcher.scheduler.advanceUntilIdle()
-            assertTrue(awaitItem() is AccountDetailUiState.Content)
+            assertTrue(awaitItem() is AccountDetailUiState.MoneyAccountContent)
             cancelAndIgnoreRemainingEvents()
         }
         viewModel.onTransactionSelected("tx-123")
@@ -270,10 +270,106 @@ class AccountDetailViewModelTest {
         viewModel.uiState.test {
             assertEquals(AccountDetailUiState.Loading, awaitItem())
             testDispatcher.scheduler.advanceUntilIdle()
-            val state = awaitItem() as AccountDetailUiState.Content
+            val state = awaitItem() as AccountDetailUiState.MoneyAccountContent
             assertTrue(state.transactions.isEmpty())
             assertEquals(TransactionFilter.ALL, state.activeFilter)
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test
+    fun `given a money account with movements, when the screen loads, then shows its current and initial balance`() =
+        runTest {
+            val savingsAccount = AccountBuilder()
+                .id(accountId)
+                .initialBalance(Money.of(BigDecimal("1000000"), Currency.COP))
+                .withIncome(amount = "500000", date = "2026-08-25", clock = clockAt("2026-08-25T10:00:00Z"))
+                .withExpense(amount = "200000", date = "2026-08-26", clock = clockAt("2026-08-26T10:00:00Z"))
+                .build()
+            every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(savingsAccount))
+            val viewModel = buildViewModel()
+            viewModel.uiState.test {
+                assertEquals(AccountDetailUiState.Loading, awaitItem())
+                testDispatcher.scheduler.advanceUntilIdle()
+                val state = awaitItem() as AccountDetailUiState.MoneyAccountContent
+                assertEquals(Money.of(BigDecimal("1300000"), Currency.COP), state.account.balance)
+                assertEquals(Money.of(BigDecimal("1000000"), Currency.COP), state.initialBalance)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `given a credit card with debt, when the screen loads, then shows its debt, available credit and limit`() =
+        runTest {
+            val visaCard = AccountBuilder()
+                .id(accountId)
+                .name("Visa")
+                .creditCard(
+                    creditLimit = Money.of(BigDecimal("3000000"), Currency.COP),
+                    debt = Money.of(BigDecimal("500000"), Currency.COP)
+                )
+                .build()
+            every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(visaCard))
+            val viewModel = buildViewModel()
+            viewModel.uiState.test {
+                assertEquals(AccountDetailUiState.Loading, awaitItem())
+                testDispatcher.scheduler.advanceUntilIdle()
+                assertEquals(
+                    AccountDetailUiState.CreditCardContent(
+                        CreditCardDetail(
+                            name = "Visa",
+                            debt = Money.of(BigDecimal("500000"), Currency.COP),
+                            availableCredit = Money.of(BigDecimal("2500000"), Currency.COP),
+                            creditLimit = Money.of(BigDecimal("3000000"), Currency.COP)
+                        )
+                    ),
+                    awaitItem()
+                )
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `given a credit card with no debt, when the screen loads, then available credit equals the limit`() =
+        runTest {
+            val unusedCard = AccountBuilder()
+                .id(accountId)
+                .creditCard(
+                    creditLimit = Money.of(BigDecimal("3000000"), Currency.COP),
+                    debt = Money.of(BigDecimal("0"), Currency.COP)
+                )
+                .build()
+            every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(unusedCard))
+            val viewModel = buildViewModel()
+            viewModel.uiState.test {
+                assertEquals(AccountDetailUiState.Loading, awaitItem())
+                testDispatcher.scheduler.advanceUntilIdle()
+                val state = awaitItem() as AccountDetailUiState.CreditCardContent
+                assertEquals(Money.of(BigDecimal("0"), Currency.COP), state.creditCard.debt)
+                assertEquals(Money.of(BigDecimal("3000000"), Currency.COP), state.creditCard.availableCredit)
+                assertEquals(Money.of(BigDecimal("3000000"), Currency.COP), state.creditCard.creditLimit)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `given a credit card whose debt equals its limit, when the screen loads, then available credit is zero`() =
+        runTest {
+            val maxedOutCard = AccountBuilder()
+                .id(accountId)
+                .creditCard(
+                    creditLimit = Money.of(BigDecimal("3000000"), Currency.COP),
+                    debt = Money.of(BigDecimal("3000000"), Currency.COP)
+                )
+                .build()
+            every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(maxedOutCard))
+            val viewModel = buildViewModel()
+            viewModel.uiState.test {
+                assertEquals(AccountDetailUiState.Loading, awaitItem())
+                testDispatcher.scheduler.advanceUntilIdle()
+                val state = awaitItem() as AccountDetailUiState.CreditCardContent
+                assertEquals(Money.of(BigDecimal("0"), Currency.COP), state.creditCard.availableCredit)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 }

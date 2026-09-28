@@ -43,9 +43,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.raiseexception.odin.accounting.application.usecase.AccountTransaction
 import dev.raiseexception.odin.accounting.domain.model.Account
-import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Income
+import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
 import dev.raiseexception.odin.shared.presentation.BottomBarTab
 import dev.raiseexception.odin.shared.presentation.ExpandableFab
@@ -121,7 +121,7 @@ fun AccountDetailScreen(
             )
         },
         floatingActionButton = {
-            if (uiState is AccountDetailUiState.Content) {
+            if (uiState is AccountDetailUiState.MoneyAccountContent) {
                 ExpandableFab(
                     expanded = fabExpanded,
                     onToggle = { fabExpanded = !fabExpanded },
@@ -149,13 +149,20 @@ fun AccountDetailScreen(
                         .fillMaxSize()
                         .padding(innerPadding),
                 )
-                is AccountDetailUiState.Content -> AccountDetailContent(
+                is AccountDetailUiState.MoneyAccountContent -> AccountDetailContent(
                     account = uiState.account,
+                    initialBalance = uiState.initialBalance,
                     transactions = uiState.transactions,
                     activeFilter = uiState.activeFilter,
                     onEditAccount = onEditAccount,
                     onTransactionSelected = onTransactionSelected,
                     onFilterChanged = onFilterChanged,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                is AccountDetailUiState.CreditCardContent -> CreditCardDetailContent(
+                    creditCard = uiState.creditCard,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -199,6 +206,7 @@ private fun AccountDetailLoading(modifier: Modifier = Modifier) {
 @Composable
 private fun AccountDetailContent(
     account: Account,
+    initialBalance: Money,
     transactions: List<AccountTransaction>,
     activeFilter: TransactionFilter,
     onEditAccount: () -> Unit,
@@ -211,6 +219,7 @@ private fun AccountDetailContent(
         item(key = "header") {
             AccountHeaderCard(
                 account = account,
+                initialBalance = initialBalance,
                 onEditAccount = onEditAccount,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -271,7 +280,12 @@ private fun AccountDetailContent(
 }
 
 @Composable
-private fun AccountHeaderCard(account: Account, onEditAccount: () -> Unit, modifier: Modifier = Modifier) {
+private fun AccountHeaderCard(
+    account: Account,
+    initialBalance: Money,
+    onEditAccount: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
@@ -335,12 +349,7 @@ private fun AccountHeaderCard(account: Account, onEditAccount: () -> Unit, modif
                     letterSpacing = 0.5.sp,
                 )
                 Text(
-                    text = formatMoney(
-                        when (val funding = account.funding) {
-                            is AccountFunding.Funds -> funding.initialBalance
-                            is AccountFunding.Credit -> funding.creditLimit
-                        }
-                    ),
+                    text = formatMoney(initialBalance),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Slate500,
                     modifier = Modifier.testTag("account_initial_balance"),
@@ -348,6 +357,92 @@ private fun AccountHeaderCard(account: Account, onEditAccount: () -> Unit, modif
             }
         }
     }
+}
+
+@Composable
+private fun CreditCardDetailContent(creditCard: CreditCardDetail, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        CreditCardHeaderCard(
+            creditCard = creditCard,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun CreditCardHeaderCard(creditCard: CreditCardDetail, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(Slate800)
+            .padding(20.dp),
+    ) {
+        Text(
+            text = capitalizeFirst(creditCard.name),
+            style = MaterialTheme.typography.headlineMedium,
+            fontFamily = SoraFamily,
+            color = Slate50,
+        )
+        Text(
+            text = "Tarjeta de crédito",
+            style = MaterialTheme.typography.labelLarge,
+            color = Slate500,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text(
+                    text = "DEUDA",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Slate400,
+                    letterSpacing = 0.5.sp,
+                )
+                Text(
+                    text = formatMoney(creditCard.debt),
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontFamily = SoraFamily,
+                    color = Slate50,
+                    modifier = Modifier.testTag("credit_card_debt"),
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                CreditCardSecondaryFigure(
+                    label = "DISPONIBLE",
+                    amount = creditCard.availableCredit,
+                    tag = "credit_card_available_credit",
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                CreditCardSecondaryFigure(
+                    label = "CUPO",
+                    amount = creditCard.creditLimit,
+                    tag = "credit_card_limit",
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CreditCardSecondaryFigure(label: String, amount: Money, tag: String) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelSmall,
+        color = Slate400,
+        letterSpacing = 0.5.sp,
+    )
+    Text(
+        text = formatMoney(amount),
+        style = MaterialTheme.typography.bodyMedium,
+        color = Slate500,
+        modifier = Modifier.testTag(tag),
+    )
 }
 
 @Composable

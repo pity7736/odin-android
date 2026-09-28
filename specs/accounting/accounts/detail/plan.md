@@ -1,160 +1,206 @@
-# Work Order: Account Details — initial implementation
+# Work Order: Account Details — credit card details
 
-**Feature design:** `specs/accounting/accounts/detail/design.md` (the living source of truth — does not exist yet; created at the hydrate gate)
+**Feature design:** `specs/accounting/accounts/detail/design.md` (the living source of truth)
 **Corresponds to Spec:** `specs/accounting/accounts/detail/spec.md`
 
-> Work order for: **initial implementation of the account detail feature**. Disposable — overwritten by the next change (git keeps the history). The living design will be created in design.md at the hydrate gate; freeze this file once the change merges.
+> Work order for: **showing a credit card's details and opening them from the
+> account list**. Disposable — overwritten by the next change (git keeps the
+> history). The living design is in design.md; hydrate it before this change
+> merges, then freeze this file.
 
 ## Change
 
-Replaces the `AccountDetailScreen` stub with a fully working screen that loads an account by id and displays its name, type, initial balance, description, and creation date (date only). If the account is not found, a not-found error message is shown. If a technical failure occurs, a generic error message is shown.
+Today a credit card in the account list cannot be selected, and the account
+detail state has a single `Content` variant built around a money account. If a
+card reached it, the header would label its debt "SALDO" and its credit limit
+"INICIAL" (`AccountDetailScreen.kt` header already carries a `when (funding)`
+workaround for this).
 
-Satisfies all scenarios in `specs/accounting/accounts/detail/spec.md`:
-- Viewing an existing account
-- Account not found
+This change:
+- splits the detail content state into a money-account variant and a credit-card
+  variant, decided by the ViewModel from the account's `funding`;
+- renders a credit card as a header only: name, "Tarjeta de crédito", "DEUDA" as
+  the main figure, "DISPONIBLE" and "CUPO" as the secondary figures — no "Editar",
+  no filters, no movements, no add button;
+- makes credit card rows in the account list selectable, opening the card's
+  details through the existing route.
+
+Credit card editing and movements are the next features; this change builds the
+state they will extend and nothing they will replace.
+
+Scenarios satisfied (`specs/accounting/accounts/detail/spec.md`):
+- Viewing a money account
+- Recording a movement from a money account (existing behavior, unchanged)
+- Viewing a credit card
+- Viewing a credit card with no debt
+- Viewing a credit card whose debt equals its limit
+- A credit card offers no editing or movements
+- Account not found (existing behavior, unchanged; source-agnostic)
+- Details cannot be loaded (existing behavior, unchanged; source-agnostic)
+
+And from `specs/accounting/accounts/list/spec.md`:
+- Navigating to a credit card (replaces "Selecting a credit card")
 
 ## Architecture & Files (this change)
 
 ```
-app/src/main/java/dev/raiseexception/odin/
-└── accounting/
-    ├── domain/
-    │   ├── AccountLookupError.kt                               # CREATE
-    │   └── repository/
-    │       └── AccountRepository.kt                            # MODIFY — add findById
-    ├── application/usecase/
-    │   └── AccountFinder.kt                                    # CREATE
-    ├── infrastructure/repository/
-    │   └── VaultAccountRepository.kt                           # MODIFY — implement findById
-    └── presentation/accountdetail/
-        ├── AccountDetailUiState.kt                             # CREATE
-        ├── AccountDetailViewModel.kt                           # CREATE
-        └── AccountDetailScreen.kt                             # MODIFY — replace stub
+app/src/main/java/dev/raiseexception/odin/accounting/presentation/
+├── accountdetail/
+│   ├── AccountDetailUiState.kt            # MODIFY — Content → MoneyAccountContent + CreditCardContent
+│   ├── CreditCardDetail.kt                # CREATE — card figures for the header
+│   ├── AccountDetailViewModel.kt          # MODIFY — single funding-based mapping
+│   └── AccountDetailScreen.kt             # MODIFY — card header; FAB only for money accounts
+└── accountslist/
+    └── AccountsListScreen.kt              # MODIFY — CreditCardRow selectable
 
-app/src/main/java/dev/raiseexception/odin/
-├── di/AppContainer.kt                                          # MODIFY — add factory
-└── shared/presentation/MainActivity.kt                        # MODIFY — wire ViewModel
+app/src/test/java/dev/raiseexception/odin/accounting/presentation/accountdetail/
+└── AccountDetailViewModelTest.kt          # MODIFY — rename Content usages; card + money scenarios
 
-app/src/test/java/dev/raiseexception/odin/accounting/
-├── application/usecase/AccountFinderTest.kt                    # CREATE
-├── infrastructure/repository/VaultAccountRepositoryTest.kt     # MODIFY — add findById tests
-└── presentation/accountdetail/AccountDetailViewModelTest.kt    # CREATE
+app/src/androidTest/java/dev/raiseexception/odin/accounting/presentation/accountslist/
+└── AccountsListScreenTest.kt              # MODIFY — replace "cannot be selected" test
 ```
+
+No domain, application, or infrastructure changes: `AccountFunding.Credit`
+already exposes `creditLimit`, `debt`, and `availableCredit`, and
+`AccountFinder.find` already returns cards.
 
 ## Key Types & Signatures
 
 ```kotlin
-// domain/AccountLookupError.kt
-sealed class AccountLookupError : DomainError {
-    data class NotFound(override val internalMessage: String, override val externalMessage: String) : AccountLookupError()
-    data class StorageFailure(override val internalMessage: String, override val externalMessage: String) : AccountLookupError()
-    data class CryptoFailure(override val internalMessage: String, override val externalMessage: String) : AccountLookupError()
-}
-
-// domain/repository/AccountRepository.kt — added method
-suspend fun findById(id: String): Outcome<Account>
-
-// application/usecase/AccountFinder.kt
-class AccountFinder(private val accountRepository: AccountRepository) {
-    suspend fun find(id: String): Outcome<Account>
-}
+// presentation/accountdetail/CreditCardDetail.kt
+data class CreditCardDetail(
+    val name: String,
+    val debt: Money,
+    val availableCredit: Money,
+    val creditLimit: Money
+)
 
 // presentation/accountdetail/AccountDetailUiState.kt
 sealed interface AccountDetailUiState {
     data object Loading : AccountDetailUiState
-    data class Content(val account: Account) : AccountDetailUiState
+    data class MoneyAccountContent(
+        val account: Account,
+        val initialBalance: Money,
+        val transactions: List<AccountTransaction>,
+        val activeFilter: TransactionFilter,
+    ) : AccountDetailUiState
+    data class CreditCardContent(val creditCard: CreditCardDetail) : AccountDetailUiState
     data object NotFound : AccountDetailUiState
     data class Error(val message: String) : AccountDetailUiState
 }
 
 // presentation/accountdetail/AccountDetailViewModel.kt
-class AccountDetailViewModel(
-    private val accountId: String,
-    private val accountFinder: AccountFinder,
-    private val ioDispatcher: CoroutineDispatcher
-) : ViewModel() {
-    val uiState: StateFlow<AccountDetailUiState>
-}
-
-// di/AppContainer.kt — added factory
-fun accountDetailViewModelFactory(accountId: String): ViewModelProvider.Factory
-```
-
-**AccountType display labels** (presentation layer — `AccountDetailScreen`):
-```kotlin
-private val accountTypeLabels = mapOf(
-    AccountType.SAVINGS to "Ahorros",
-    AccountType.CASH to "Efectivo"
-)
-```
-
-**Date formatting** (presentation layer):
-```kotlin
-DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)
-    .withLocale(Locale("es"))
-    .format(account.createdAt.atZone(ZoneId.systemDefault()).toLocalDate())
+// buildContentState(account, filter) is replaced by:
+private fun toContentState(account: Account, filter: TransactionFilter): AccountDetailUiState
+//   when (val funding = account.funding) — NO else branch:
+//     is AccountFunding.Funds  -> MoneyAccountContent(account, funding.initialBalance, lister.list(...), filter)
+//     is AccountFunding.Credit -> CreditCardContent(CreditCardDetail(account.name, funding.debt,
+//                                                   funding.availableCredit, funding.creditLimit))
+// Both the finder subscription and onFilterChanged call toContentState.
+// No guards added to onEditAccount / onCreateIncome / onCreateExpense.
 ```
 
 ## Implementation Phases (TDD)
 
-### Phase 1: Domain — AccountLookupError + AccountRepository port
+All ViewModel tests are JVM (`src/test`), using Turbine on `uiState` and the
+existing `AccountBuilder` (`creditCard(creditLimit, debt)` already exists).
+Test names follow the file's existing backtick style.
 
-**Red:**
-- Write `AccountFinderTest` with a fake `AccountRepository` stub; assert that when the repository returns `Outcome.Failure(AccountLookupError.NotFound(...))`, `AccountFinder.find()` propagates it. This fails because neither `AccountLookupError` nor `AccountFinder` exist.
+### Phase 1: Detail state and ViewModel mapping
 
-**Green:**
-- Create `AccountLookupError` sealed class (`NotFound`, `StorageFailure`, `CryptoFailure`).
-- Add `suspend fun findById(id: String): Outcome<Account>` to `AccountRepository`.
+**Red** (`AccountDetailViewModelTest.kt`):
+- Rename every existing `AccountDetailUiState.Content` usage to
+  `MoneyAccountContent`. Do not remove or weaken any existing test.
+- `given a savings account with an initial balance of 1000000, an income of 500000
+  and an expense of 200000, when the screen loads, then the content shows a
+  balance of 1300000 and an initial balance of 1000000` — asserts
+  `MoneyAccountContent.initialBalance` and `account.balance`.
+- `given a credit card with a limit of 3000000 and a debt of 500000, when the
+  screen loads, then the content shows its name, a debt of 500000, available
+  credit of 2500000 and a limit of 3000000` — asserts the state is
+  `CreditCardContent` with the exact `CreditCardDetail`. The state being
+  `CreditCardContent` (which has no movements, no filter) is the assertion for
+  "A credit card offers no editing or movements".
+- `given a credit card with no debt, when the screen loads, then the content
+  shows a debt of 0 and available credit equal to the limit`.
+- `given a credit card whose debt equals its limit, when the screen loads, then
+  the content shows available credit of 0`.
 
-### Phase 2: Application — AccountFinder
-
-**Red** (extending `AccountFinderTest`):
-- `given an existing account when find is called with its id then returns the account`
-- `given no account with the id when find is called then returns NotFound`
-- `given a storage failure when find is called then returns StorageFailure`
-
-**Green:**
-- Create `AccountFinder`: thin wrapper that calls `accountRepository.findById(id)` and returns the `Outcome` unchanged.
-
-### Phase 3: Infrastructure — VaultAccountRepository.findById
-
-**Red** (extending `VaultAccountRepositoryTest`):
-- `given an account exists when findById is called with its id then returns the account`
-- `given no account matches the id when findById is called then returns NotFound`
-- `given the store returns a failure when findById is called then returns StorageFailure`
-
-**Green:**
-- Implement `findById` in `VaultAccountRepository`: reuse the existing decrypt-all helper, find the first record whose `id` matches, return `Account.restore(...)` on a match, `AccountLookupError.NotFound` if absent, and map store failures to `AccountLookupError.StorageFailure`.
-
-### Phase 4: Presentation — AccountDetailViewModel
-
-**Red** (`AccountDetailViewModelTest`):
-- `given an existing account when the screen loads then uiState is Content with the account`
-- `given the account is not found when the screen loads then uiState is NotFound`
-- `given a storage failure when the screen loads then uiState is Error with a Spanish message`
+Not added (agreed): a "filter change on a card" test, and any guard tests for
+card actions — card movements and editing are the next features.
 
 **Green:**
-- Create `AccountDetailUiState`.
-- Create `AccountDetailViewModel`: init launches a coroutine on `ioDispatcher` that calls `accountFinder.find(accountId)` and maps `Outcome` → `UiState` (`Success` → `Content`, `NotFound` failure → `NotFound`, other failures → `Error("Cuenta no encontrada")`... actually map: NotFound → `NotFound`, StorageFailure/CryptoFailure → `Error("Error al cargar la cuenta")`).
+- Create `CreditCardDetail`.
+- Replace `Content` with `MoneyAccountContent` (adds `initialBalance`) and add
+  `CreditCardContent` in `AccountDetailUiState`.
+- Replace `buildContentState` with `toContentState` as described above; route
+  both the subscription and `onFilterChanged` through it.
 
-### Phase 5: Presentation — Screen, DI, Navigation
+### Phase 2: Detail screen rendering
 
-**Red:** Run `./gradlew check` — fails because `AccountDetailScreen` still ignores the ViewModel and the DI is unwired.
+No new tests (agreed): the screen has no UI test suite and will change with card
+movements; the card header is verified in the user's manual test.
 
-**Green:**
-- Replace stub `AccountDetailScreen` with the full UI: collects `uiState` via `collectAsStateWithLifecycle()`; shows a spinner for `Loading`; for `Content`, displays name, type label, initial balance (amount + currency), description, and formatted creation date; for `NotFound`, shows `"Cuenta no encontrada"`; for `Error`, shows the error message.
-- Add `accountDetailViewModelFactory(accountId: String): ViewModelProvider.Factory` to `AppContainer`.
-- Update the `Routes.ACCOUNT_DETAIL` composable in `MainActivity` to obtain the ViewModel via `viewModel(factory = appContainer.accountDetailViewModelFactory(accountId))` and pass `uiState` to the screen.
-- Run `./gradlew check` GREEN.
+**Green** (`AccountDetailScreen.kt`):
+- `when (uiState)` renders `MoneyAccountContent` exactly as today, and
+  `CreditCardContent` with a new card content composable that shows only a card
+  header.
+- The money header reads `initialBalance` from the state; remove the
+  `when (funding)` workaround from it.
+- Card header: same card style as the money header (Slate800 background, name in
+  `headlineMedium`/Sora, type label "Tarjeta de crédito" below it). Left:
+  "DEUDA" label + debt in the large `headlineLarge` style (the "SALDO" slot).
+  Right, end-aligned and stacked: "DISPONIBLE" label + available credit, then
+  "CUPO" label + credit limit, each in the same small style as "INICIAL". No
+  "Editar".
+- The FAB is shown only for `MoneyAccountContent`.
+
+### Phase 3: Account list — select a credit card
+
+**Red** (`AccountsListScreenTest.kt`, instrumented — compile only):
+- Replace `given_a_credit_card_when_displayed_then_its_row_cannot_be_selected`
+  with `given_a_credit_card_when_selected_then_onAccountSelected_receives_its_id`:
+  clicking "Visa" sets the selected id to `"card-1"`. This is a replacement
+  mandated by the spec change, not removed coverage.
+
+**Green** (`AccountsListScreen.kt`):
+- `CreditCardRow` takes an `onClick` and is `clickable` like `AccountRow`;
+  `AccountsContent` passes `{ onAccountSelected(creditCard.id) }`. No change to
+  `AccountsListViewModel` or navigation — the existing `AccountDetail(accountId)`
+  target handles both kinds.
+
+### Gate
+
+- `./gradlew check` GREEN.
+- `./gradlew compileDebugAndroidTestKotlin` succeeds. Do **not** run
+  instrumented tests (`connectedAndroidTest`); device verification is the user's
+  manual test.
 
 ## Design decisions to hydrate into design.md
 
-- [ ] `AccountLookupError` sealed class — shape and the rationale for typed errors over `Outcome<Account?>`
-- [ ] `AccountRepository.findById` signature and the not-found vs technical-failure distinction
-- [ ] `AccountFinder` use case — role and delegation pattern
-- [ ] `VaultAccountRepository.findById` — decrypt-all-then-filter approach and why it is consistent with existing patterns
-- [ ] `AccountDetailUiState` — four states and what triggers each
-- [ ] `AccountDetailViewModel` — init-time load, dispatcher injection, error mapping (NotFound → `NotFound` state, others → `Error` state)
-- [ ] AccountType display labels (simple map in presentation layer; i18n deferred)
-- [ ] Date formatting approach (`ofLocalizedDate(FormatStyle.LONG)` with `Locale("es")`, converted via `ZoneId.systemDefault()`)
-- [ ] Known limitation: `AccountDetailScreen` placeholder for `CategoryDetailScreen` remains (out of scope for this change)
+`specs/accounting/accounts/detail/design.md`:
+- [ ] Rewrite the Overview: the view shows the header (money account: name,
+      type, current and initial balance; credit card: name, type, debt,
+      available credit, credit limit) and, for money accounts only, movements
+      with filters and the add action. No description or creation date.
+- [ ] Decision: the detail state has two content variants chosen by the
+      ViewModel from `funding` (no `else`), with the card figures carried in a
+      presentation `CreditCardDetail`; rejected alternative — one `Content` with
+      `when (funding)` branches in the composable (untestable on the JVM, no UI
+      tests for this screen).
+- [ ] Decision: one mapping function feeds both the subscription and filter
+      changes, so a card can never be rebuilt as money-account content.
+- [ ] Decision: a card shows the header only — no edit, filters, movements, or
+      add action — until card editing and card movements exist; no ViewModel
+      guards on the card-inapplicable actions.
+- [ ] Screen & States: replace `Content` with the two variants; card header
+      layout (DEUDA main; DISPONIBLE and CUPO stacked on the right); FAB only on
+      money-account content.
+- [ ] Remove the stale "date formatted as long locale-aware date" decision and
+      any other entry describing the creation date or description as shown.
+
+`specs/accounting/accounts/list/design.md`:
+- [ ] Replace "Credit-card rows are not selectable" with: card rows are
+      selectable and use the same `onAccountSelected` → `AccountDetail(accountId)`
+      path as money accounts.
+- [ ] Update the Screen section's credit card row ("Not clickable").

@@ -10,9 +10,9 @@ ordered oldest first by id. A group with no entries is not rendered, heading
 included. The screen reacts to the current state of the account store: it shows a
 loading indicator while fetching, an empty message when no accounts exist, and the
 grouped rows when accounts are present. A money-account row shows name + computed
-balance; tapping it navigates to the account detail screen via the ViewModel's
-navigation channel. A credit-card row shows name, "Deuda" (debt) as the main
-figure and "Disponible" (available credit) below it, and is not selectable. The
+balance; a credit-card row shows name, "Deuda" (debt) as the main figure and
+"Disponible" (available credit) below it. Tapping either kind of row navigates to
+the account detail screen via the ViewModel's navigation channel. The
 create-account FAB is always visible and navigates directly without going through
 the ViewModel.
 
@@ -60,13 +60,16 @@ the ViewModel.
   accounts (`AccountFunding.Funds`) stay domain `Account`s, since their row reads
   `Account` directly. The split is on `funding`, not `type`, because funding
   carries the figures the row needs. The `when` has no `else`, so a new funding
-  variant fails to compile until it is assigned a group. `id` is carried for
-  credit card detail. Alternative rejected: `List<Account>` for cards with an
+  variant fails to compile until it is assigned a group. `id` is carried so the
+  row can navigate to the card's details. Alternative rejected: `List<Account>` for cards with an
   `as AccountFunding.Credit` cast in the composable — unsafe at runtime,
   untestable on the JVM, and it hides that a card's `balance` means its debt.
 
-- **Credit-card rows are not selectable** — there is no credit card detail yet, so
-  the row has no click action and never calls `onAccountSelected`.
+- **Both kinds of row share one selection path** — a credit-card row calls the
+  same `onAccountSelected(id)` as a money-account row, which sends the same
+  `AccountDetail(accountId)` target. The detail ViewModel decides from the loaded
+  account's funding how to present it, so the list needs no card-specific route
+  or navigation target.
 
 - **The "Deuda" line is one text node** — the small muted "Deuda " label and the
   bold amount are spans of a single `AnnotatedString`, so the exact spec string
@@ -146,7 +149,7 @@ specs/accounting/accounts/list/
 5. Screen collects `uiState` via `collectAsStateWithLifecycle()` and redraws
 
 **Navigating to account detail:**
-1. User taps a money-account row → `AccountsListScreen` calls `viewModel.onAccountSelected(accountId)`
+1. User taps a money-account or credit-card row → `AccountsListScreen` calls `viewModel.onAccountSelected(accountId)`
 2. ViewModel sends `AccountDetail(accountId)` to the navigation channel
 3. `LaunchedEffect` in the screen collects the event and calls `onNavigateToAccountDetail(accountId)`
 4. `MainActivity` calls `navController.navigate(Routes.accountDetail(accountId))`
@@ -161,11 +164,13 @@ specs/accounting/accounts/list/
   non-empty list: "Cuentas" first, then "Tarjetas de crédito" (section-header
   style, `titleLarge`). Each group is a rounded container whose row backgrounds
   alternate, restarting per group.
-  - Money-account row: icon, name and type label, computed balance on the right;
-    tapping it triggers ViewModel navigation.
-  - Credit-card row: icon and name on the left (no type label — the heading says
-    it); on the right, "Deuda" + debt as the main figure and "Disponible" +
-    available credit below it. Not clickable.
+  - Money-account row: icon by type (piggy bank for savings, banknotes for cash),
+    name and type label, computed balance on the right; tapping it triggers
+    ViewModel navigation.
+  - Credit-card row: credit card icon and name on the left (no type label — the
+    heading says it); on the right, "Deuda" + debt as the main figure and
+    "Disponible" + available credit below it; tapping it triggers ViewModel
+    navigation.
 - `Error(message)` — Spanish error message shown on storage failure
 
 The FAB is always visible regardless of state and navigates directly to account
@@ -174,7 +179,7 @@ creation.
 ## Known Limitations
 
 - **Screen tests need an emulator.** `AccountsListScreenTest` is instrumented, so
-  the screen-level scenarios (headings, card strings, non-selectable cards) are
+  the screen-level scenarios (headings, card strings, card selection) are
   verified only by a device run, not by `./gradlew check`.
 
 ## Quality Pillars

@@ -6,6 +6,7 @@ import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.AccountTransactionLister
 import dev.raiseexception.odin.accounting.domain.AccountLookupError
 import dev.raiseexception.odin.accounting.domain.model.Account
+import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -49,7 +50,7 @@ class AccountDetailViewModel(
                 this@AccountDetailViewModel.mutableUiState.value = when (outcome) {
                     is Outcome.Success -> {
                         this@AccountDetailViewModel.cachedAccount = outcome.value
-                        this@AccountDetailViewModel.buildContentState(
+                        this@AccountDetailViewModel.toContentState(
                             outcome.value,
                             this@AccountDetailViewModel.activeFilter.value
                         )
@@ -66,7 +67,7 @@ class AccountDetailViewModel(
     fun onFilterChanged(filter: TransactionFilter) {
         this.activeFilter.value = filter
         val account = this.cachedAccount ?: return
-        this.mutableUiState.value = this.buildContentState(account, filter)
+        this.mutableUiState.value = this.toContentState(account, filter)
     }
 
     fun onCreateIncome() {
@@ -101,16 +102,25 @@ class AccountDetailViewModel(
         }
     }
 
-    private fun buildContentState(account: Account, filter: TransactionFilter): AccountDetailUiState.Content {
-        val transactions = this.accountTransactionLister.list(
-            transactions = account.transactions,
-            currentBalance = account.balance,
-            filter = filter
-        )
-        return AccountDetailUiState.Content(
-            account = account,
-            transactions = transactions,
-            activeFilter = filter,
-        )
-    }
+    private fun toContentState(account: Account, filter: TransactionFilter): AccountDetailUiState =
+        when (val funding = account.funding) {
+            is AccountFunding.Funds -> AccountDetailUiState.MoneyAccountContent(
+                account = account,
+                initialBalance = funding.initialBalance,
+                transactions = this.accountTransactionLister.list(
+                    transactions = account.transactions,
+                    currentBalance = account.balance,
+                    filter = filter
+                ),
+                activeFilter = filter,
+            )
+            is AccountFunding.Credit -> AccountDetailUiState.CreditCardContent(
+                CreditCardDetail(
+                    name = account.name,
+                    debt = funding.debt,
+                    availableCredit = funding.availableCredit,
+                    creditLimit = funding.creditLimit
+                )
+            )
+        }
 }
