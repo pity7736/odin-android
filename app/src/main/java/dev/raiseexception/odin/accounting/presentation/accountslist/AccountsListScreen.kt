@@ -33,11 +33,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
+import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.shared.presentation.BottomBarTab
 import dev.raiseexception.odin.shared.presentation.OdinBottomBar
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
@@ -46,8 +53,10 @@ import dev.raiseexception.odin.ui.theme.OrangePrimary
 import dev.raiseexception.odin.ui.theme.Slate100
 import dev.raiseexception.odin.ui.theme.Slate400
 import dev.raiseexception.odin.ui.theme.Slate50
+import dev.raiseexception.odin.ui.theme.Slate500
 import dev.raiseexception.odin.ui.theme.Slate600
 import dev.raiseexception.odin.ui.theme.Slate800
+import dev.raiseexception.odin.ui.theme.Slate900
 import kotlinx.coroutines.flow.Flow
 
 @Suppress("LongParameterList")
@@ -107,7 +116,8 @@ fun AccountsListScreen(
                     .padding(innerPadding),
             )
             is AccountsListUiState.Content -> AccountsContent(
-                accounts = uiState.accounts,
+                moneyAccounts = uiState.moneyAccounts,
+                creditCards = uiState.creditCards,
                 onAccountSelected = onAccountSelected,
                 modifier = Modifier
                     .fillMaxSize()
@@ -144,7 +154,8 @@ private fun EmptyContent(modifier: Modifier = Modifier) {
 
 @Composable
 private fun AccountsContent(
-    accounts: List<Account>,
+    moneyAccounts: List<Account>,
+    creditCards: List<CreditCardItem>,
     onAccountSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -152,25 +163,65 @@ private fun AccountsContent(
         item(key = "top_spacer") {
             Spacer(modifier = Modifier.height(16.dp))
         }
-        item(key = "accounts_card") {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.surface),
-            ) {
-                accounts.forEachIndexed { index, account ->
-                    val rowBackground = if (index % 2 == 0) Color.White else Slate50
-                    AccountRow(
-                        account = account,
-                        backgroundColor = rowBackground,
-                        onClick = { onAccountSelected(account.id) },
-                    )
+        if (moneyAccounts.isNotEmpty()) {
+            item(key = "accounts_group") {
+                AccountsGroup(
+                    title = "Cuentas",
+                    headerTag = "accounts_group_header",
+                ) {
+                    moneyAccounts.forEachIndexed { index, account ->
+                        AccountRow(
+                            account = account,
+                            backgroundColor = alternatingRowBackground(index),
+                            onClick = { onAccountSelected(account.id) },
+                        )
+                    }
+                }
+            }
+        }
+        if (creditCards.isNotEmpty()) {
+            item(key = "credit_cards_group") {
+                AccountsGroup(
+                    title = "Tarjetas de crédito",
+                    headerTag = "credit_cards_group_header",
+                ) {
+                    creditCards.forEachIndexed { index, creditCard ->
+                        CreditCardRow(
+                            creditCard = creditCard,
+                            backgroundColor = alternatingRowBackground(index),
+                        )
+                    }
                 }
             }
         }
         item(key = "bottom_spacer") {
             Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun AccountsGroup(
+    title: String,
+    headerTag: String,
+    content: @Composable () -> Unit,
+) {
+    Column(modifier = Modifier.padding(bottom = 20.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            color = Slate900,
+            modifier = Modifier
+                .padding(bottom = 10.dp)
+                .testTag(headerTag),
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.surface),
+        ) {
+            content()
         }
     }
 }
@@ -185,24 +236,13 @@ private fun AccountRow(account: Account, backgroundColor: Color, onClick: () -> 
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Slate100),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = when (account.type) {
-                    AccountType.SAVINGS -> Icons.Outlined.CreditCard
-                    AccountType.CASH -> Icons.Filled.Payments
-                    AccountType.CREDIT_CARD -> Icons.Filled.CreditCard
-                },
-                contentDescription = null,
-                tint = Slate600,
-                modifier = Modifier.size(18.dp),
-            )
-        }
+        AccountIcon(
+            imageVector = when (account.type) {
+                AccountType.SAVINGS -> Icons.Outlined.CreditCard
+                AccountType.CASH -> Icons.Filled.Payments
+                AccountType.CREDIT_CARD -> Icons.Filled.CreditCard
+            },
+        )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -227,6 +267,54 @@ private fun AccountRow(account: Account, backgroundColor: Color, onClick: () -> 
 }
 
 @Composable
+private fun CreditCardRow(creditCard: CreditCardItem, backgroundColor: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(backgroundColor)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .testTag("credit_card_row_${creditCard.id}"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AccountIcon(imageVector = Icons.Filled.CreditCard)
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = capitalizeFirst(creditCard.name),
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium,
+            color = Slate800,
+            modifier = Modifier.weight(1f),
+        )
+        Column(horizontalAlignment = Alignment.End) {
+            Text(text = debtLine(creditCard.debt))
+            Text(
+                text = "Disponible ${formatMoney(creditCard.availableCredit)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Slate400,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AccountIcon(imageVector: ImageVector) {
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Slate100),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = imageVector,
+            contentDescription = null,
+            tint = Slate600,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+@Composable
 private fun ErrorContent(message: String, modifier: Modifier = Modifier) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Text(
@@ -241,4 +329,15 @@ private fun accountTypeLabel(type: AccountType): String = when (type) {
     AccountType.SAVINGS -> "Ahorro"
     AccountType.CASH -> "Efectivo"
     AccountType.CREDIT_CARD -> "Tarjeta de crédito"
+}
+
+private fun alternatingRowBackground(index: Int): Color = if (index % 2 == 0) Color.White else Slate50
+
+private fun debtLine(debt: Money): AnnotatedString = buildAnnotatedString {
+    withStyle(SpanStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Slate500)) {
+        append("Deuda ")
+    }
+    withStyle(SpanStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Slate800)) {
+        append(formatMoney(debt))
+    }
 }

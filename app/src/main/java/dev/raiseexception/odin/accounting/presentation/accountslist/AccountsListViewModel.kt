@@ -3,7 +3,8 @@ package dev.raiseexception.odin.accounting.presentation.accountslist
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
-import dev.raiseexception.odin.accounting.domain.model.AccountType
+import dev.raiseexception.odin.accounting.domain.model.Account
+import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.coroutines.CoroutineDispatcher
@@ -31,14 +32,7 @@ class AccountsListViewModel(
             val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
             this@AccountsListViewModel.accountLister.list(criteria).collect { outcome ->
                 this@AccountsListViewModel.mutableUiState.value = when (outcome) {
-                    is Outcome.Success -> {
-                        val visibleAccounts = outcome.value.filter { it.type != AccountType.CREDIT_CARD }
-                        if (visibleAccounts.isEmpty()) {
-                            AccountsListUiState.Empty
-                        } else {
-                            AccountsListUiState.Content(visibleAccounts)
-                        }
-                    }
+                    is Outcome.Success -> this@AccountsListViewModel.groupAccounts(outcome.value)
                     is Outcome.Failure -> AccountsListUiState.Error("Error al cargar las cuentas")
                 }
             }
@@ -49,5 +43,25 @@ class AccountsListViewModel(
         this.viewModelScope.launch {
             this@AccountsListViewModel.navigationChannel.send(AccountsListNavigationTarget.AccountDetail(accountId))
         }
+    }
+
+    private fun groupAccounts(accounts: List<Account>): AccountsListUiState {
+        val moneyAccounts = accounts.filter { it.funding is AccountFunding.Funds }
+        val creditCards = accounts.mapNotNull { account -> this.toCreditCardItem(account) }
+        return if (moneyAccounts.isEmpty() && creditCards.isEmpty()) {
+            AccountsListUiState.Empty
+        } else {
+            AccountsListUiState.Content(moneyAccounts = moneyAccounts, creditCards = creditCards)
+        }
+    }
+
+    private fun toCreditCardItem(account: Account): CreditCardItem? = when (val funding = account.funding) {
+        is AccountFunding.Credit -> CreditCardItem(
+            id = account.id,
+            name = account.name,
+            debt = funding.debt,
+            availableCredit = funding.availableCredit
+        )
+        is AccountFunding.Funds -> null
     }
 }
