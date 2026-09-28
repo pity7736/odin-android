@@ -61,8 +61,9 @@ list.
   `initialBalance + incomes − expenses`, and `Credit` returns its `debt`.
   `Account.balance` delegates to `funding.balance(...)` — no `when` in `Account`,
   so it never accumulates per-kind branches. A credit card's `balance` is its
-  debt, which is never shown as money while cards are filtered from the summary
-  and accounts list. Rejected alternative: `when (funding)` spread across
+  debt; no screen displays a card's `balance` as money (the accounts list reads
+  `Credit.debt` and `availableCredit` directly, and the summary filters cards
+  out). Rejected alternative: `when (funding)` spread across
   `Account`'s methods, centralizing every money-kind's behavior in the aggregate.
 - **Creation is kind-specific; the use case routes on a command.** Each kind has
   its own domain factory — `Account.create` (money) and `Account.createCreditCard`
@@ -82,7 +83,7 @@ list.
   balance, or cupo + debt) are emitted only after a type is chosen, so a user
   never fills an amount that then disappears. The edit form offers money types
   only, so a money account cannot be turned into a credit card (which would break
-  the type/funding invariant and hide the account behind the temporary filter).
+  the type/funding invariant).
 - **Persistence keeps three honest amount columns; the schema is versioned.**
   `AccountEntity` has nullable `initialBalanceAmount` plus nullable
   `creditLimitAmount`/`debtAmount`, read and written by variant. Relaxing
@@ -149,7 +150,7 @@ app/src/main/java/dev/raiseexception/odin/
 │   │   └── repository/       # RoomAccountRepository, AccountEntity, AccountDao
 │   └── presentation/
 │       ├── accountcreation/  # CreateAccountViewModel (dumb), UiState, NavigationTarget, Screen
-│       └── accountslist/     # AccountsListScreen (placeholder)
+│       └── accountslist/     # AccountsListScreen (entry point; see accounts/list/design.md)
 
 app/src/test/…            # JVM unit tests: Money, Account.create, AccountCreator, the repository, the ViewModel
 app/src/androidTest/…     # Compose UI test for the create screen
@@ -184,8 +185,9 @@ specs/accounting/accounts/creation/
 ## Screen & States / Backend Interaction
 
 - **Screens:** `CreateAccountScreen` (the form; the balance input is the shared
-  `AmountField`, see `specs/shared/amount-formatting/design.md`) and a placeholder `AccountsListScreen` reached via a single "+"
-  FAB; entry to the flow is a "Mis cuentas" action on Home. Routes `ACCOUNTS` and
+  `AmountField`, see `specs/shared/amount-formatting/design.md`), reached via the
+  "+" FAB on `AccountsListScreen` (the accounts tab of the bottom bar; see
+  `specs/accounting/accounts/list/design.md`). Routes `ACCOUNTS` and
   `ACCOUNT_CREATE`.
 - **UiState:** one immutable state — `Idle` / `Loading` / `ValidationError`
   (per-field: name, balance, currency, type, description) / `Error` (general
@@ -194,11 +196,11 @@ specs/accounting/accounts/creation/
 
 ## Known Limitations
 
-- **Credit cards are created but not yet shown or used.** A created credit card is
-  filtered out of the home summary and the accounts list (in their ViewModels) and
-  has no detail or edit screen — a deliberate temporary hide until a card-display
-  feature. Recording transactions on a card, paying it down, transfers and cash
-  advances are out of scope.
+- **Credit cards are only partly shown and not yet used.** A created credit card
+  appears in the accounts list (see `specs/accounting/accounts/list/design.md`)
+  but is filtered out of the home summary (in its ViewModel) and has no detail or
+  edit screen. Recording transactions on a card, paying it down, transfers and
+  cash advances are out of scope.
 - **Out of scope** (per spec): deleting accounts, account types beyond savings,
   cash and credit card, and currencies beyond USD/EUR/COP.
 

@@ -282,8 +282,8 @@ see how long I have been tracking it.
 - Recording income and expenses (transactions) against an account.
 - Paying down a credit card, transferring to or from a credit card, and cash
   advances.
-- Showing a credit card anywhere after it is created — a created credit card does
-  not yet appear in the accounts list, the home summary, or an account detail
-  view. Displaying credit cards is a separate, later feature.
+- Showing a credit card after it is created. The account list shows it (see
+  `specs/accounting/accounts/list/spec.md`); the home summary and a credit card
+  detail view do not, and are separate, later features.
 - Account types beyond savings, cash, and credit card.
 - Currencies beyond US Dollar, Euro and Colombian Peso.

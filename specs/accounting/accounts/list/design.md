@@ -4,12 +4,17 @@
 
 ## Overview
 
-Displays all financial accounts stored on the device, ordered oldest first by id.
-The screen reacts to the current state of the account store: it shows a loading
-indicator while fetching, an empty message when no accounts exist, and a scrollable
-list of rows (name + computed balance) when accounts are present. Tapping a row navigates to the
-account detail screen via the ViewModel's navigation channel. The create-account FAB
-is always visible and navigates directly without going through the ViewModel.
+Displays all financial accounts stored on the device in two groups: money
+accounts under "Cuentas", then credit cards under "Tarjetas de crédito", each
+ordered oldest first by id. A group with no entries is not rendered, heading
+included. The screen reacts to the current state of the account store: it shows a
+loading indicator while fetching, an empty message when no accounts exist, and the
+grouped rows when accounts are present. A money-account row shows name + computed
+balance; tapping it navigates to the account detail screen via the ViewModel's
+navigation channel. A credit-card row shows name, "Deuda" (debt) as the main
+figure and "Disponible" (available credit) below it, and is not selectable. The
+create-account FAB is always visible and navigates directly without going through
+the ViewModel.
 
 ## Design Decisions & Rationale
 
@@ -40,6 +45,32 @@ is always visible and navigates directly without going through the ViewModel.
   from an injected clock; `restore()` preserves the original timestamp from the
   record. Alternative rejected: reusing `create()` with a fixed clock — awkward and
   semantically wrong (storage data is trusted, not validated).
+
+- **The ViewModel builds the two groups** — `AccountsListViewModel` splits the
+  lister's list into `Content(moneyAccounts, creditCards)` and emits `Empty` only
+  when both are empty. Grouping for display is a presentation concern, so
+  `AccountLister` stays a pass-through; doing it in the ViewModel keeps the
+  grouping rules JVM-testable. Alternative rejected: grouping in the composable —
+  the rules would only be testable with instrumented tests. Each group keeps the
+  repository's oldest-first order; there is no re-sort.
+
+- **Credit cards are exposed as `CreditCardItem`, matched on `funding`** — the
+  ViewModel maps each account whose `funding` is `AccountFunding.Credit` to
+  `CreditCardItem(id, name, debt, availableCredit)` via a `when` smart cast; money
+  accounts (`AccountFunding.Funds`) stay domain `Account`s, since their row reads
+  `Account` directly. The split is on `funding`, not `type`, because funding
+  carries the figures the row needs. The `when` has no `else`, so a new funding
+  variant fails to compile until it is assigned a group. `id` is carried for
+  credit card detail. Alternative rejected: `List<Account>` for cards with an
+  `as AccountFunding.Credit` cast in the composable — unsafe at runtime,
+  untestable on the JVM, and it hides that a card's `balance` means its debt.
+
+- **Credit-card rows are not selectable** — there is no credit card detail yet, so
+  the row has no click action and never calls `onAccountSelected`.
+
+- **The "Deuda" line is one text node** — the small muted "Deuda " label and the
+  bold amount are spans of a single `AnnotatedString`, so the exact spec string
+  (e.g. "Deuda $500.000,00") is one assertable node.
 
 - **Navigation through the ViewModel channel** — row taps call
   `viewModel.onAccountSelected(id)`, which sends to a buffered `Channel`. The screen
@@ -77,6 +108,7 @@ app/src/main/java/dev/raiseexception/odin/
         ├── accountslist/
         │   ├── AccountsListViewModel.kt
         │   ├── AccountsListUiState.kt
+        │   ├── CreditCardItem.kt
         │   ├── AccountsListNavigationTarget.kt
         │   └── AccountsListScreen.kt
         └── accountdetail/
@@ -88,6 +120,10 @@ app/src/test/java/dev/raiseexception/odin/
     ├── application/usecase/AccountListerTest.kt
     ├── infrastructure/repository/RoomAccountRepositoryTest.kt
     └── presentation/accountslist/AccountsListViewModelTest.kt
+
+app/src/androidTest/java/dev/raiseexception/odin/
+└── accounting/
+    └── presentation/accountslist/AccountsListScreenTest.kt
 
 specs/accounting/accounts/list/
 ├── spec.md
@@ -102,12 +138,15 @@ specs/accounting/accounts/list/
 2. Collects `AccountLister.list(AccountCriteria(includeIncomes = true, includeExpenses = true))` — delegates to `AccountRepository.getAll(criteria)`, a reactive `Flow<Outcome<List<Account>>>`. The criteria ensures accounts are loaded with their transactions so `Account.balance` returns the computed balance
 3. `RoomAccountRepository.getAll()` queries the `accounts` table via `AccountDao`;
    Room re-emits whenever the table changes
-4. ViewModel pattern-matches on `Outcome`: `Success` with empty list → `Empty`,
-   `Success` with accounts → `Content(accounts)`, `Failure` → `Error("Error al cargar las cuentas")`
+4. ViewModel pattern-matches on `Outcome`: `Success` → splits the accounts by
+   `funding` into `moneyAccounts` (`Funds`) and `creditCards` (`Credit` →
+   `CreditCardItem`), emitting `Empty` when both are empty and
+   `Content(moneyAccounts, creditCards)` otherwise; `Failure` →
+   `Error("Error al cargar las cuentas")`
 5. Screen collects `uiState` via `collectAsStateWithLifecycle()` and redraws
 
 **Navigating to account detail:**
-1. User taps a row → `AccountsListScreen` calls `viewModel.onAccountSelected(accountId)`
+1. User taps a money-account row → `AccountsListScreen` calls `viewModel.onAccountSelected(accountId)`
 2. ViewModel sends `AccountDetail(accountId)` to the navigation channel
 3. `LaunchedEffect` in the screen collects the event and calls `onNavigateToAccountDetail(accountId)`
 4. `MainActivity` calls `navController.navigate(Routes.accountDetail(accountId))`
@@ -118,8 +157,15 @@ specs/accounting/accounts/list/
 
 - `Loading` — spinner shown while the first emission is pending
 - `Empty` — message shown when the account list is empty
-- `Content(accounts)` — `LazyColumn` of rows, each showing name and computed
-  balance, ordered oldest first; tapping a row triggers ViewModel navigation
+- `Content(moneyAccounts, creditCards)` — `LazyColumn` with one headed group per
+  non-empty list: "Cuentas" first, then "Tarjetas de crédito" (section-header
+  style, `titleLarge`). Each group is a rounded container whose row backgrounds
+  alternate, restarting per group.
+  - Money-account row: icon, name and type label, computed balance on the right;
+    tapping it triggers ViewModel navigation.
+  - Credit-card row: icon and name on the left (no type label — the heading says
+    it); on the right, "Deuda" + debt as the main figure and "Disponible" +
+    available credit below it. Not clickable.
 - `Error(message)` — Spanish error message shown on storage failure
 
 The FAB is always visible regardless of state and navigates directly to account
@@ -127,9 +173,9 @@ creation.
 
 ## Known Limitations
 
-- **Credit cards are excluded.** The ViewModel filters out `CREDIT_CARD` accounts,
-  so a credit card does not appear in the list — a temporary hide until a
-  card-display feature.
+- **Screen tests need an emulator.** `AccountsListScreenTest` is instrumented, so
+  the screen-level scenarios (headings, card strings, non-selectable cards) are
+  verified only by a device run, not by `./gradlew check`.
 
 ## Quality Pillars
 
@@ -140,8 +186,8 @@ creation.
   to `Error` state in the ViewModel via pattern matching; there is no
   `catch(Exception)` block.
 - **Performance:** `getAll()` loads accounts with their transaction rows to
-  compute balances. Room re-emits reactively on table changes. No in-memory
-  filtering or sorting needed.
+  compute balances. Room re-emits reactively on table changes. Grouping is one
+  in-memory pass per group over the already-loaded list; no sorting.
 - **Observability:** Internal errors from the storage layer are propagated as
   `Outcome.Failure`; the internal message is available for future logging without
   being surfaced to the user.
