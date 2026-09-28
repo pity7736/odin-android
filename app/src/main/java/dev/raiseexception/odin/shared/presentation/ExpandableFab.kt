@@ -41,6 +41,7 @@ import dev.raiseexception.odin.ui.theme.Slate800
 fun ExpandableFab(
     expanded: Boolean,
     onToggle: () -> Unit,
+    showIncomeOption: Boolean,
     showTransferOption: Boolean,
     onIncomeSelected: () -> Unit,
     onExpenseSelected: () -> Unit,
@@ -53,7 +54,9 @@ fun ExpandableFab(
             exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
         ) {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                IncomeAction(onSelected = onIncomeSelected)
+                if (showIncomeOption) {
+                    IncomeAction(onSelected = onIncomeSelected)
+                }
                 ExpenseAction(onSelected = onExpenseSelected)
                 if (showTransferOption) {
                     TransferAction(onSelected = onTransferSelected)

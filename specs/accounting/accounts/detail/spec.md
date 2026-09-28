@@ -52,9 +52,12 @@ full situation in one place.
 - Beside it, the available credit is shown, labeled "Disponible", and the card's
   total credit limit, labeled "Cupo".
 - The available credit is the card's credit limit minus its current debt.
-- A credit card's details show only its name, type, and these three figures. The
-  user cannot edit the card, see a list of movements or filters, or start
-  recording an income, expense, or transfer from it.
+- A credit card's details show its name, type, and these three figures. The user
+  cannot edit the card or see a list of movements or filters.
+- The user can start recording a new expense from a credit card's details, as
+  described in `specs/accounting/expense/creation/spec.md`. When they choose to
+  record something new, the only option offered is an expense; income and
+  transfer are not offered for a credit card.
 
 ## Expected Behavior
 
@@ -97,7 +100,17 @@ full situation in one place.
 - Given the user is viewing a credit card's details
 - Then they do not see the option to edit the card
 - And they do not see a list of movements or the movement filters
-- And they do not see the option to record an income, expense, or transfer
+
+### Recording an expense from a credit card
+- Given the user is viewing a credit card's details
+- When they choose to record something new
+- Then the only option offered is an expense
+- And they are not offered an income or a transfer
+
+### Recording an expense from a credit card with no available credit
+- Given the user is viewing a credit card whose debt equals its credit limit
+- When they choose to record something new
+- Then the expense option is still offered
 
 ### Account not found
 - Given the user opens the details of an account or credit card that does not
@@ -114,8 +127,9 @@ full situation in one place.
 ## Out of Scope
 - Editing a credit card
 - Deleting any account or credit card
-- Credit card movements: spending on a card, paying it off, transferring to or
-  from it, taking a cash advance, and showing any movement history for a card
+- Credit card movements other than recording an expense: paying the card off,
+  transferring to or from it, recording an income on it, taking a cash advance,
+  and showing any movement history for a card
 - Showing credit cards in the home summary or counting them in its total
 - Statement or cut-off dates, due dates, minimum payment, and interest
 - Showing the description or the creation date of any account

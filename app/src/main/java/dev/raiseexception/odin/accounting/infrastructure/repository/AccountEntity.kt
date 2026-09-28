@@ -48,7 +48,7 @@ internal fun AccountEntity.toDomain(incomes: List<Income>, expenses: List<Expens
 private fun AccountEntity.toFunding(): AccountFunding = when (AccountType.valueOf(type)) {
     AccountType.CREDIT_CARD -> AccountFunding.Credit(
         creditLimit = Money.of(BigDecimal(creditLimitAmount!!), Currency.valueOf(currency)),
-        debt = Money.of(BigDecimal(debtAmount!!), Currency.valueOf(currency))
+        initialDebt = Money.of(BigDecimal(debtAmount!!), Currency.valueOf(currency))
     )
     AccountType.SAVINGS, AccountType.CASH ->
         AccountFunding.Funds(Money.of(BigDecimal(initialBalanceAmount!!), Currency.valueOf(currency)))
@@ -75,6 +75,6 @@ internal fun Account.toEntity(): AccountEntity = when (val accountFunding = fund
         description = description,
         createdAt = createdAt.toString(),
         creditLimitAmount = accountFunding.creditLimit.amount.toPlainString(),
-        debtAmount = accountFunding.debt.amount.toPlainString()
+        debtAmount = accountFunding.initialDebt.amount.toPlainString()
     )
 }

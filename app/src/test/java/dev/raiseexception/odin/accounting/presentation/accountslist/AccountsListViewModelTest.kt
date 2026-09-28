@@ -46,10 +46,10 @@ class AccountsListViewModelTest {
 
     private fun account(id: String, name: String) = AccountBuilder().id(id).name(name).build()
 
-    private fun creditCard(id: String, name: String, creditLimit: String, debt: String) = AccountBuilder()
+    private fun creditCard(id: String, name: String, creditLimit: String, initialDebt: String) = AccountBuilder()
         .id(id)
         .name(name)
-        .creditCard(creditLimit = pesos(creditLimit), debt = pesos(debt))
+        .creditCard(creditLimit = pesos(creditLimit), initialDebt = pesos(initialDebt))
         .build()
 
     private fun pesos(amount: String) = Money.of(BigDecimal(amount), Currency.COP)
@@ -162,6 +162,29 @@ class AccountsListViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test
+    fun `given a credit card with an expense, when initialized, then its debt and available credit include it`() =
+        runTest {
+            val creditCard = AccountBuilder()
+                .id("card-1")
+                .name("Visa")
+                .creditCard(creditLimit = pesos("3000000.00"), initialDebt = pesos("500000.00"))
+                .withExpense(amount = "200000")
+                .build()
+            every { accountLister.list(criteriaWithTransactions) } returns flowOf(Outcome.Success(listOf(creditCard)))
+            val viewModel = buildViewModel()
+
+            viewModel.uiState.test {
+                assertEquals(AccountsListUiState.Loading, awaitItem())
+                testDispatcher.scheduler.advanceUntilIdle()
+                val content = awaitItem() as AccountsListUiState.Content
+                val cardItem = content.creditCards.single()
+                assertEquals(pesos("700000.00"), cardItem.debt)
+                assertEquals(pesos("2300000.00"), cardItem.availableCredit)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 
     @Test
     fun `given a credit card with no debt, when initialized, then available credit is the full limit`() = runTest {

@@ -4,6 +4,8 @@ import dev.raiseexception.odin.accounting.domain.CategoryCreationError
 import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
+import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.accounting.domain.repository.ExpenseRepository
@@ -25,6 +27,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.math.BigDecimal
 
 class ExpenseCreatorTest {
 
@@ -52,6 +55,14 @@ class ExpenseCreatorTest {
 
     private val account = AccountBuilder().id("acc-1").build()
     private val expenseCategory = CategoryBuilder().type(CategoryType.EXPENSE).build()
+    private val visaCard = AccountBuilder()
+        .id("card-1")
+        .name("Visa")
+        .creditCard(
+            creditLimit = Money.of(BigDecimal("3000000"), Currency.COP),
+            initialDebt = Money.of(BigDecimal("500000"), Currency.COP)
+        )
+        .build()
 
     @Test
     fun `given valid input with existing category, when creating expense, then expense is saved`() = runTest {
@@ -265,4 +276,84 @@ class ExpenseCreatorTest {
         assertTrue(error is ExpenseCreationError.InvalidInput)
         assertEquals("El nombre es obligatorio.", (error as ExpenseCreationError.InvalidInput).categoryError)
     }
+
+    @Test
+    fun `given a card, when creating an expense within its available credit, then expense is saved`() = runTest {
+        every {
+            accountRepository.findById("card-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
+        } returns flowOf(Outcome.Success(visaCard))
+        every { categoryRepository.getAll() } returns flowOf(Outcome.Success(listOf(expenseCategory)))
+        coEvery { expenseRepository.add(any()) } returns Outcome.Success(Unit)
+        val result = expenseCreator.create(
+            accountId = "card-1",
+            amount = "200000",
+            date = today.toString(),
+            categoryInput = CategoryInput.Existing(expenseCategory.id),
+            description = ""
+        )
+        assertTrue(result is Outcome.Success)
+        coVerify { expenseRepository.add((result as Outcome.Success).value) }
+    }
+
+    @Test
+    fun `given a card, when creating an expense above its available credit, then returns cupo error unsaved`() =
+        runTest {
+            every {
+                accountRepository.findById("card-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
+            } returns flowOf(Outcome.Success(visaCard))
+            every { categoryRepository.getAll() } returns flowOf(Outcome.Success(listOf(expenseCategory)))
+            val result = expenseCreator.create(
+                accountId = "card-1",
+                amount = "2500001",
+                date = today.toString(),
+                categoryInput = CategoryInput.Existing(expenseCategory.id),
+                description = ""
+            )
+            assertTrue(result is Outcome.Failure)
+            val error = (result as Outcome.Failure).error
+            assertTrue(error is ExpenseCreationError.InvalidInput)
+            assertEquals(
+                "El monto supera el cupo disponible.",
+                (error as ExpenseCreationError.InvalidInput).amountError
+            )
+            coVerify(exactly = 0) { expenseRepository.add(any()) }
+        }
+
+    @Test
+    fun `given a card and a new category, when the amount is above available credit, then the transaction fails`() =
+        runTest {
+            val blockOutcomes = mutableListOf<Outcome<*>>()
+            val recordingTransactionRunner = object : TransactionRunner {
+                override suspend fun <T> run(block: suspend () -> Outcome<T>): Outcome<T> =
+                    block().also { outcome -> blockOutcomes.add(outcome) }
+            }
+            val recordingExpenseCreator = ExpenseCreator(
+                accountRepository = accountRepository,
+                expenseRepository = expenseRepository,
+                categoryRepository = categoryRepository,
+                categoryCreator = categoryCreator,
+                transactionRunner = recordingTransactionRunner,
+                clock = fixedClock
+            )
+            every {
+                accountRepository.findById("card-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
+            } returns flowOf(Outcome.Success(visaCard))
+            coEvery { categoryCreator.create("Viajes", CategoryType.EXPENSE, "", null) } returns
+                Outcome.Success(expenseCategory)
+            val result = recordingExpenseCreator.create(
+                accountId = "card-1",
+                amount = "2500001",
+                date = today.toString(),
+                categoryInput = CategoryInput.New("Viajes"),
+                description = ""
+            )
+            coVerify { categoryCreator.create("Viajes", CategoryType.EXPENSE, "", null) }
+            assertEquals(listOf(result), blockOutcomes)
+            assertTrue(result is Outcome.Failure)
+            assertEquals(
+                "El monto supera el cupo disponible.",
+                ((result as Outcome.Failure).error as ExpenseCreationError.InvalidInput).amountError
+            )
+            coVerify(exactly = 0) { expenseRepository.add(any()) }
+        }
 }

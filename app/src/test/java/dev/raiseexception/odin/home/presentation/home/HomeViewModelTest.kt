@@ -293,7 +293,7 @@ class HomeViewModelTest {
             .name("Visa")
             .creditCard(
                 creditLimit = Money.of(BigDecimal("3000000.00"), Currency.COP),
-                debt = Money.of(BigDecimal("500000.00"), Currency.COP)
+                initialDebt = Money.of(BigDecimal("500000.00"), Currency.COP)
             )
             .build()
         every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(savings, creditCard)))

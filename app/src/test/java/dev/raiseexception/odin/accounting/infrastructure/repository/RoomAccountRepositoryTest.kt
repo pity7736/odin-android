@@ -75,7 +75,7 @@ class RoomAccountRepositoryTest {
             .name("Visa")
             .creditCard(
                 creditLimit = Money.of(BigDecimal("3000000.00"), Currency.COP),
-                debt = Money.of(BigDecimal("500000.00"), Currency.COP)
+                initialDebt = Money.of(BigDecimal("500000.00"), Currency.COP)
             )
             .description("Tarjeta principal")
             .createdAt(Instant.parse("2026-08-01T10:00:00Z"))
@@ -89,7 +89,7 @@ class RoomAccountRepositoryTest {
         assertEquals(AccountType.CREDIT_CARD, restored.type)
         val credit = restored.funding as AccountFunding.Credit
         assertEquals(Money.of(BigDecimal("3000000.00"), Currency.COP), credit.creditLimit)
-        assertEquals(Money.of(BigDecimal("500000.00"), Currency.COP), credit.debt)
+        assertEquals(Money.of(BigDecimal("500000.00"), Currency.COP), credit.initialDebt)
         assertEquals(Instant.parse("2026-08-01T10:00:00Z"), restored.createdAt)
     }
 
