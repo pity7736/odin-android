@@ -1,6 +1,5 @@
 package dev.raiseexception.odin.accounting.presentation.accountslist
 
-import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -111,15 +110,14 @@ class AccountsListScreenTest {
     }
 
     @Test
-    fun given_a_credit_card_when_displayed_then_its_row_cannot_be_selected() {
+    fun given_a_credit_card_when_selected_then_onAccountSelected_receives_its_id() {
         var selectedAccountId: String? = null
         this.setScreen(
             AccountsListUiState.Content(moneyAccounts = emptyList(), creditCards = listOf(this.visaCard)),
             onAccountSelected = { selectedAccountId = it }
         )
-        this.composeTestRule.onNodeWithTag("credit_card_row_card-1").assertHasNoClickAction()
         this.composeTestRule.onNodeWithText("Visa").performClick()
-        assertEquals(null, selectedAccountId)
+        assertEquals("card-1", selectedAccountId)
     }
 
     @Test

@@ -189,6 +189,7 @@ private fun AccountsContent(
                         CreditCardRow(
                             creditCard = creditCard,
                             backgroundColor = alternatingRowBackground(index),
+                            onClick = { onAccountSelected(creditCard.id) },
                         )
                     }
                 }
@@ -267,11 +268,12 @@ private fun AccountRow(account: Account, backgroundColor: Color, onClick: () -> 
 }
 
 @Composable
-private fun CreditCardRow(creditCard: CreditCardItem, backgroundColor: Color) {
+private fun CreditCardRow(creditCard: CreditCardItem, backgroundColor: Color, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(backgroundColor)
+            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp)
             .testTag("credit_card_row_${creditCard.id}"),
         verticalAlignment = Alignment.CenterVertically,
