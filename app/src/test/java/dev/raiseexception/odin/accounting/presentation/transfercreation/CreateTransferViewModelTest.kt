@@ -251,6 +251,27 @@ class CreateTransferViewModelTest {
         }
 
     @Test
+    fun `given a payment being filled, when saving starts, then the saving state keeps selections lists and label`() =
+        runTest {
+            coEvery { transferCreator.create(any(), any(), any(), any()) } returns Outcome.Success(transfer())
+            val viewModel = loadedViewModel(originAccountId = "src-1")
+            viewModel.onDestinationSelected("card-1")
+
+            viewModel.save("200.00", "2026-08-29")
+
+            assertEquals(
+                CreateTransferUiState.Saving(
+                    sourceAccounts = listOf(savingsAccount, cashAccount),
+                    destinationAccounts = listOf(cashAccount, creditCard),
+                    selectedSourceAccountId = "src-1",
+                    selectedDestinationAccountId = "card-1",
+                    saveLabel = "Pagar"
+                ),
+                viewModel.uiState.value
+            )
+        }
+
+    @Test
     fun `given a valid transfer, when saving, then navigates back to the source account`() = runTest {
         coEvery { transferCreator.create(any(), any(), any(), any()) } returns Outcome.Success(transfer())
         val viewModel = loadedViewModel(originAccountId = "src-1")
@@ -301,10 +322,12 @@ class CreateTransferViewModelTest {
         val viewModel = loadedViewModel(originAccountId = "src-1")
         viewModel.save("200.00", "2026-08-29")
 
+        val savingState = viewModel.uiState.value
+
         viewModel.onSourceSelected("dst-1")
         viewModel.onDestinationSelected("card-1")
 
-        assertEquals(CreateTransferUiState.Saving, viewModel.uiState.value)
+        assertEquals(savingState, viewModel.uiState.value)
     }
 
     private fun loadedViewModel(originAccountId: String?): CreateTransferViewModel {

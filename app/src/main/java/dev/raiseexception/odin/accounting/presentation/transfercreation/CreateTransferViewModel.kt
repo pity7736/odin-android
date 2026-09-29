@@ -86,7 +86,14 @@ class CreateTransferViewModel(
     fun save(amount: String, date: String) {
         if (this.mutableUiState.value is CreateTransferUiState.Saving) return
         val selection = this.currentSelection()
-        this.mutableUiState.value = CreateTransferUiState.Saving
+        val formState = this.idle(selection)
+        this.mutableUiState.value = CreateTransferUiState.Saving(
+            sourceAccounts = formState.sourceAccounts,
+            destinationAccounts = formState.destinationAccounts,
+            selectedSourceAccountId = formState.selectedSourceAccountId,
+            selectedDestinationAccountId = formState.selectedDestinationAccountId,
+            saveLabel = formState.saveLabel
+        )
         this.viewModelScope.launch(this.ioDispatcher) {
             val outcome = this@CreateTransferViewModel.transferCreator.create(
                 sourceAccountId = selection.sourceAccountId,

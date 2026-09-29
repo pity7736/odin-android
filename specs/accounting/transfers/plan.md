@@ -124,7 +124,7 @@ fun onSourceSelected(sourceAccountId: String)
 fun onDestinationSelected(destinationAccountId: String)
 fun save(amount: String, date: String)          // ids come from the VM's own selections
 
-// CreateTransferUiState.Idle and ValidationError both carry:
+// CreateTransferUiState.Idle, Saving, and ValidationError all carry (Saving keeps the form visible while saving):
 val sourceAccounts: List<Account>               // money accounts only
 val destinationAccounts: List<Account>          // all accounts except the selected source
 val selectedSourceAccountId: String

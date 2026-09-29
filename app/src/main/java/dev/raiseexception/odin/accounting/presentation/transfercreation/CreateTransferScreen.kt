@@ -414,6 +414,13 @@ private fun transferFormState(uiState: CreateTransferUiState): TransferFormState
         selectedDestinationAccountId = uiState.selectedDestinationAccountId,
         saveLabel = uiState.saveLabel,
     )
+    is CreateTransferUiState.Saving -> TransferFormState(
+        sourceAccounts = uiState.sourceAccounts,
+        destinationAccounts = uiState.destinationAccounts,
+        selectedSourceAccountId = uiState.selectedSourceAccountId,
+        selectedDestinationAccountId = uiState.selectedDestinationAccountId,
+        saveLabel = uiState.saveLabel,
+    )
     else -> TransferFormState(
         sourceAccounts = emptyList(),
         destinationAccounts = emptyList(),

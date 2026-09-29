@@ -11,7 +11,13 @@ sealed interface CreateTransferUiState {
         val selectedDestinationAccountId: String,
         val saveLabel: String
     ) : CreateTransferUiState
-    data object Saving : CreateTransferUiState
+    data class Saving(
+        val sourceAccounts: List<Account>,
+        val destinationAccounts: List<Account>,
+        val selectedSourceAccountId: String,
+        val selectedDestinationAccountId: String,
+        val saveLabel: String
+    ) : CreateTransferUiState
 
     @Suppress("LongParameterList")
     data class ValidationError(
