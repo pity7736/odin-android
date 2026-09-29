@@ -59,8 +59,8 @@ class AccountsListViewModel(
         is AccountFunding.Credit -> CreditCardItem(
             id = account.id,
             name = account.name,
-            debt = funding.currentDebt(account.expenses),
-            availableCredit = funding.availableCredit(account.expenses)
+            debt = funding.currentDebt(account.incomes, account.expenses),
+            availableCredit = funding.availableCredit(account.incomes, account.expenses)
         )
         is AccountFunding.Funds -> null
     }

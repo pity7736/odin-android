@@ -130,6 +130,7 @@ fun AccountDetailScreen(
                     onToggle = { fabExpanded = !fabExpanded },
                     showIncomeOption = isMoneyAccount,
                     showTransferOption = isMoneyAccount,
+                    showPaymentOption = (uiState as? AccountDetailUiState.CreditCardContent)?.canPay == true,
                     onIncomeSelected = {
                         fabExpanded = false
                         onCreateIncome()
@@ -139,6 +140,10 @@ fun AccountDetailScreen(
                         onCreateExpense()
                     },
                     onTransferSelected = {
+                        fabExpanded = false
+                        onCreateTransfer()
+                    },
+                    onPaymentSelected = {
                         fabExpanded = false
                         onCreateTransfer()
                     },

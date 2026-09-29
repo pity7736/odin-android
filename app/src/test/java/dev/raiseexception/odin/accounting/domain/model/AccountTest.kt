@@ -4,6 +4,7 @@ import dev.raiseexception.odin.accounting.domain.AccountCreationError
 import dev.raiseexception.odin.accounting.domain.AccountUpdateError
 import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
 import dev.raiseexception.odin.accounting.domain.ExpenseUpdateError
+import dev.raiseexception.odin.accounting.domain.IncomeCreationError
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
@@ -1150,16 +1151,117 @@ class AccountCreditCardExpenseTest {
     )
 
     private fun currentDebt(account: Account): Money =
-        (account.funding as AccountFunding.Credit).currentDebt(account.expenses)
+        (account.funding as AccountFunding.Credit).currentDebt(account.incomes, account.expenses)
 
     private fun availableCredit(account: Account): Money =
-        (account.funding as AccountFunding.Credit).availableCredit(account.expenses)
+        (account.funding as AccountFunding.Credit).availableCredit(account.incomes, account.expenses)
 
     private fun creationInvalidInput(result: Outcome<Expense>): ExpenseCreationError.InvalidInput {
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error
         assertTrue(error is ExpenseCreationError.InvalidInput)
         return error as ExpenseCreationError.InvalidInput
+    }
+
+    private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)
+}
+
+class AccountCreditCardPaymentTest {
+
+    private val fixedInstant = Instant.parse("2026-08-29T12:00:00Z")
+    private val fixedClock = object : Clock {
+        override fun now(): Instant = fixedInstant
+    }
+
+    @Test
+    fun `given a card with debt 500, when creating an income of 500, then succeeds`() {
+        val visaCard = this.visaCard(initialDebt = "500")
+
+        val result = this.createIncome(visaCard, "500")
+
+        assertTrue(result is Outcome.Success)
+    }
+
+    @Test
+    fun `given a card with debt 500, when creating an income of 501, then fails with the payment exceeds debt error`() {
+        val visaCard = this.visaCard(initialDebt = "500")
+
+        val result = this.createIncome(visaCard, "501")
+
+        val error = this.creationInvalidInput(result)
+        assertEquals("El pago no puede superar la deuda actual.", error.amountError)
+        assertTrue(visaCard.incomes.isEmpty())
+    }
+
+    @Test
+    fun `given a card with no debt, when creating an income, then fails with the payment exceeds debt error`() {
+        val visaCard = this.visaCard(initialDebt = "0")
+
+        val result = this.createIncome(visaCard, "1")
+
+        assertEquals("El pago no puede superar la deuda actual.", this.creationInvalidInput(result).amountError)
+    }
+
+    @Test
+    fun `given a money account, when creating any valid income, then succeeds without a limit`() {
+        val savingsAccount = AccountBuilder()
+            .initialBalance(this.pesos("0"))
+            .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+            .build()
+
+        val result = this.createIncome(savingsAccount, "999999999")
+
+        assertTrue(result is Outcome.Success)
+    }
+
+    @Test
+    fun `given a card with debt 500 and limit 1000, when paying 200, then debt drops and freed credit can be spent`() {
+        val visaCard = this.visaCard(initialDebt = "500")
+
+        this.createIncome(visaCard, "200")
+        val expenseResult = visaCard.createExpense(
+            amount = "700",
+            date = "2026-03-10",
+            categoryId = "cat-1",
+            description = "",
+            clock = this.fixedClock
+        )
+
+        assertEquals(this.pesos("1000"), visaCard.balance)
+        assertTrue(expenseResult is Outcome.Success)
+    }
+
+    @Test
+    fun `given a card, when creating an income with a blank or non-numeric amount, then reports the amount error`() {
+        val visaCard = this.visaCard(initialDebt = "500")
+
+        val blankError = this.creationInvalidInput(this.createIncome(visaCard, ""))
+        val nonNumericError = this.creationInvalidInput(this.createIncome(visaCard, "abc"))
+
+        assertEquals("El monto es obligatorio.", blankError.amountError)
+        assertEquals("El monto no es un número válido.", nonNumericError.amountError)
+    }
+
+    private fun visaCard(initialDebt: String): Account = AccountBuilder()
+        .id("card-1")
+        .name("Visa")
+        .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+        .creditCard(creditLimit = this.pesos("1000"), initialDebt = this.pesos(initialDebt))
+        .build()
+
+    private fun createIncome(account: Account, amount: String): Outcome<Income> = account.createIncome(
+        amount = amount,
+        date = "2026-03-10",
+        categoryId = "cat-1",
+        description = "",
+        clock = this.fixedClock
+    )
+
+    private fun creationInvalidInput(result: Outcome<Income>): IncomeCreationError.InvalidInput {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is IncomeCreationError.InvalidInput)
+        return error as IncomeCreationError.InvalidInput
     }
 
     private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)

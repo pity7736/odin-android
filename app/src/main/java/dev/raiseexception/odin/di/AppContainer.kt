@@ -206,7 +206,7 @@ class AppContainer(context: Context) {
     fun accountDetailViewModelFactory(accountId: String): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
-                AccountDetailViewModel(accountId, accountFinder, accountTransactionLister, ioDispatcher)
+                AccountDetailViewModel(accountId, accountFinder, accountLister, accountTransactionLister, ioDispatcher)
             }
         }
 
@@ -280,10 +280,10 @@ class AppContainer(context: Context) {
             }
         }
 
-    fun createTransferViewModelFactory(accountId: String?): ViewModelProvider.Factory =
+    fun createTransferViewModelFactory(originAccountId: String?): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
-                CreateTransferViewModel(accountId, transferCreator, accountLister, ioDispatcher)
+                CreateTransferViewModel(originAccountId, transferCreator, accountLister, ioDispatcher)
             }
         }
 }

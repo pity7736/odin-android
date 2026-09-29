@@ -280,7 +280,7 @@ see how long I have been tracking it.
 - Editing or updating an existing account, including editing a credit card.
 - Deleting an account.
 - Recording income and expenses (transactions) against an account.
-- Paying down a credit card, transferring to or from a credit card, and cash
+- Paying a credit card (see `specs/accounting/transfers/spec.md`) and cash
   advances.
 - Showing a credit card after it is created. The account list shows it (see
   `specs/accounting/accounts/list/spec.md`) and so do its details (see

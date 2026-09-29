@@ -26,7 +26,7 @@ class Transfer private constructor(
         ): Outcome<Transfer> {
             val preValidationError = validateAccounts(sourceAccount, destinationAccount)
             if (preValidationError != null) return Outcome.Failure(preValidationError)
-            val expenseDescription = "Transferencia a ${destinationAccount.name}"
+            val (expenseDescription, incomeDescription) = describe(sourceAccount, destinationAccount)
             val expense = when (
                 val result = sourceAccount.createExpense(
                     amount = amount,
@@ -39,7 +39,6 @@ class Transfer private constructor(
                 is Outcome.Success -> result.value
                 is Outcome.Failure -> return mapExpenseError(result.error)
             }
-            val incomeDescription = "Transferencia desde ${sourceAccount.name}"
             val income = when (
                 val result = destinationAccount.createIncome(
                     amount = amount,
@@ -78,10 +77,11 @@ class Transfer private constructor(
             sourceAccount: Account,
             destinationAccount: Account
         ): TransferCreationError.InvalidInput? {
-            val sourceError = if (sourceAccount.id == destinationAccount.id) {
-                "La cuenta origen y destino deben ser diferentes."
-            } else {
-                null
+            val sourceError = when {
+                sourceAccount.id == destinationAccount.id -> "La cuenta origen y destino deben ser diferentes."
+                sourceAccount.funding is AccountFunding.Credit ->
+                    "Una tarjeta de crédito no puede ser la cuenta origen."
+                else -> null
             }
             val destinationError = if (sourceAccount.currency != destinationAccount.currency) {
                 "Ambas cuentas deben usar la misma moneda."
@@ -98,6 +98,18 @@ class Transfer private constructor(
             }
             return null
         }
+
+        private fun describe(sourceAccount: Account, destinationAccount: Account): Pair<String, String> =
+            when (destinationAccount.funding) {
+                is AccountFunding.Funds -> Pair(
+                    "Transferencia a ${destinationAccount.name}",
+                    "Transferencia desde ${sourceAccount.name}"
+                )
+                is AccountFunding.Credit -> Pair(
+                    "Pago a ${destinationAccount.name}",
+                    "Pago desde ${sourceAccount.name}"
+                )
+            }
 
         private fun mapExpenseError(error: dev.raiseexception.odin.shared.domain.DomainError): Outcome<Transfer> {
             val invalidInput = error as? ExpenseCreationError.InvalidInput

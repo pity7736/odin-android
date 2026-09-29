@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -43,9 +44,11 @@ fun ExpandableFab(
     onToggle: () -> Unit,
     showIncomeOption: Boolean,
     showTransferOption: Boolean,
+    showPaymentOption: Boolean,
     onIncomeSelected: () -> Unit,
     onExpenseSelected: () -> Unit,
     onTransferSelected: () -> Unit,
+    onPaymentSelected: () -> Unit,
 ) {
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         AnimatedVisibility(
@@ -60,6 +63,9 @@ fun ExpandableFab(
                 ExpenseAction(onSelected = onExpenseSelected)
                 if (showTransferOption) {
                     TransferAction(onSelected = onTransferSelected)
+                }
+                if (showPaymentOption) {
+                    PaymentAction(onSelected = onPaymentSelected)
                 }
             }
         }
@@ -134,6 +140,26 @@ private fun TransferAction(onSelected: () -> Unit) {
             modifier = Modifier.testTag("create_transfer_fab"),
         ) {
             Icon(Icons.Filled.SwapHoriz, contentDescription = "Transferencia")
+        }
+    }
+}
+
+@Composable
+private fun PaymentAction(onSelected: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = "Pago",
+            style = MaterialTheme.typography.labelLarge,
+            color = Slate50,
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        SmallFloatingActionButton(
+            onClick = onSelected,
+            containerColor = Slate200,
+            contentColor = Slate800,
+            modifier = Modifier.testTag("create_payment_fab"),
+        ) {
+            Icon(Icons.Filled.Payment, contentDescription = "Pago")
         }
     }
 }

@@ -13,7 +13,7 @@ sealed interface AccountDetailUiState {
         val transactions: List<AccountTransaction>,
         val activeFilter: TransactionFilter,
     ) : AccountDetailUiState
-    data class CreditCardContent(val creditCard: CreditCardDetail) : AccountDetailUiState
+    data class CreditCardContent(val creditCard: CreditCardDetail, val canPay: Boolean) : AccountDetailUiState
     data object NotFound : AccountDetailUiState
     data class Error(val message: String) : AccountDetailUiState
 }

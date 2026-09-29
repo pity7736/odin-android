@@ -25,7 +25,10 @@ home view, so that the transaction is recorded in the right account.
 - The home view offers a quick-access entry point for creating income, expenses,
   and transfers.
 - The entry point is only available when the user has at least one account.
-- The transfer option is only available when the user has two or more accounts.
+- The transfer option is only available when the user has at least one money
+  account (savings or cash) and at least one other account, money account or
+  credit card. A credit card is never the source of a transfer (see
+  `specs/accounting/transfers/spec.md`).
 - When creating a transaction from the home view, the user must select which
   account the transaction belongs to before saving.
 - The account selection works as a filterable list, following the same pattern as
@@ -40,7 +43,8 @@ home view, so that the transaction is recorded in the right account.
 - Given the user is on the home view and has at least one account
 - When the user opens the quick-access entry point
 - Then the available options are income and expense
-- And if the user has two or more accounts, transfer is also available
+- And if the user has a money account and at least one other account, transfer
+  is also available
 
 ### Selecting an action
 
@@ -59,7 +63,8 @@ home view, so that the transaction is recorded in the right account.
 
 ### Transfer from home view
 
-- Given the user is on the home view and has two or more accounts
+- Given the user is on the home view and has a money account and at least one
+  other account
 - When the user selects the transfer option from the quick-access entry point
 - Then the transfer creation form opens with both source and destination account
   fields (existing behavior)
@@ -75,6 +80,18 @@ home view, so that the transaction is recorded in the right account.
 - When the user opens the quick-access entry point
 - Then only income and expense options are available
 - And transfer is not shown
+
+### One money account and one credit card
+
+- Given the user has exactly one savings account and one credit card
+- When the user opens the quick-access entry point
+- Then transfer is available
+
+### Only credit cards exist
+
+- Given the user has two credit cards and no money account
+- When the user opens the quick-access entry point
+- Then transfer is not shown
 
 ### Creating a transaction from within an account (unchanged)
 

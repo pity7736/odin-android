@@ -3,6 +3,7 @@ package dev.raiseexception.odin.accounting.domain.model
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.math.BigDecimal
 
@@ -36,8 +37,8 @@ class AccountFundingTest {
     fun `given a 3000000 card with debt 500000, when it has no expenses, then debt 500000 and available 2500000`() {
         val funding = this.visaCredit()
 
-        assertEquals(this.pesos("500000.00"), funding.currentDebt(emptyList()))
-        assertEquals(this.pesos("2500000.00"), funding.availableCredit(emptyList()))
+        assertEquals(this.pesos("500000.00"), funding.currentDebt(emptyList(), emptyList()))
+        assertEquals(this.pesos("2500000.00"), funding.availableCredit(emptyList(), emptyList()))
     }
 
     @Test
@@ -45,8 +46,8 @@ class AccountFundingTest {
         val funding = this.visaCredit()
         val expenses = listOf(this.expense("200000"), this.expense("100000"))
 
-        assertEquals(this.pesos("800000.00"), funding.currentDebt(expenses))
-        assertEquals(this.pesos("2200000.00"), funding.availableCredit(expenses))
+        assertEquals(this.pesos("800000.00"), funding.currentDebt(emptyList(), expenses))
+        assertEquals(this.pesos("2200000.00"), funding.availableCredit(emptyList(), expenses))
     }
 
     @Test
@@ -54,16 +55,35 @@ class AccountFundingTest {
         val funding = this.visaCredit()
         val expenses = listOf(this.expense("2500000"))
 
-        assertEquals(this.pesos("0.00"), funding.availableCredit(expenses))
+        assertEquals(this.pesos("0.00"), funding.availableCredit(emptyList(), expenses))
     }
 
     @Test
-    fun `given a card, when computing its balance, then equals its current debt and ignores incomes`() {
-        val funding = this.visaCredit()
-        val expenses = listOf(this.expense("200000"))
-        val incomes = listOf(this.income("900000"))
+    fun `given a card with initial debt 100 expenses 300 and payments 150, when computing its debt, then 250`() {
+        val funding = this.smallCredit()
 
-        assertEquals(funding.currentDebt(expenses), funding.balance(incomes, expenses))
+        assertEquals(this.pesos("250.00"), funding.currentDebt(this.smallPayments(), this.smallExpenses()))
+    }
+
+    @Test
+    fun `given a 1000 card with those movements, when computing its available credit, then 750`() {
+        val funding = this.smallCredit()
+
+        assertEquals(this.pesos("750.00"), funding.availableCredit(this.smallPayments(), this.smallExpenses()))
+    }
+
+    @Test
+    fun `given a card with payments, when computing its balance, then equals its debt net of payments`() {
+        val funding = this.smallCredit()
+
+        assertEquals(this.pesos("250.00"), funding.balance(this.smallPayments(), this.smallExpenses()))
+    }
+
+    @Test
+    fun `given a card with payments, when asking what can be spent, then available credit net of payments`() {
+        val funding = this.smallCredit()
+
+        assertEquals(this.pesos("750.00"), funding.spendable(this.smallPayments(), this.smallExpenses()))
     }
 
     @Test
@@ -71,8 +91,49 @@ class AccountFundingTest {
         val funding = this.visaCredit()
         val expenses = listOf(this.expense("200000"))
 
-        assertEquals(funding.availableCredit(expenses), funding.spendable(emptyList(), expenses))
+        assertEquals(funding.availableCredit(emptyList(), expenses), funding.spendable(emptyList(), expenses))
         assertEquals("El monto supera el cupo disponible.", funding.overSpendMessage)
+    }
+
+    @Test
+    fun `given a card with debt 250, when a payment below the debt comes in, then no error`() {
+        val funding = this.smallCredit()
+
+        assertNull(funding.validateIncomingAmount(BigDecimal("200"), this.smallPayments(), this.smallExpenses()))
+    }
+
+    @Test
+    fun `given a card with debt 250, when a payment equal to the debt comes in, then no error`() {
+        val funding = this.smallCredit()
+
+        assertNull(funding.validateIncomingAmount(BigDecimal("250"), this.smallPayments(), this.smallExpenses()))
+    }
+
+    @Test
+    fun `given a card with debt 250, when a payment above the debt comes in, then the payment exceeds debt message`() {
+        val funding = this.smallCredit()
+
+        assertEquals(
+            "El pago no puede superar la deuda actual.",
+            funding.validateIncomingAmount(BigDecimal("251"), this.smallPayments(), this.smallExpenses())
+        )
+    }
+
+    @Test
+    fun `given a card with no debt, when any positive payment comes in, then the payment exceeds debt message`() {
+        val funding = AccountFunding.Credit(creditLimit = this.pesos("1000.00"), initialDebt = this.pesos("0.00"))
+
+        assertEquals(
+            "El pago no puede superar la deuda actual.",
+            funding.validateIncomingAmount(BigDecimal("1"), emptyList(), emptyList())
+        )
+    }
+
+    @Test
+    fun `given a money account, when any amount comes in, then no error`() {
+        val funding = AccountFunding.Funds(this.pesos("0.00"))
+
+        assertNull(funding.validateIncomingAmount(BigDecimal("999999999"), emptyList(), emptyList()))
     }
 
     @Test
@@ -84,6 +145,15 @@ class AccountFundingTest {
         assertEquals(funding.balance(incomes, expenses), funding.spendable(incomes, expenses))
         assertEquals("El monto supera el saldo disponible.", funding.overSpendMessage)
     }
+
+    private fun smallCredit(): AccountFunding.Credit = AccountFunding.Credit(
+        creditLimit = this.pesos("1000.00"),
+        initialDebt = this.pesos("100.00")
+    )
+
+    private fun smallExpenses(): List<Expense> = listOf(this.expense("300"))
+
+    private fun smallPayments(): List<Income> = listOf(this.income("150"))
 
     private fun visaCredit(): AccountFunding.Credit = AccountFunding.Credit(
         creditLimit = this.pesos("3000000.00"),

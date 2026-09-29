@@ -366,6 +366,8 @@ private fun CreateTransferDestination(accountId: String?, navController: NavHost
     val uiState by createTransferViewModel.uiState.collectAsStateWithLifecycle()
     CreateTransferScreen(
         uiState = uiState,
+        onSourceSelected = createTransferViewModel::onSourceSelected,
+        onDestinationSelected = createTransferViewModel::onDestinationSelected,
         onSave = createTransferViewModel::save,
         navigationEvent = createTransferViewModel.navigationEvent,
         onNavigateBack = { _ -> navController.popBackStack() }

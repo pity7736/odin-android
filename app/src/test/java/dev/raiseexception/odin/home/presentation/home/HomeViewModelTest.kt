@@ -2,6 +2,7 @@ package dev.raiseexception.odin.home.presentation.home
 
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
+import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
@@ -342,4 +343,54 @@ class HomeViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test
+    fun `given one savings account and one credit card, when initialized, then transfer is available`() = runTest {
+        val savings = savingsAccount("acc-1")
+        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(savings, creditCard("card-1"))))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        val content = viewModel.uiState.value as HomeUiState.Content
+        assertTrue(content.canTransfer)
+        assertEquals(listOf(savings), content.accounts)
+    }
+
+    @Test
+    fun `given two savings accounts, when initialized, then transfer is available`() = runTest {
+        every { accountLister.list(any()) } returns flowOf(
+            Outcome.Success(listOf(savingsAccount("acc-1"), savingsAccount("acc-2")))
+        )
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue((viewModel.uiState.value as HomeUiState.Content).canTransfer)
+    }
+
+    @Test
+    fun `given exactly one money account, when initialized, then transfer is not available`() = runTest {
+        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(savingsAccount("acc-1"))))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse((viewModel.uiState.value as HomeUiState.Content).canTransfer)
+    }
+
+    @Test
+    fun `given two credit cards and no money account, when initialized, then the empty state is shown`() = runTest {
+        every { accountLister.list(any()) } returns flowOf(
+            Outcome.Success(listOf(creditCard("card-1"), creditCard("card-2")))
+        )
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(HomeUiState.Empty, viewModel.uiState.value)
+    }
+
+    private fun savingsAccount(id: String): Account = AccountBuilder().id(id).name("Ahorros $id").build()
+
+    private fun creditCard(id: String): Account = AccountBuilder()
+        .id(id)
+        .name("Visa $id")
+        .creditCard(
+            creditLimit = Money.of(BigDecimal("3000000.00"), Currency.COP),
+            initialDebt = Money.of(BigDecimal("500000.00"), Currency.COP)
+        )
+        .build()
 }
