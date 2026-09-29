@@ -2,6 +2,7 @@ package dev.raiseexception.odin.accounting.infrastructure.repository
 
 import androidx.room.ColumnInfo
 import androidx.room.Embedded
+import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.TransactionDetail
 
 data class TransactionDetailEntity(
@@ -9,6 +10,7 @@ data class TransactionDetailEntity(
     @ColumnInfo(name = "categoryName") val categoryName: String,
     @ColumnInfo(name = "accountName") val accountName: String,
     @ColumnInfo(name = "isTransfer") val isTransfer: Boolean,
+    @ColumnInfo(name = "accountType") val accountType: String,
 )
 
 internal fun TransactionDetailEntity.toDomain(): TransactionDetail {
@@ -21,5 +23,6 @@ internal fun TransactionDetailEntity.toDomain(): TransactionDetail {
         categoryName = this.categoryName,
         accountName = this.accountName,
         isTransfer = this.isTransfer,
+        accountType = AccountType.valueOf(this.accountType),
     )
 }

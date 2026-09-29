@@ -128,7 +128,7 @@ As a user, I want to record a purchase I paid with a credit card I am viewing, s
 ## Out of Scope
 
 - Editing or deleting a previously recorded expense entry, including a credit card expense
-- Listing or viewing recorded expense entries, including a list of a credit card's movements and the details of a single credit card movement
+- Listing or viewing recorded expense entries (see `specs/accounting/list-transactions/spec.md` for money accounts and `specs/accounting/accounts/detail/spec.md` for credit cards)
 - Recurring or repeating expenses
 - Expense reports or analytics
 - Selecting the account inside the expense form when recording from within an account (the account comes from the context the user navigated from)

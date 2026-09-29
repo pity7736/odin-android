@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
+import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.TransactionDetail
@@ -63,7 +64,14 @@ class TransactionDetailViewModel(
             accountName = detail.accountName,
             description = transaction.description,
             isIncome = isIncome,
+            typeLabel = this.typeLabel(detail),
             isEditable = transaction is Expense && !detail.isTransfer,
         )
+    }
+
+    private fun typeLabel(detail: TransactionDetail): String = when {
+        detail.transaction !is Income -> "Gasto"
+        detail.accountType == AccountType.CREDIT_CARD -> "Pago"
+        else -> "Ingreso"
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
@@ -171,7 +172,9 @@ fun AccountDetailScreen(
                         .padding(innerPadding),
                 )
                 is AccountDetailUiState.CreditCardContent -> CreditCardDetailContent(
-                    creditCard = uiState.creditCard,
+                    uiState = uiState,
+                    onTransactionSelected = onTransactionSelected,
+                    onFilterChanged = onFilterChanged,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -223,7 +226,6 @@ private fun AccountDetailContent(
     onFilterChanged: (TransactionFilter) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val groupedByDate = transactions.groupBy { it.transaction.date }
     LazyColumn(modifier = modifier) {
         item(key = "header") {
             AccountHeaderCard(
@@ -238,53 +240,72 @@ private fun AccountDetailContent(
         item(key = "filters") {
             TransactionFilterRow(
                 activeFilter = activeFilter,
+                incomeFilterLabel = "Ingresos",
                 onFilterChanged = onFilterChanged,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
         }
-        if (transactions.isEmpty()) {
-            item(key = "empty") {
-                TransactionEmptyState(
-                    activeFilter = activeFilter,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 48.dp),
+        transactionListItems(
+            transactions = transactions,
+            activeFilter = activeFilter,
+            emptyIncomeMessage = "No hay ingresos registrados",
+            runningFigureLabel = "Saldo",
+            onTransactionSelected = onTransactionSelected,
+        )
+    }
+}
+
+private fun LazyListScope.transactionListItems(
+    transactions: List<AccountTransaction>,
+    activeFilter: TransactionFilter,
+    emptyIncomeMessage: String,
+    runningFigureLabel: String,
+    onTransactionSelected: (String) -> Unit,
+) {
+    if (transactions.isEmpty()) {
+        item(key = "empty") {
+            TransactionEmptyState(
+                activeFilter = activeFilter,
+                emptyIncomeMessage = emptyIncomeMessage,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 48.dp),
+            )
+        }
+    } else {
+        transactions.groupBy { it.transaction.date }.forEach { (date, transactionsForDate) ->
+            item(key = "header-$date") {
+                DateHeader(
+                    date = date,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp),
                 )
             }
-        } else {
-            groupedByDate.forEach { (date, transactionsForDate) ->
-                item(key = "header-$date") {
-                    DateHeader(
-                        date = date,
-                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp),
-                    )
-                }
-                item(key = "card-$date") {
-                    Column(
-                        modifier = Modifier
-                            .padding(horizontal = 20.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.surface),
-                    ) {
-                        transactionsForDate.forEachIndexed { index, transaction ->
-                            TransactionRow(
-                                transaction = transaction,
-                                onClick = { onTransactionSelected(transaction.transaction.id) },
+            item(key = "card-$date") {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 20.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surface),
+                ) {
+                    transactionsForDate.forEachIndexed { index, transaction ->
+                        TransactionRow(
+                            transaction = transaction,
+                            runningFigureLabel = runningFigureLabel,
+                            onClick = { onTransactionSelected(transaction.transaction.id) },
+                        )
+                        if (index < transactionsForDate.lastIndex) {
+                            HorizontalDivider(
+                                color = Slate100,
+                                modifier = Modifier.padding(horizontal = 16.dp),
                             )
-                            if (index < transactionsForDate.lastIndex) {
-                                HorizontalDivider(
-                                    color = Slate100,
-                                    modifier = Modifier.padding(horizontal = 16.dp),
-                                )
-                            }
                         }
                     }
                 }
             }
         }
-        item(key = "bottom_spacer") {
-            Spacer(modifier = Modifier.height(80.dp))
-        }
+    }
+    item(key = "bottom_spacer") {
+        Spacer(modifier = Modifier.height(80.dp))
     }
 }
 
@@ -369,13 +390,35 @@ private fun AccountHeaderCard(
 }
 
 @Composable
-private fun CreditCardDetailContent(creditCard: CreditCardDetail, modifier: Modifier = Modifier) {
-    Column(modifier = modifier) {
-        CreditCardHeaderCard(
-            creditCard = creditCard,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp),
+private fun CreditCardDetailContent(
+    uiState: AccountDetailUiState.CreditCardContent,
+    onTransactionSelected: (String) -> Unit,
+    onFilterChanged: (TransactionFilter) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(modifier = modifier) {
+        item(key = "header") {
+            CreditCardHeaderCard(
+                creditCard = uiState.creditCard,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+            )
+        }
+        item(key = "filters") {
+            TransactionFilterRow(
+                activeFilter = uiState.activeFilter,
+                incomeFilterLabel = "Pagos",
+                onFilterChanged = onFilterChanged,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            )
+        }
+        transactionListItems(
+            transactions = uiState.transactions,
+            activeFilter = uiState.activeFilter,
+            emptyIncomeMessage = "No hay pagos registrados",
+            runningFigureLabel = "Deuda",
+            onTransactionSelected = onTransactionSelected,
         )
     }
 }
@@ -457,6 +500,7 @@ private fun CreditCardSecondaryFigure(label: String, amount: Money, tag: String)
 @Composable
 private fun TransactionFilterRow(
     activeFilter: TransactionFilter,
+    incomeFilterLabel: String,
     onFilterChanged: (TransactionFilter) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -467,7 +511,7 @@ private fun TransactionFilterRow(
             onClick = { onFilterChanged(TransactionFilter.ALL) },
         )
         FilterChipItem(
-            label = "Ingresos",
+            label = incomeFilterLabel,
             selected = activeFilter == TransactionFilter.INCOME,
             onClick = { onFilterChanged(TransactionFilter.INCOME) },
         )
@@ -497,10 +541,14 @@ private fun FilterChipItem(label: String, selected: Boolean, onClick: () -> Unit
 }
 
 @Composable
-private fun TransactionEmptyState(activeFilter: TransactionFilter, modifier: Modifier = Modifier) {
+private fun TransactionEmptyState(
+    activeFilter: TransactionFilter,
+    emptyIncomeMessage: String,
+    modifier: Modifier = Modifier
+) {
     val message = when (activeFilter) {
         TransactionFilter.ALL -> "No hay movimientos registrados"
-        TransactionFilter.INCOME -> "No hay ingresos registrados"
+        TransactionFilter.INCOME -> emptyIncomeMessage
         TransactionFilter.EXPENSE -> "No hay gastos registrados"
     }
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
@@ -527,7 +575,7 @@ private fun DateHeader(date: LocalDate, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TransactionRow(transaction: AccountTransaction, onClick: () -> Unit) {
+private fun TransactionRow(transaction: AccountTransaction, runningFigureLabel: String, onClick: () -> Unit) {
     val isIncome = transaction.transaction is Income
     val iconBackground = if (isIncome) IncomeBadge else ExpenseBadge
     val iconTint = if (isIncome) IncomeGreen else ExpenseDark
@@ -569,7 +617,7 @@ private fun TransactionRow(transaction: AccountTransaction, onClick: () -> Unit)
             if (transaction.runningBalance != null) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Saldo: ${formatMoney(transaction.runningBalance)}",
+                    text = "$runningFigureLabel: ${formatMoney(transaction.runningBalance)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = Slate400,
                 )

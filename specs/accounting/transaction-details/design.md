@@ -48,6 +48,21 @@ belong to a single tab.
   fact to refuse editing a transfer. Rejected: inferring it from the category
   type (a proxy that breaks silently if the convention changes).
 
+- **`TransactionDetail.accountType` carries the account's type, and the
+  ViewModel derives `Content.typeLabel` from it.** The detail query reads the
+  account's stored type alongside its name. `typeLabel` is "Gasto" for any
+  expense, "Pago" for an income on a `CREDIT_CARD` account, and "Ingreso" for
+  any other income: a card never receives income, so the only income it holds is
+  a payment. The screen uses `typeLabel` for both the header's type text and the
+  type icon's description. The domain carries the fact (the account type) and
+  the ViewModel owns the rule, so every case is covered by JVM ViewModel tests.
+  Rejected: a query-computed "is card payment" flag (a business rule inside SQL,
+  reachable only by instrumented tests); the screen branching on `isIncome`
+  (it cannot tell a payment from an income). Whether an account is a card is
+  read here from its stored type, while the account details read the account's
+  funding; nothing in the domain keeps the two in agreement (tracked in
+  `TASKS.md`).
+
 - **`Content.isEditable` controls the "Editar" action.** The ViewModel sets it
   for an expense that is not a transfer side; incomes and transfer expenses get
   `false`. The click navigates directly to the expense edit destination with
@@ -142,8 +157,8 @@ specs/accounting/transaction-details/
 4. The repository implementation queries Room via
    `TransactionDao.findDetailById(id)`, which returns a
    `Flow<TransactionDetailEntity?>` from a JOIN across `transactions`,
-   `categories`, and `accounts`, with a left join on `transfers` that yields
-   `isTransfer`.
+   `categories`, and `accounts` (yielding the account's name and type), with a
+   left join on `transfers` that yields `isTransfer`.
 5. The repository maps: non-null entity →
    `Outcome.Success(entity.toDomain())` (using `toIncome()` or `toExpense()`
    based on the `type` column); null →
@@ -151,7 +166,7 @@ specs/accounting/transaction-details/
    `SQLiteException` → `Outcome.Failure(StorageError(...))`.
 6. The ViewModel collects the Flow and maps outcomes to
    `TransactionDetailUiState`: `Success` → `Content` (with formatted amount,
-   date, and income/expense styling); `NotFound` → `NotFound`; other failures
+   date, income/expense styling, and the type label); `NotFound` → `NotFound`; other failures
    → `Error(externalMessage)`.
 7. The Composable renders the current `UiState` variant.
 
@@ -162,7 +177,8 @@ specs/accounting/transaction-details/
 - **`Loading`** — initial state while the repository emits.
 - **`Content`** — transaction found. Holds formatted amount (with sign prefix),
   amount color, formatted date, category name, account name, description,
-  whether it is income, and whether it is editable. All values are
+  whether it is income, the type label ("Ingreso", "Gasto" or "Pago"), and
+  whether it is editable. All values are
   display-ready strings, colors, or flags.
 - **`NotFound`** — the transaction ID does not exist. Shows "Transacción no
   encontrada".
@@ -178,6 +194,9 @@ edit destination.
 - The not-found state is unreachable through the current UI because there is no
   way to delete a transaction. It exists as a defensive measure for when
   deletion or multi-device sync is added.
+- A purchase on a credit card, opened from the card's movements, offers
+  "Editar" like any other non-transfer expense. Lowering it after the card was
+  paid can leave the card with a negative debt (tracked in `TASKS.md`).
 
 ## Quality Pillars
 

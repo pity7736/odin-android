@@ -28,6 +28,7 @@ class TransactionDetailScreenTest {
                     accountName = "Ahorros",
                     description = "Pago mensual",
                     isIncome = true,
+                    typeLabel = "Ingreso",
                     isEditable = false,
                 ),
                 onNavigateToHome = {},
@@ -57,6 +58,7 @@ class TransactionDetailScreenTest {
                     accountName = "Efectivo",
                     description = "Mercado semanal",
                     isIncome = false,
+                    typeLabel = "Gasto",
                     isEditable = true,
                 ),
                 onNavigateToHome = {},
@@ -86,6 +88,7 @@ class TransactionDetailScreenTest {
                     accountName = "Ahorros",
                     description = "",
                     isIncome = true,
+                    typeLabel = "Ingreso",
                     isEditable = false,
                 ),
                 onNavigateToHome = {},
@@ -173,6 +176,31 @@ class TransactionDetailScreenTest {
         composeTestRule.onNodeWithText("Editar").assertDoesNotExist()
     }
 
+    @Test
+    fun given_content_state_of_a_card_payment_when_displayed_then_names_it_pago() {
+        composeTestRule.setContent {
+            TransactionDetailScreen(
+                uiState = TransactionDetailUiState.Content(
+                    formattedAmount = "+$300.000,00",
+                    amountColor = IncomeGreen,
+                    formattedDate = "10 de septiembre de 2026",
+                    categoryName = "Transferencia",
+                    accountName = "Visa",
+                    description = "Pago desde Ahorros",
+                    isIncome = true,
+                    typeLabel = "Pago",
+                    isEditable = false,
+                ),
+                onNavigateToHome = {},
+                onNavigateToAccounts = {},
+                onNavigateToCategories = {},
+                onEditExpense = {},
+            )
+        }
+        composeTestRule.onNodeWithText("Pago").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Ingreso").assertDoesNotExist()
+    }
+
     private fun expenseContent(isEditable: Boolean) = TransactionDetailUiState.Content(
         formattedAmount = "-$500,00",
         amountColor = ExpenseRed,
@@ -181,6 +209,7 @@ class TransactionDetailScreenTest {
         accountName = "Efectivo",
         description = "Mercado semanal",
         isIncome = false,
+        typeLabel = "Gasto",
         isEditable = isEditable,
     )
 }

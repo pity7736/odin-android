@@ -5,4 +5,5 @@ data class TransactionDetail(
     val categoryName: String,
     val accountName: String,
     val isTransfer: Boolean,
+    val accountType: AccountType,
 )

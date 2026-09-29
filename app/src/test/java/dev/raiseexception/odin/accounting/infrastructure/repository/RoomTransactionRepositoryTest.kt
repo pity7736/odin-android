@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
+import dev.raiseexception.odin.accounting.domain.model.AccountType
+import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.persistence.OdinDatabase
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
@@ -16,6 +19,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.math.BigDecimal
 
 @RunWith(RobolectricTestRunner::class)
 class RoomTransactionRepositoryTest {
@@ -69,6 +73,24 @@ class RoomTransactionRepositoryTest {
     }
 
     @Test
+    fun `given an income on a credit card, when finding it, then the account type is credit card`() = runTest {
+        seedAccountsAndCategories()
+        database.transactionDao().insert(transaction("inc-1", "INCOME", "acc-visa", "cat-transfer"))
+        val result = repository.findById("inc-1").first()
+        assertTrue(result is Outcome.Success)
+        assertEquals(AccountType.CREDIT_CARD, (result as Outcome.Success).value.accountType)
+    }
+
+    @Test
+    fun `given an expense on a savings account, when finding it, then the account type is savings`() = runTest {
+        seedAccountsAndCategories()
+        database.transactionDao().insert(transaction("exp-1", "EXPENSE", "acc-savings", "cat-food"))
+        val result = repository.findById("exp-1").first()
+        assertTrue(result is Outcome.Success)
+        assertEquals(AccountType.SAVINGS, (result as Outcome.Success).value.accountType)
+    }
+
+    @Test
     fun `given no transaction with the id, when finding it, then returns NotFound`() = runTest {
         val result = repository.findById("missing").first()
         assertTrue(result is Outcome.Failure)
@@ -78,6 +100,17 @@ class RoomTransactionRepositoryTest {
     private suspend fun seedAccountsAndCategories() {
         this.database.accountDao().insert(AccountBuilder().id("acc-savings").name("Ahorros").build().toEntity())
         this.database.accountDao().insert(AccountBuilder().id("acc-cash").name("Efectivo").build().toEntity())
+        this.database.accountDao().insert(
+            AccountBuilder()
+                .id("acc-visa")
+                .name("Visa")
+                .creditCard(
+                    creditLimit = Money.of(BigDecimal("3000000.00"), Currency.COP),
+                    initialDebt = Money.of(BigDecimal("500000.00"), Currency.COP)
+                )
+                .build()
+                .toEntity()
+        )
         this.database.categoryDao().insert(this.category("cat-food", "Alimentación", "EXPENSE"))
         this.database.categoryDao().insert(this.category("cat-salary", "Salario", "INCOME"))
         this.database.categoryDao().insert(this.category("cat-transfer", "Transferencia", "TRANSFER"))

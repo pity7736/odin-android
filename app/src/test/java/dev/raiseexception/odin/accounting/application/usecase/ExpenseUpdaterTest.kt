@@ -5,6 +5,7 @@ import dev.raiseexception.odin.accounting.domain.CategoryLookupError
 import dev.raiseexception.odin.accounting.domain.ExpenseUpdateError
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.accounting.domain.model.Account
+import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
@@ -123,7 +124,15 @@ class ExpenseUpdaterTest {
                 createdAt = fixedInstant
             )
             every { transactionFinder.find(expense.id) } returns flowOf(
-                Outcome.Success(TransactionDetail(income, "Salario", "Ahorros", isTransfer = false))
+                Outcome.Success(
+                    TransactionDetail(
+                        income,
+                        "Salario",
+                        "Ahorros",
+                        isTransfer = false,
+                        accountType = AccountType.SAVINGS
+                    )
+                )
             )
             val result = update(categoryInput = CategoryInput.Existing("cat-restaurant"))
             assertTrue((result as Outcome.Failure).error is TransactionLookupError.NotFound)
@@ -134,7 +143,15 @@ class ExpenseUpdaterTest {
     fun `given the expense belongs to a transfer, when updating, then returns TransferNotEditable and saves nothing`() =
         runTest {
             every { transactionFinder.find(expense.id) } returns flowOf(
-                Outcome.Success(TransactionDetail(expense, "Transferencia", "Ahorros", isTransfer = true))
+                Outcome.Success(
+                    TransactionDetail(
+                        expense,
+                        "Transferencia",
+                        "Ahorros",
+                        isTransfer = true,
+                        accountType = AccountType.SAVINGS
+                    )
+                )
             )
             val result = update(categoryInput = CategoryInput.Existing("cat-restaurant"))
             val error = (result as Outcome.Failure).error
@@ -270,7 +287,13 @@ class ExpenseUpdaterTest {
     }
 
     private fun detail(): TransactionDetail =
-        TransactionDetail(this.expense, "Alimentación", "Ahorros", isTransfer = false)
+        TransactionDetail(
+            this.expense,
+            "Alimentación",
+            "Ahorros",
+            isTransfer = false,
+            accountType = AccountType.SAVINGS
+        )
 
     private suspend fun update(amount: String = "45000", categoryInput: CategoryInput): Outcome<Expense> =
         this.expenseUpdater.update(

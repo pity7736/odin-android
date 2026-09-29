@@ -17,7 +17,8 @@ interface TransactionDao {
 
     @Query(
         """
-        SELECT t.*, c.name AS categoryName, a.name AS accountName, tr.id IS NOT NULL AS isTransfer
+        SELECT t.*, c.name AS categoryName, a.name AS accountName, tr.id IS NOT NULL AS isTransfer,
+            a.type AS accountType
         FROM transactions t
         JOIN categories c ON t.categoryId = c.id
         JOIN accounts a ON t.accountId = a.id

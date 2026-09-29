@@ -35,6 +35,14 @@ incoming limit — and `Account` delegates to it.
     It returns the error rather than a ceiling because only `Credit` has an
     incoming limit: a nullable ceiling plus a message property would force a
     message on `Funds` that can never be shown.
+  - `movementEffect(transaction)` — the signed amount by which one movement
+    changed the account's main figure: `Funds` +amount for an income and
+    −amount for an expense; `Credit` −amount for a payment and +amount for a
+    purchase. `AccountTransactionLister` walks it backwards from `balance` to
+    give each movement its running balance or running debt (see
+    `specs/accounting/accounts/detail/design.md`). `balance` and `currentDebt`
+    fold incomes and expenses with their own arithmetic rather than through
+    `movementEffect` (tracked in `TASKS.md`).
 
   Rejected: `when (funding)` spread across `Account`'s methods.
 - **A card's debt counts its payments.** `Credit.currentDebt(incomes, expenses)`

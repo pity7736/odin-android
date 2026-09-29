@@ -126,8 +126,7 @@ specs/accounting/transfers/
 ## Known Limitations
 
 - **Account reads happen outside the database transaction** — `TransferCreator` loads both accounts via `AccountRepository.findById().first()` before entering `TransactionRunner.run {}`. A concurrent modification between the read and the transactional write could cause stale balance or debt validation. Acceptable for the current single-user, single-device design; the same pattern exists in `ExpenseCreator` and `IncomeCreator`, tracked in `TASKS.md`.
-- **Transfers are not visible as a distinct filter in account detail** — the "Todos" / "Ingresos" / "Gastos" tabs show the transfer's expense and income entries alongside regular transactions, with no "Transferencias" filter.
-- **A card's payments are recorded but not shown on the card** — a card has no movement history, so its "Pago desde [cuenta]" entries are visible only through the debt they lower; the paying account's history shows "Pago a [tarjeta]".
+- **Transfers are not visible as a distinct filter in account detail** — the movement filters ("Todos" / "Ingresos" / "Gastos" on a money account, "Todos" / "Pagos" / "Gastos" on a card) show the transfer's expense and income entries alongside regular transactions, with no "Transferencias" filter.
 - **Editing a card expense down after a payment can make the debt negative** — `Account.editExpense` checks the new amount against the card's available credit only, not that the debt stays at or above zero, so the card can show a negative debt and available credit above its limit. Tracked in `TASKS.md`.
 - **Backdated payments and transfers can leave a negative balance or debt on past dates** — limits are checked against current figures only (tracked in `TASKS.md`).
 - **The form's screen rendering has no instrumented test** — the form's rules are covered by `CreateTransferViewModelTest`; the rendering is verified by manual testing.
