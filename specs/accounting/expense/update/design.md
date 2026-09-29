@@ -14,11 +14,13 @@ returns to the transaction details, which reflect the new values live.
 ## Design Decisions & Rationale
 
 - **`Account.editExpense` is the edit entry, and the aggregate owns the amount
-  ceiling.** The ceiling is the account's funding balance computed from its
-  incomes and every expense except the one being edited — equivalently, the
-  current balance plus the expense's original amount. `editExpense` reuses the
-  same private validation helpers as `createExpense` (`validateExpenseAmount`
-  takes the ceiling as a parameter; creation passes the current balance), returns
+  ceiling.** The ceiling is `funding.spendable` computed from the account's
+  incomes and every expense except the one being edited — for a money account,
+  the current balance plus the expense's original amount. The over-limit message
+  is `funding.overSpendMessage` (see `specs/accounting/expense/creation/design.md`).
+  `editExpense` reuses the same private validation helpers as `createExpense`
+  (`validateExpenseAmount` takes the ceiling and the message as parameters;
+  creation passes the ceiling over all expenses), returns
   an `Expense` that keeps the original `id`, `accountId` and `createdAt`, and
   replaces it in the aggregate's expense list so the account's balance is correct
   afterwards. Rejected: an `Expense.edit()` method (the expense cannot see its

@@ -16,18 +16,30 @@ transaction creation routes.
   is managed by the hosting screen, not internally. This is necessary because the
   dimmed overlay that appears behind the expanded FAB covers the full screen
   content — it cannot live inside the `floatingActionButton` Scaffold slot.
-  Alternative rejected: self-managing state inside the FAB (loses the overlay).
+  The caller decides which actions it offers through `showIncomeOption` and
+  `showTransferOption`; the expense action is always shown. Home passes income on
+  and transfer by account count; account detail passes both on for a money account
+  and both off for a credit card (see `specs/accounting/accounts/detail/design.md`).
+  Alternative rejected: self-managing state inside the FAB (loses the overlay);
+  a caller-supplied list of actions — the flags cover every current caller.
 
 - **Account picker is a standalone filterable autocomplete.** It follows the same
   pattern as `CategoryAutocomplete` (editable text field + dropdown with substring
   filtering) but without inline creation — users must select an existing account.
+  It lists every account, credit cards included, so an expense can be recorded on
+  a card from home (see `specs/accounting/expense/creation/design.md`). The
+  income and transfer forms load the same unfiltered list (see Known
+  Limitations).
   Alternative rejected: extracting a generic autocomplete abstraction (premature —
   the account picker has different behavior from the category picker).
 
 - **FAB visibility is derived from existing UI state.** The home screen already
   loads accounts for the summary. The FAB appears only in `Content` state (hiding
   it when there are zero accounts, since `Empty` state handles that case). The
-  transfer option requires two or more accounts. No new data fetching is needed.
+  transfer option requires two or more accounts. The summary filters credit
+  cards out before this count, so both rules count money accounts only, and a user
+  whose only accounts are credit cards sees the `Empty` state and no FAB. No new
+  data fetching is needed.
 
 - **Account ID is an optional query parameter.** Transaction creation routes use
   `?accountId={accountId}` instead of `/{accountId}` so the parameter is naturally
@@ -117,7 +129,7 @@ specs/home/shortcuts/
 7. On success, the ViewModel emits `NavigationTarget.Back`, and the nav stack
    pops back to the home screen.
 
-### Existing flow (from account detail) — unchanged
+### From account detail
 
 1. User taps the FAB on the account detail screen, selects an action.
 2. Navigation includes the account ID in the route.
@@ -132,7 +144,7 @@ specs/home/shortcuts/
 
 The `ExpandableFab` appears in the `floatingActionButton` slot of the home
 screen's `Scaffold`, visible only in `Content` state. It shows income and expense
-actions always, and the transfer action only when `accounts.size >= 2`. When
+actions always (`showIncomeOption = true`), and the transfer action only when `accounts.size >= 2`. When
 expanded, a dimmed overlay (`Slate900` at 60% opacity) covers the screen content;
 tapping the overlay collapses the FAB.
 
@@ -150,6 +162,10 @@ substring match on account name. Saving without selecting an account produces an
 - The account picker uses client-side substring filtering with no debounce. This
   is acceptable for the expected account count (single-digit to low double-digit)
   but would need optimization if the number of accounts grew significantly.
+- The income and transfer pickers list credit cards. An income on a card or a
+  transfer into a card is saved but ignored by the card's figures, and a transfer
+  out of a card raises its debt. A separate fix is pending (see
+  `specs/accounting/accounts/creation/design.md`).
 
 ## Quality Pillars
 

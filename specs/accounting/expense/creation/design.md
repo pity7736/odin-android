@@ -4,17 +4,17 @@
 
 ## Overview
 
-Records an expense against an existing account. The user navigates from the account detail screen via an expandable FAB, fills in amount, date, expense category, and optional description, and saves. The account's balance decreases by the recorded amount. The expense amount is validated against the account's current balance — amounts exceeding it are rejected.
+Records an expense against an existing money account or credit card. The user starts from the account detail screen via an expandable FAB (a card's FAB offers only "Gasto"), or from the home expense shortcut, where the account picker lists money accounts and cards. The user fills in amount, date, expense category, and optional description, and saves. On a money account the balance decreases by the recorded amount; on a credit card the debt increases by it. The amount is capped by what the account can still spend — the current balance for a money account, the available credit for a card — and amounts above it are rejected.
 
 ## Design Decisions & Rationale
 
-- **`Expense` is an entity within the `Account` aggregate, created via `Account.createExpense()`** — the `Expense` constructor is `internal`; only `Account` can create expenses. This keeps all balance-related invariants (including the "amount must not exceed balance" rule) enforced at the aggregate root. `Expense.restore()` exists for hydration from the repository. Alternative rejected: a standalone factory — it cannot enforce aggregate invariants like balance validation.
+- **`Expense` is an entity within the `Account` aggregate, created via `Account.createExpense()`** — the `Expense` constructor is `internal`; only `Account` can create expenses. This keeps every spending invariant (including the "amount must not exceed what the account can spend" rule) enforced at the aggregate root. `Expense.restore()` exists for hydration from the repository. Alternative rejected: a standalone factory — it cannot enforce aggregate invariants like the spending ceiling.
 
-- **`Account.balance` is a computed property derived from the account's funding and its transactions** — for a money account it is the `Funds` funding's initial balance plus the sum of incomes minus the sum of expenses. Balance is never stored separately; it is always derived from the current lists of incomes and expenses on the `Account` instance. This avoids stale balance data and eliminates the need for balance update operations. Alternative rejected: a stored balance updated on each transaction — introduces sync risk between the stored value and the actual records.
+- **`Account.balance` is a computed property derived from the account's funding and its transactions** — for a money account it is the `Funds` funding's initial balance plus the sum of incomes minus the sum of expenses. Balance is never stored separately; it is always derived from the current lists of incomes and expenses on the `Account` instance. For a credit card, `balance` is its current debt, derived the same way from the card's expenses (see `specs/accounting/accounts/creation/design.md`). This avoids stale balance data and eliminates the need for balance update operations. Alternative rejected: a stored balance updated on each transaction — introduces sync risk between the stored value and the actual records.
 
-- **`Account.createExpense()` rejects amounts exceeding the current balance** — `validateExpenseAmount()` first runs the shared `validateAmount()` checks (blank, non-numeric, non-positive), then compares the parsed amount against `this.balance.amount`. This is a separate validation path from `createIncome()`, which has no balance ceiling. `ExpenseCreator` loads the account with `AccountCriteria(includeIncomes = true, includeExpenses = true)` so the balance is accurate at validation time. Alternative rejected: validating balance only in the use case — the domain aggregate owns the invariant.
+- **The expense ceiling and its message come from the account's funding** — `AccountFunding` answers how much the account can still spend (`spendable(incomes, expenses)`) and the message shown when an amount exceeds it (`overSpendMessage`). `Funds` answers with the current balance and "El monto supera el saldo disponible."; `Credit` answers with the available credit and "El monto supera el cupo disponible.". `validateExpenseAmount()` first runs the shared `validateAmount()` checks (blank, non-numeric, non-positive), then compares the parsed amount against that ceiling. `createExpense()` passes the ceiling over all expenses; `editExpense()` passes it over the other expenses, so the edited expense is excluded. `Account` holds no per-kind branch: a new funding kind must answer the question to compile. This is a separate validation path from `createIncome()`, which has no ceiling. `ExpenseCreator` loads the account with `AccountCriteria(includeIncomes = true, includeExpenses = true)` so the ceiling is accurate at validation time. Alternatives rejected: validating the ceiling only in the use case — the domain aggregate owns the invariant; a `when (funding)` inside `Account` — it centralizes every kind's rules in the aggregate, against the funding delegation in `specs/accounting/accounts/creation/design.md`; a polymorphic `createExpense` on the funding — the funding is a value object without the account's id, creation date or expense list, and the shared validation would be duplicated per kind; a separate `Account` type per kind — rejected in the account creation design, and only the ceiling and message differ here.
 
-- **Private validation helpers in `Account` are shared between `createIncome()` and `createExpense()`** — `parseAmount`, `validateAmount`, and `parseAndValidateDate` are generic private methods. `createExpense()` uses an additional `validateExpenseAmount()` wrapper that layers the balance check on top of the shared `validateAmount()`. Each method returns its own error type (`IncomeCreationError` / `ExpenseCreationError`). Alternative rejected: duplicating the validation logic — identical rules would drift independently.
+- **Private validation helpers in `Account` are shared between `createIncome()` and `createExpense()`** — `parseAmount`, `validateAmount`, and `parseAndValidateDate` are generic private methods. `createExpense()` uses an additional `validateExpenseAmount()` wrapper that layers the spending-ceiling check on top of the shared `validateAmount()`. Each method returns its own error type (`IncomeCreationError` / `ExpenseCreationError`). Alternative rejected: duplicating the validation logic — identical rules would drift independently.
 
 - **`Account.parseAndValidateDate()` rejects dates before the account's `createdAt`** — the boundary is inclusive (the creation date itself is valid). `createdAt` is converted from `Instant` to `LocalDate` using the system default timezone, consistent with how `clock.now()` is used for the today check. Error message: "La fecha no puede ser anterior a la fecha de creación de la cuenta." Alternative rejected: allowing any past date — permits logically impossible transactions before the account existed.
 
@@ -28,7 +28,7 @@ Records an expense against an existing account. The user navigates from the acco
 
 - **Single `transactions` table with type discriminator** — incomes and expenses are stored in one `transactions` table with a `type` column ("INCOME"/"EXPENSE"). `RoomAccountRepository` splits transactions by type using a `splitTransactions()` helper and maps them to domain objects via `internal` extension functions (`TransactionEntity.toIncome()` / `TransactionEntity.toExpense()`). This design supports future query patterns (listing, search, reporting, pagination) that treat incomes and expenses as one concept. Alternative rejected: separate `incomes` and `expenses` tables — every query feature would need to UNION across both.
 
-- **`ExpenseCreator` mirrors `IncomeCreator`** — resolves `CategoryInput` (validating `CategoryType.EXPENSE`), delegates to `Account.createExpense()`, saves via `ExpenseRepository`, wraps in `TransactionRunner`. `CategoryInput` is reused as-is; the existing-vs-new category distinction is the same for both income and expense. Alternative rejected: a generic `TransactionCreator` for both — income and expense have diverging validation rules (balance ceiling), so merging them adds conditional complexity without reducing code.
+- **`ExpenseCreator` mirrors `IncomeCreator`** — resolves `CategoryInput` (validating `CategoryType.EXPENSE`), delegates to `Account.createExpense()`, saves via `ExpenseRepository`, wraps in `TransactionRunner`. `CategoryInput` is reused as-is; the existing-vs-new category distinction is the same for both income and expense. Alternative rejected: a generic `TransactionCreator` for both — income and expense have diverging validation rules (spending ceiling), so merging them adds conditional complexity without reducing code.
 
 - **Category resolution and the expense save run in one transaction** — `ExpenseCreator` resolves the category (existing or new) and saves the expense inside `TransactionRunner.run {}`. A returned failure rolls back every write, so a rejected or failed save keeps neither the expense nor a newly created category. See `specs/technical/transaction-atomicity/design.md`.
 
@@ -36,7 +36,7 @@ Records an expense against an existing account. The user navigates from the acco
 
 - **`CategoryCreationError.InvalidInput` maps to a field error using `nameError`** — when inline category creation fails validation (empty or blank name), `resolveNewCategory` maps `CategoryCreationError.InvalidInput.nameError` to `ExpenseCreationError.InvalidInput(categoryError = ...)` / `IncomeCreationError.InvalidInput(categoryError = ...)`. This follows the same pattern as `DuplicateName`. The `nameError` field carries the specific validation message (e.g. "El nombre es obligatorio.") rather than the generic `externalMessage`, because the user sees a single "category" field and needs a precise reason. Alternative rejected: mapping to `StorageFailure` — hides a validation error behind a full-screen error page.
 
-- **Account detail's single income FAB replaced with an expandable FAB** — a main FAB (`+`) toggles a column of two labeled `SmallFloatingActionButton`s ("Ingreso" / "Gasto"). The expanded state is local Compose state, not ViewModel state — it has no business meaning and does not survive configuration changes (acceptable since the FAB resets to collapsed). Alternative rejected: a bottom sheet or menu — heavier interaction for a two-option choice.
+- **Account detail starts an expense from the shared expandable FAB** — a main FAB (`+`) toggles a column of labeled `SmallFloatingActionButton`s. A money account offers "Ingreso", "Gasto" and "Transferencia"; a credit card offers only "Gasto" (see `specs/accounting/accounts/detail/design.md`). The expanded state is local Compose state, not ViewModel state — it has no business meaning and does not survive configuration changes (acceptable since the FAB resets to collapsed). Alternative rejected: a bottom sheet or menu — heavier interaction for a short list of choices.
 
 - **`date` travels as a raw `String` through the full expense call chain** — the domain owns parsing and validation. The presentation layer sends the raw string from the date picker; the domain validates format, parsability, and future-date rejection. Alternative rejected: passing `LocalDate` from the presentation layer — moves validation responsibility out of the domain.
 
@@ -48,7 +48,8 @@ app/src/main/java/dev/raiseexception/odin/
     ├── domain/
     │   ├── model/
     │   │   ├── Expense.kt
-    │   │   └── Account.kt                (createExpense, balance, validateExpenseAmount)
+    │   │   ├── Account.kt                (createExpense, balance, validateExpenseAmount)
+    │   │   └── AccountFunding.kt         (spendable, overSpendMessage)
     │   ├── repository/
     │   │   ├── ExpenseRepository.kt
     │   │   └── AccountCriteria.kt        (includeExpenses)
@@ -72,11 +73,13 @@ app/src/main/java/dev/raiseexception/odin/
 
 app/src/test/java/dev/raiseexception/odin/accounting/
 ├── domain/model/ExpenseTest.kt
-├── domain/model/AccountTest.kt           (balance with expenses)
+├── domain/model/AccountTest.kt           (balance with expenses, card expenses)
+├── domain/model/AccountFundingTest.kt    (spendable, overSpendMessage)
 ├── application/usecase/ExpenseCreatorTest.kt
 ├── infrastructure/repository/RoomExpenseRepositoryTest.kt
 ├── infrastructure/repository/RoomAccountRepositoryTest.kt (includeExpenses)
 ├── infrastructure/repository/BalanceIntegrationTest.kt
+├── infrastructure/repository/TransactionAtomicityIntegrationTest.kt
 └── presentation/
     ├── expensecreation/CreateExpenseViewModelTest.kt
     └── accountdetail/AccountDetailViewModelTest.kt (includeExpenses in criteria)
@@ -93,14 +96,14 @@ specs/accounting/expense/creation/
 ## Data Flow
 
 **Recording an expense:**
-1. User taps the expandable FAB on the account detail screen and selects "Gasto"
-2. `AccountDetailViewModel` emits `AccountDetailNavigationTarget.CreateExpense(accountId)`, which navigates to the expense creation route
+1. User taps the expandable FAB on the account detail screen of a money account or a credit card and selects "Gasto" (from home, the expense shortcut opens the same form with an account picker — see `specs/home/shortcuts/design.md`)
+2. `AccountDetailViewModel` emits `AccountDetailNavigationTarget.CreateExpense(accountId)`, which navigates to the expense creation route; money accounts and cards share it
 3. `CreateExpenseViewModel.init` loads expense categories via `CategoryLister` and the account via `AccountFinder` in parallel, transitions to `Idle` with categories and `accountCreatedAt`
 4. User fills in amount, date, category, and optional description; taps "Guardar"
 5. `CreateExpenseViewModel.save()` delegates to `ExpenseCreator.create()`
-6. `ExpenseCreator` loads the account via `AccountRepository.findById(id, AccountCriteria(includeIncomes = true, includeExpenses = true)).first()` so the balance is accurate
+6. `ExpenseCreator` loads the account via `AccountRepository.findById(id, AccountCriteria(includeIncomes = true, includeExpenses = true)).first()` so the spending ceiling is accurate
 7. `ExpenseCreator` resolves `CategoryInput` — for `Existing`, validates the category exists and is `CategoryType.EXPENSE`; for `New`, creates it via `CategoryCreator`
-8. `Account.createExpense()` validates all fields (including amount vs. balance), constructs the `Expense`, adds it to the aggregate's internal list
+8. `Account.createExpense()` validates all fields (including amount vs. `funding.spendable`), constructs the `Expense`, adds it to the aggregate's internal list
 9. `ExpenseCreator` saves via `ExpenseRepository.add()`, wrapped in `TransactionRunner`
 10. On success, ViewModel emits `NavigationTarget.AccountDetail(accountId)` and the nav controller pops back to the account detail screen
 
@@ -116,7 +119,7 @@ specs/accounting/expense/creation/
 
 ## Known Limitations
 
-- **Balance validation is point-in-time** — the balance is computed from the incomes and expenses loaded when `ExpenseCreator` fetches the account. The account read happens outside the database transaction (`findById().first()` before `transactionRunner.run {}`), so concurrent expense creations could both pass validation on stale balance. Acceptable for the current single-user, single-device design; tracked in `TASKS.md`.
+- **Ceiling validation is point-in-time** — the balance or available credit is computed from the incomes and expenses loaded when `ExpenseCreator` fetches the account. The account read happens outside the database transaction (`findById().first()` before `transactionRunner.run {}`), so concurrent expense creations could both pass validation on a stale ceiling. Acceptable for the current single-user, single-device design; tracked in `TASKS.md`.
 - **AccountType display labels in account detail are hardcoded in Spanish** — full i18n support is deferred.
 
 ## Quality Pillars
@@ -124,6 +127,6 @@ specs/accounting/expense/creation/
 - **Security:** Data is stored as plaintext in Room during development;
   SQLCipher encryption at rest is a separate subsequent task. No plaintext
   financial data is logged. User-facing error messages contain no internal detail.
-- **Reliability:** All field validation errors produce per-field messages rather than generic failures. Category resolution (existing vs. new) and balance validation are handled before the save attempt. Category creation and the expense save run in one transaction; any failure rolls both back. Room repos catch `SQLiteException` and return `Outcome.Failure(StorageError(...))`.
-- **Performance:** Loading account with full criteria (incomes + expenses) for balance validation uses Room's `@Relation` eager loading (two queries). Acceptable for current data volumes; a SQL-based balance query is tracked in `TASKS.md` for when transaction counts grow.
+- **Reliability:** All field validation errors produce per-field messages rather than generic failures. Category resolution (existing vs. new) and ceiling validation are handled before the save attempt. Category creation and the expense save run in one transaction; any failure rolls both back. Room repos catch `SQLiteException` and return `Outcome.Failure(StorageError(...))`.
+- **Performance:** Loading account with full criteria (incomes + expenses) for ceiling validation uses Room's `@Relation` eager loading (two queries). Acceptable for current data volumes; a SQL-based balance query is tracked in `TASKS.md` for when transaction counts grow.
 - **Observability:** Internal error messages from the storage layer are preserved in error types' `internalMessage` fields, available for future structured logging without being surfaced to the user.
