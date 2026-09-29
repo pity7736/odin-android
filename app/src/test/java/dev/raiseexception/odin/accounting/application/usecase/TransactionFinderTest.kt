@@ -1,6 +1,7 @@
 package dev.raiseexception.odin.accounting.application.usecase
 
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
+import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
@@ -39,7 +40,8 @@ class TransactionFinderTest {
             ),
             categoryName = "Salario",
             accountName = "Ahorros",
-            isTransfer = false
+            isTransfer = false,
+            accountType = AccountType.SAVINGS
         )
         every { transactionRepository.findById("tx-123") } returns flowOf(Outcome.Success(detail))
         val result = transactionFinder.find("tx-123").first()

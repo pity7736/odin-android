@@ -20,6 +20,8 @@ class AccountTransactionListerTest {
 
     private val lister = AccountTransactionLister()
     private val initialBalance = Money.of(BigDecimal("1000.00"), Currency.COP)
+    private val cardCreditLimit = Money.of(BigDecimal("3000000.00"), Currency.COP)
+    private val cardInitialDebt = Money.of(BigDecimal("500000.00"), Currency.COP)
 
     private fun clockAt(instant: String): Clock = object : Clock {
         override fun now(): Instant = Instant.parse(instant)
@@ -28,11 +30,7 @@ class AccountTransactionListerTest {
     private fun listTransactions(
         account: Account,
         filter: TransactionFilter
-    ): List<AccountTransaction> = lister.list(
-        transactions = account.transactions,
-        currentBalance = account.balance,
-        filter = filter
-    )
+    ): List<AccountTransaction> = lister.list(account, filter)
 
     @Test
     fun `given incomes and expenses, when listing all, then returns all sorted by date descending`() {
@@ -172,4 +170,77 @@ class AccountTransactionListerTest {
         val result = listTransactions(account, TransactionFilter.INCOME)
         assertTrue(result.isEmpty())
     }
+
+    @Test
+    fun `given a card with a purchase and a later payment, when listing all, then payment first with its debt`() {
+        val card = this.visaWithPurchaseAndPayment()
+        val result = listTransactions(card, TransactionFilter.ALL)
+        assertEquals(2, result.size)
+        assertTrue(result[0].transaction is Income)
+        assertEquals(Money.of(BigDecimal("400000.00"), Currency.COP), result[0].runningBalance)
+        assertTrue(result[1].transaction is Expense)
+        assertEquals("Mercado", result[1].transaction.description)
+        assertEquals(Money.of(BigDecimal("700000.00"), Currency.COP), result[1].runningBalance)
+    }
+
+    @Test
+    fun `given a card with purchases and payments, when listing all, then most recent debt equals card debt`() {
+        val card = this.visaWithPurchaseAndPayment()
+        val result = listTransactions(card, TransactionFilter.ALL)
+        assertEquals(card.balance, result[0].runningBalance)
+    }
+
+    @Test
+    fun `given a card with movements, when walking past the oldest, then reaches the creation debt`() {
+        val card = this.visaWithPurchaseAndPayment()
+        val result = listTransactions(card, TransactionFilter.ALL)
+        val oldest = result.last()
+        val debtBeforeOldest = oldest.runningBalance!!.amount.subtract(card.funding.movementEffect(oldest.transaction))
+        assertEquals(0, debtBeforeOldest.compareTo(cardInitialDebt.amount))
+        assertEquals(card.transactions.size, result.size)
+    }
+
+    @Test
+    fun `given a card with purchases and payments, when filtering by income, then only payments without debt`() {
+        val card = this.visaWithPurchaseAndPayment()
+        val result = listTransactions(card, TransactionFilter.INCOME)
+        assertEquals(1, result.size)
+        assertTrue(result[0].transaction is Income)
+        assertNull(result[0].runningBalance)
+    }
+
+    @Test
+    fun `given a card with purchases and payments, when filtering by expense, then only purchases without debt`() {
+        val card = this.visaWithPurchaseAndPayment()
+        val result = listTransactions(card, TransactionFilter.EXPENSE)
+        assertEquals(1, result.size)
+        assertTrue(result[0].transaction is Expense)
+        assertNull(result[0].runningBalance)
+    }
+
+    @Test
+    fun `given a card with no movements, when listing all, then returns empty list`() {
+        val card = AccountBuilder()
+            .creditCard(cardCreditLimit, cardInitialDebt)
+            .build()
+        val result = listTransactions(card, TransactionFilter.ALL)
+        assertTrue(result.isEmpty())
+    }
+
+    private fun visaWithPurchaseAndPayment(): Account = AccountBuilder()
+        .name("Visa")
+        .creditCard(cardCreditLimit, cardInitialDebt)
+        .withExpense(
+            amount = "200000.00",
+            date = "2026-09-05",
+            description = "Mercado",
+            clock = clockAt("2026-09-05T10:00:00Z")
+        )
+        .withIncome(
+            amount = "300000.00",
+            date = "2026-09-10",
+            description = "Pago desde Ahorros",
+            clock = clockAt("2026-09-10T10:00:00Z")
+        )
+        .build()
 }

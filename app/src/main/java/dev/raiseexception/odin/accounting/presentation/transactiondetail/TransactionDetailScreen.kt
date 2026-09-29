@@ -133,7 +133,7 @@ private fun TransactionHeaderCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            TransactionTypeIcon(isIncome = uiState.isIncome)
+            TransactionTypeIcon(isIncome = uiState.isIncome, typeLabel = uiState.typeLabel)
             Text(
                 text = uiState.formattedAmount,
                 style = MaterialTheme.typography.headlineMedium,
@@ -155,7 +155,7 @@ private fun TransactionHeaderCard(
             }
         }
         Text(
-            text = if (uiState.isIncome) "Ingreso" else "Gasto",
+            text = uiState.typeLabel,
             style = MaterialTheme.typography.labelLarge,
             color = Slate400,
             modifier = Modifier.padding(top = 4.dp),
@@ -164,11 +164,10 @@ private fun TransactionHeaderCard(
 }
 
 @Composable
-private fun TransactionTypeIcon(isIncome: Boolean, modifier: Modifier = Modifier) {
+private fun TransactionTypeIcon(isIncome: Boolean, typeLabel: String, modifier: Modifier = Modifier) {
     val backgroundColor = if (isIncome) IncomeBadge else ExpenseBadge
     val iconTint = if (isIncome) IncomeGreen else ExpenseDark
     val icon = if (isIncome) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward
-    val contentDescription = if (isIncome) "Ingreso" else "Gasto"
     Box(
         modifier = modifier
             .size(32.dp)
@@ -179,7 +178,7 @@ private fun TransactionTypeIcon(isIncome: Boolean, modifier: Modifier = Modifier
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = contentDescription,
+            contentDescription = typeLabel,
             tint = iconTint,
             modifier = Modifier.size(18.dp),
         )

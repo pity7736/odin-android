@@ -7,6 +7,7 @@ import dev.raiseexception.odin.accounting.application.usecase.ExpenseUpdater
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
 import dev.raiseexception.odin.accounting.domain.ExpenseUpdateError
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
+import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
@@ -133,7 +134,15 @@ class EditExpenseViewModelTest {
             createdAt = Instant.parse("2026-03-10T12:00:00Z")
         )
         every { transactionFinder.find(expenseId) } returns flowOf(
-            Outcome.Success(TransactionDetail(income, "Salario", "Ahorros", isTransfer = false))
+            Outcome.Success(
+                TransactionDetail(
+                    income,
+                    "Salario",
+                    "Ahorros",
+                    isTransfer = false,
+                    accountType = AccountType.SAVINGS
+                )
+            )
         )
         assertLoadsNotFound()
     }
@@ -141,7 +150,15 @@ class EditExpenseViewModelTest {
     @Test
     fun `given a transfer expense, when loaded, then NotFound`() = runTest {
         every { transactionFinder.find(expenseId) } returns flowOf(
-            Outcome.Success(TransactionDetail(expense, "Transferencia", "Ahorros", isTransfer = true))
+            Outcome.Success(
+                TransactionDetail(
+                    expense,
+                    "Transferencia",
+                    "Ahorros",
+                    isTransfer = true,
+                    accountType = AccountType.SAVINGS
+                )
+            )
         )
         assertLoadsNotFound()
     }
@@ -257,7 +274,15 @@ class EditExpenseViewModelTest {
 
     private fun stubLoad() {
         every { transactionFinder.find(expenseId) } returns flowOf(
-            Outcome.Success(TransactionDetail(expense, "Alimentación", "Ahorros", isTransfer = false))
+            Outcome.Success(
+                TransactionDetail(
+                    expense,
+                    "Alimentación",
+                    "Ahorros",
+                    isTransfer = false,
+                    accountType = AccountType.SAVINGS
+                )
+            )
         )
         every { accountFinder.find("acc-1") } returns flowOf(Outcome.Success(account))
         every { categoryLister.list(CategoryType.EXPENSE, "") } returns flowOf(Outcome.Success(expenseCategories))

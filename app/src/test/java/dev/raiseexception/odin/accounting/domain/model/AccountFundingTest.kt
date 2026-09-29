@@ -146,6 +146,34 @@ class AccountFundingTest {
         assertEquals("El monto supera el saldo disponible.", funding.overSpendMessage)
     }
 
+    @Test
+    fun `given a money account, when measuring the effect of an income, then it adds the amount`() {
+        val funding = AccountFunding.Funds(this.pesos("1000.00"))
+
+        assertEquals(BigDecimal("150"), funding.movementEffect(this.income("150")))
+    }
+
+    @Test
+    fun `given a money account, when measuring the effect of an expense, then it subtracts the amount`() {
+        val funding = AccountFunding.Funds(this.pesos("1000.00"))
+
+        assertEquals(BigDecimal("-300"), funding.movementEffect(this.expense("300")))
+    }
+
+    @Test
+    fun `given a card, when measuring the effect of a payment, then it lowers the debt by the amount`() {
+        val funding = this.smallCredit()
+
+        assertEquals(BigDecimal("-150"), funding.movementEffect(this.income("150")))
+    }
+
+    @Test
+    fun `given a card, when measuring the effect of a purchase, then it raises the debt by the amount`() {
+        val funding = this.smallCredit()
+
+        assertEquals(BigDecimal("300"), funding.movementEffect(this.expense("300")))
+    }
+
     private fun smallCredit(): AccountFunding.Credit = AccountFunding.Credit(
         creditLimit = this.pesos("1000.00"),
         initialDebt = this.pesos("100.00")

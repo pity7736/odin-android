@@ -3,6 +3,7 @@ package dev.raiseexception.odin.accounting.presentation.accountdetail
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
+import dev.raiseexception.odin.accounting.application.usecase.AccountTransaction
 import dev.raiseexception.odin.accounting.application.usecase.AccountTransactionLister
 import dev.raiseexception.odin.accounting.domain.AccountLookupError
 import dev.raiseexception.odin.accounting.domain.model.Account
@@ -31,6 +32,7 @@ import kotlinx.datetime.Instant
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -329,7 +331,9 @@ class AccountDetailViewModelTest {
                             availableCredit = Money.of(BigDecimal("2500000"), Currency.COP),
                             creditLimit = Money.of(BigDecimal("3000000"), Currency.COP)
                         ),
-                        canPay = false
+                        canPay = false,
+                        transactions = emptyList(),
+                        activeFilter = TransactionFilter.ALL
                     ),
                     awaitItem()
                 )
@@ -406,7 +410,11 @@ class AccountDetailViewModelTest {
                             availableCredit = Money.of(BigDecimal("2300000"), Currency.COP),
                             creditLimit = Money.of(BigDecimal("3000000"), Currency.COP)
                         ),
-                        canPay = false
+                        canPay = false,
+                        transactions = listOf(
+                            AccountTransaction(visaCard.expenses.single(), Money.of(BigDecimal("700000"), Currency.COP))
+                        ),
+                        activeFilter = TransactionFilter.ALL
                     ),
                     awaitItem()
                 )
@@ -554,4 +562,163 @@ class AccountDetailViewModelTest {
         )
 
     private fun savingsAccount(): Account = AccountBuilder().id("savings-1").build()
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class AccountDetailViewModelCreditCardMovementsTest {
+
+    private val accountFinder = mockk<AccountFinder>()
+    private val accountLister = mockk<AccountLister>()
+    private val accountTransactionLister = AccountTransactionLister()
+    private val testDispatcher = StandardTestDispatcher()
+    private val accountId = "test-account-id"
+    private val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+        every { accountLister.list() } returns flowOf(Outcome.Success(emptyList()))
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    private fun buildViewModel() =
+        AccountDetailViewModel(accountId, accountFinder, accountLister, accountTransactionLister, testDispatcher)
+
+    private fun clockAt(instant: String): Clock = object : Clock {
+        override fun now(): Instant = Instant.parse(instant)
+    }
+
+    @Test
+    fun `given a card with a purchase and a payment, when the screen loads, then lists them with running debts`() =
+        runTest {
+            val visaCard = visaCardWithPurchaseAndPayment().build()
+            every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(visaCard))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = viewModel.uiState.value as AccountDetailUiState.CreditCardContent
+            assertEquals(TransactionFilter.ALL, state.activeFilter)
+            assertEquals(2, state.transactions.size)
+            assertTrue(state.transactions[0].transaction is Income)
+            assertEquals(Money.of(BigDecimal("400000"), Currency.COP), state.transactions[0].runningBalance)
+            assertTrue(state.transactions[1].transaction is Expense)
+            assertEquals(Money.of(BigDecimal("700000"), Currency.COP), state.transactions[1].runningBalance)
+        }
+
+    @Test
+    fun `given a card with movements, when filter changed to INCOME, then shows only payments without debt`() =
+        runTest {
+            val visaCard = visaCardWithPurchaseAndPayment().build()
+            every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(visaCard))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.onFilterChanged(TransactionFilter.INCOME)
+            val state = viewModel.uiState.value as AccountDetailUiState.CreditCardContent
+            assertEquals(TransactionFilter.INCOME, state.activeFilter)
+            assertEquals(1, state.transactions.size)
+            assertTrue(state.transactions.single().transaction is Income)
+            assertNull(state.transactions.single().runningBalance)
+        }
+
+    @Test
+    fun `given a card with movements, when filter changed to EXPENSE, then shows only purchases without debt`() =
+        runTest {
+            val visaCard = visaCardWithPurchaseAndPayment().build()
+            every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(visaCard))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.onFilterChanged(TransactionFilter.EXPENSE)
+            val state = viewModel.uiState.value as AccountDetailUiState.CreditCardContent
+            assertEquals(TransactionFilter.EXPENSE, state.activeFilter)
+            assertEquals(1, state.transactions.size)
+            assertTrue(state.transactions.single().transaction is Expense)
+            assertNull(state.transactions.single().runningBalance)
+        }
+
+    @Test
+    fun `given a card with a filter active, when filter reset to ALL, then shows all with running debts`() = runTest {
+        val visaCard = visaCardWithPurchaseAndPayment().build()
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(visaCard))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.onFilterChanged(TransactionFilter.INCOME)
+        viewModel.onFilterChanged(TransactionFilter.ALL)
+        val state = viewModel.uiState.value as AccountDetailUiState.CreditCardContent
+        assertEquals(TransactionFilter.ALL, state.activeFilter)
+        assertEquals(2, state.transactions.size)
+        assertEquals(Money.of(BigDecimal("400000"), Currency.COP), state.transactions[0].runningBalance)
+        assertEquals(Money.of(BigDecimal("700000"), Currency.COP), state.transactions[1].runningBalance)
+    }
+
+    @Test
+    fun `given a card filtered by INCOME, when a new payment arrives, then stays filtered and includes it`() =
+        runTest {
+            val visaCard = visaCardWithPurchaseAndPayment().build()
+            val foundCard = MutableStateFlow<Outcome<Account>>(Outcome.Success(visaCard))
+            every { accountFinder.find(accountId, criteria) } returns foundCard
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.onFilterChanged(TransactionFilter.INCOME)
+            foundCard.value = Outcome.Success(
+                visaCardWithPurchaseAndPayment()
+                    .withIncome(amount = "50000", date = "2026-09-12", clock = clockAt("2026-09-12T10:00:00Z"))
+                    .build()
+            )
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = viewModel.uiState.value as AccountDetailUiState.CreditCardContent
+            assertEquals(TransactionFilter.INCOME, state.activeFilter)
+            assertEquals(2, state.transactions.size)
+            assertTrue(state.transactions.all { it.transaction is Income && it.runningBalance == null })
+            assertEquals(Money.of(BigDecimal("50000"), Currency.COP), state.transactions[0].transaction.amount)
+        }
+
+    @Test
+    fun `given a card with no movements, when the screen loads, then no movements and the creation debt`() = runTest {
+        val visaCard = visaCard().build()
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(visaCard))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        val state = viewModel.uiState.value as AccountDetailUiState.CreditCardContent
+        assertTrue(state.transactions.isEmpty())
+        assertEquals(Money.of(BigDecimal("500000"), Currency.COP), state.creditCard.debt)
+    }
+
+    @Test
+    fun `given a card, when a movement is selected, then emits transaction detail navigation`() = runTest {
+        val visaCard = visaCardWithPurchaseAndPayment().build()
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(visaCard))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.onTransactionSelected("tx-card-1")
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.navigationEvent.test {
+            assertEquals(AccountDetailNavigationTarget.TransactionDetail("tx-card-1"), awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    private fun visaCardWithPurchaseAndPayment(): AccountBuilder = visaCard()
+        .withExpense(
+            amount = "200000",
+            date = "2026-09-05",
+            description = "Mercado",
+            clock = clockAt("2026-09-05T10:00:00Z")
+        )
+        .withIncome(
+            amount = "300000",
+            date = "2026-09-10",
+            description = "Pago desde Ahorros",
+            clock = clockAt("2026-09-10T10:00:00Z")
+        )
+
+    private fun visaCard(): AccountBuilder = AccountBuilder()
+        .id(this.accountId)
+        .name("Visa")
+        .creditCard(
+            creditLimit = Money.of(BigDecimal("3000000"), Currency.COP),
+            initialDebt = Money.of(BigDecimal("500000"), Currency.COP)
+        )
 }

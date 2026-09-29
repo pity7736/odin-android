@@ -83,8 +83,8 @@ account I will pay from.
   "Pagar" instead of "Transferir". The form keeps its transfer title.
 - The source account's history shows an expense entry with the description
   "Pago a [card name]."
-- The card records an income entry with the description "Pago desde [source
-  account name]." The card has no movement history to show it yet.
+- The card's history shows an income entry with the description "Pago desde
+  [source account name]."
 - A payment can be started from a credit card's details. The transfer form opens
   with the card pre-filled as the destination, and the user chooses the source.
 - A payment can also be made from a money account's details or from the home
@@ -188,8 +188,8 @@ account I will pay from.
 - And the available credit of "Visa" increases to $2,700,000
 - And the history of "Ahorros" shows an expense: "Pago a Visa" for $200,000
   under the Transfer category
-- And "Visa" records an income: "Pago desde Ahorros" for $200,000 under the
-  Transfer category
+- And the history of "Visa" shows an income: "Pago desde Ahorros" for $200,000
+  under the Transfer category
 
 ### Paying the full debt
 
@@ -282,7 +282,6 @@ account I will pay from.
 - Taking a cash advance: a credit card as the source of a transfer.
 - Transfers between two credit cards.
 - Recording an income directly on a credit card.
-- Showing a credit card's movement history, including its payments.
 - Statement or cut-off dates, due dates, minimum payment, interest, and
   installments.
 - Paying a card's full debt automatically or with a suggested amount; the user

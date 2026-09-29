@@ -120,11 +120,7 @@ class AccountDetailViewModel(
             is AccountFunding.Funds -> AccountDetailUiState.MoneyAccountContent(
                 account = account,
                 initialBalance = funding.initialBalance,
-                transactions = this.accountTransactionLister.list(
-                    transactions = account.transactions,
-                    currentBalance = account.balance,
-                    filter = filter
-                ),
+                transactions = this.accountTransactionLister.list(account, filter),
                 activeFilter = filter,
             )
             is AccountFunding.Credit -> AccountDetailUiState.CreditCardContent(
@@ -134,7 +130,9 @@ class AccountDetailViewModel(
                     availableCredit = funding.availableCredit(account.incomes, account.expenses),
                     creditLimit = funding.creditLimit
                 ),
-                canPay = detail.canPay
+                canPay = detail.canPay,
+                transactions = this.accountTransactionLister.list(account, filter),
+                activeFilter = filter,
             )
         }
     }

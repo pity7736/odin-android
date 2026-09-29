@@ -3,6 +3,7 @@ package dev.raiseexception.odin.accounting.presentation.transactiondetail
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
+import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
@@ -154,7 +155,8 @@ class TransactionDetailViewModelTest {
             ),
             categoryName = "Salario",
             accountName = "Ahorros",
-            isTransfer = false
+            isTransfer = false,
+            accountType = AccountType.SAVINGS
         )
         every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(detail))
         val viewModel = buildViewModel()
@@ -208,6 +210,49 @@ class TransactionDetailViewModelTest {
         }
     }
 
+    @Test
+    fun `given a payment on a credit card, when observing, then it is named Pago with income styling`() = runTest {
+        val detail = incomeDetail().copy(accountName = "Visa", accountType = AccountType.CREDIT_CARD)
+        every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(detail))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        val state = viewModel.uiState.value as TransactionDetailUiState.Content
+        assertEquals("Pago", state.typeLabel)
+        assertEquals("+$1.000,00", state.formattedAmount)
+        assertEquals(IncomeGreen, state.amountColor)
+    }
+
+    @Test
+    fun `given an income on a savings account, when observing, then it is named Ingreso`() = runTest {
+        every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(incomeDetail()))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("Ingreso", (viewModel.uiState.value as TransactionDetailUiState.Content).typeLabel)
+    }
+
+    @Test
+    fun `given the money side of a card payment, when observing, then it is named Gasto`() = runTest {
+        val detail = expenseDetail().copy(
+            categoryName = "Transferencia",
+            accountName = "Ahorros",
+            isTransfer = true,
+            accountType = AccountType.SAVINGS
+        )
+        every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(detail))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("Gasto", (viewModel.uiState.value as TransactionDetailUiState.Content).typeLabel)
+    }
+
+    @Test
+    fun `given an expense on a credit card, when observing, then it is named Gasto`() = runTest {
+        val detail = expenseDetail().copy(accountName = "Visa", accountType = AccountType.CREDIT_CARD)
+        every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(detail))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("Gasto", (viewModel.uiState.value as TransactionDetailUiState.Content).typeLabel)
+    }
+
     private fun incomeDetail(): TransactionDetail =
         TransactionDetail(
             transaction = Income.restore(
@@ -221,7 +266,8 @@ class TransactionDetailViewModelTest {
             ),
             categoryName = "Salario",
             accountName = "Ahorros",
-            isTransfer = false
+            isTransfer = false,
+            accountType = AccountType.SAVINGS
         )
 
     private fun expenseDetail(): TransactionDetail =
@@ -237,6 +283,7 @@ class TransactionDetailViewModelTest {
             ),
             categoryName = "Alimentación",
             accountName = "Efectivo",
-            isTransfer = false
+            isTransfer = false,
+            accountType = AccountType.CASH
         )
 }

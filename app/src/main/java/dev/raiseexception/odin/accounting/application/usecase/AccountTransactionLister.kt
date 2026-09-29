@@ -1,5 +1,6 @@
 package dev.raiseexception.odin.accounting.application.usecase
 
+import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
@@ -8,17 +9,13 @@ import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
 
 class AccountTransactionLister {
 
-    fun list(
-        transactions: List<Transaction>,
-        currentBalance: Money,
-        filter: TransactionFilter
-    ): List<AccountTransaction> {
-        val filtered = this.applyFilter(transactions, filter)
+    fun list(account: Account, filter: TransactionFilter): List<AccountTransaction> {
+        val filtered = this.applyFilter(account.transactions, filter)
         val sorted = this.sortByDateDescending(filtered)
         if (filter != TransactionFilter.ALL) {
             return sorted.map { AccountTransaction(it, null) }
         }
-        return this.attachRunningBalances(sorted, currentBalance)
+        return this.attachRunningBalances(sorted, account)
     }
 
     private fun applyFilter(
@@ -38,17 +35,13 @@ class AccountTransactionLister {
 
     private fun attachRunningBalances(
         sortedDescending: List<Transaction>,
-        currentBalance: Money
+        account: Account
     ): List<AccountTransaction> {
-        var runningBalance = currentBalance.amount
+        var runningBalance = account.balance.amount
         return sortedDescending.map { transaction ->
-            val balanceAtThisPoint = Money.of(runningBalance, currentBalance.currency)
+            val balanceAtThisPoint = Money.of(runningBalance, account.currency)
             val result = AccountTransaction(transaction, balanceAtThisPoint)
-            runningBalance = if (transaction is Income) {
-                runningBalance.subtract(transaction.amount.amount)
-            } else {
-                runningBalance.add(transaction.amount.amount)
-            }
+            runningBalance = runningBalance.subtract(account.funding.movementEffect(transaction))
             result
         }
     }
