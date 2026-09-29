@@ -121,11 +121,15 @@ fun AccountDetailScreen(
             )
         },
         floatingActionButton = {
-            if (uiState is AccountDetailUiState.MoneyAccountContent) {
+            if (uiState is AccountDetailUiState.MoneyAccountContent ||
+                uiState is AccountDetailUiState.CreditCardContent
+            ) {
+                val isMoneyAccount = uiState is AccountDetailUiState.MoneyAccountContent
                 ExpandableFab(
                     expanded = fabExpanded,
                     onToggle = { fabExpanded = !fabExpanded },
-                    showTransferOption = true,
+                    showIncomeOption = isMoneyAccount,
+                    showTransferOption = isMoneyAccount,
                     onIncomeSelected = {
                         fabExpanded = false
                         onCreateIncome()

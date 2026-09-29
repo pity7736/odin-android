@@ -122,6 +122,30 @@ class TransactionAtomicityIntegrationTest {
         }
 
     @Test
+    fun `given a new category and an amount over the credit, when creating a card expense, then nothing is saved`() =
+        runTest {
+            val card = createCreditCard("Visa", "3000000", "500000")
+            val result = expenseCreator.create(
+                accountId = card.id,
+                amount = "2500001",
+                date = today,
+                categoryInput = CategoryInput.New("Mascotas"),
+                description = ""
+            )
+            assertTrue(
+                "Expected InvalidInput: $result",
+                (result as Outcome.Failure).error is ExpenseCreationError.InvalidInput
+            )
+            assertEquals(
+                Outcome.Success(false),
+                categoryRepository.existsByNameAndType("Mascotas", CategoryType.EXPENSE)
+            )
+            val loadedCard = loadAccount(card.id)
+            assertTrue(loadedCard.transactions.isEmpty())
+            assertEquals(0, loadedCard.balance.amount.compareTo(BigDecimal("500000")))
+        }
+
+    @Test
     fun `given a new category and a zero amount, when creating an income, then nothing is saved`() =
         runTest {
             val account = createAccount("Ahorros", "1000000")
@@ -174,6 +198,13 @@ class TransactionAtomicityIntegrationTest {
         (
             accountCreator.create(
                 CreateAccountCommand.MoneyAccount(name, initialBalance, Currency.COP, AccountType.SAVINGS, "")
+            ) as Outcome.Success
+            ).value
+
+    private suspend fun createCreditCard(name: String, creditLimit: String, existingDebt: String): Account =
+        (
+            accountCreator.create(
+                CreateAccountCommand.CreditCard(name, creditLimit, existingDebt, Currency.COP, "")
             ) as Outcome.Success
             ).value
 

@@ -306,7 +306,7 @@ class AccountDetailViewModelTest {
                 .name("Visa")
                 .creditCard(
                     creditLimit = Money.of(BigDecimal("3000000"), Currency.COP),
-                    debt = Money.of(BigDecimal("500000"), Currency.COP)
+                    initialDebt = Money.of(BigDecimal("500000"), Currency.COP)
                 )
                 .build()
             every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(visaCard))
@@ -336,7 +336,7 @@ class AccountDetailViewModelTest {
                 .id(accountId)
                 .creditCard(
                     creditLimit = Money.of(BigDecimal("3000000"), Currency.COP),
-                    debt = Money.of(BigDecimal("0"), Currency.COP)
+                    initialDebt = Money.of(BigDecimal("0"), Currency.COP)
                 )
                 .build()
             every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(unusedCard))
@@ -359,7 +359,7 @@ class AccountDetailViewModelTest {
                 .id(accountId)
                 .creditCard(
                     creditLimit = Money.of(BigDecimal("3000000"), Currency.COP),
-                    debt = Money.of(BigDecimal("3000000"), Currency.COP)
+                    initialDebt = Money.of(BigDecimal("3000000"), Currency.COP)
                 )
                 .build()
             every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(maxedOutCard))
@@ -369,6 +369,64 @@ class AccountDetailViewModelTest {
                 testDispatcher.scheduler.advanceUntilIdle()
                 val state = awaitItem() as AccountDetailUiState.CreditCardContent
                 assertEquals(Money.of(BigDecimal("0"), Currency.COP), state.creditCard.availableCredit)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `given a credit card with an expense, when the screen loads, then its figures include the expense`() =
+        runTest {
+            val visaCard = AccountBuilder()
+                .id(accountId)
+                .name("Visa")
+                .creditCard(
+                    creditLimit = Money.of(BigDecimal("3000000"), Currency.COP),
+                    initialDebt = Money.of(BigDecimal("500000"), Currency.COP)
+                )
+                .withExpense(amount = "200000", date = "2026-08-26", clock = clockAt("2026-08-26T10:00:00Z"))
+                .build()
+            every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(visaCard))
+            val viewModel = buildViewModel()
+            viewModel.uiState.test {
+                assertEquals(AccountDetailUiState.Loading, awaitItem())
+                testDispatcher.scheduler.advanceUntilIdle()
+                assertEquals(
+                    AccountDetailUiState.CreditCardContent(
+                        CreditCardDetail(
+                            name = "Visa",
+                            debt = Money.of(BigDecimal("700000"), Currency.COP),
+                            availableCredit = Money.of(BigDecimal("2300000"), Currency.COP),
+                            creditLimit = Money.of(BigDecimal("3000000"), Currency.COP)
+                        )
+                    ),
+                    awaitItem()
+                )
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `given a credit card, when creating an expense, then emits create expense navigation for the card`() =
+        runTest {
+            val visaCard = AccountBuilder()
+                .id(accountId)
+                .creditCard(
+                    creditLimit = Money.of(BigDecimal("3000000"), Currency.COP),
+                    initialDebt = Money.of(BigDecimal("500000"), Currency.COP)
+                )
+                .build()
+            every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(visaCard))
+            val viewModel = buildViewModel()
+            viewModel.uiState.test {
+                assertEquals(AccountDetailUiState.Loading, awaitItem())
+                testDispatcher.scheduler.advanceUntilIdle()
+                assertTrue(awaitItem() is AccountDetailUiState.CreditCardContent)
+                cancelAndIgnoreRemainingEvents()
+            }
+            viewModel.onCreateExpense()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.navigationEvent.test {
+                assertEquals(AccountDetailNavigationTarget.CreateExpense(accountId), awaitItem())
                 cancelAndIgnoreRemainingEvents()
             }
         }

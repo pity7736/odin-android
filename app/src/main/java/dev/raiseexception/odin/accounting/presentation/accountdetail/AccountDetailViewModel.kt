@@ -117,8 +117,8 @@ class AccountDetailViewModel(
             is AccountFunding.Credit -> AccountDetailUiState.CreditCardContent(
                 CreditCardDetail(
                     name = account.name,
-                    debt = funding.debt,
-                    availableCredit = funding.availableCredit,
+                    debt = funding.currentDebt(account.expenses),
+                    availableCredit = funding.availableCredit(account.expenses),
                     creditLimit = funding.creditLimit
                 )
             )

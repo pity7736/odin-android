@@ -9,10 +9,13 @@ import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
+import dev.raiseexception.odin.accounting.domain.model.Account
+import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.persistence.OdinDatabase
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -184,5 +187,55 @@ class BalanceIntegrationTest {
         val loadedAccount = (loaded as Outcome.Success).value
         assertEquals(1, loadedAccount.expenses.size)
         assertEquals(0, loadedAccount.balance.amount.compareTo(BigDecimal("800000")))
+    }
+
+    @Test
+    fun `given a saved card with limit 3000000 and debt 500000, when an expense of 200000 is saved, then debt grows`() =
+        runTest {
+            val visaCard = createVisaCard()
+            val expenseResult = expenseCreator.create(
+                accountId = visaCard.id,
+                amount = "200000",
+                date = today,
+                categoryInput = CategoryInput.New("Viajes"),
+                description = ""
+            )
+            assertTrue("Expense creation should succeed: $expenseResult", expenseResult is Outcome.Success)
+            val loadedCard = loadAccount(visaCard.id, AccountCriteria(includeIncomes = true, includeExpenses = true))
+            val credit = loadedCard.funding as AccountFunding.Credit
+            assertEquals(Money.of(BigDecimal("700000"), Currency.COP), credit.currentDebt(loadedCard.expenses))
+            assertEquals(Money.of(BigDecimal("2300000"), Currency.COP), credit.availableCredit(loadedCard.expenses))
+        }
+
+    @Test
+    fun `given a card with a saved expense, when reloaded without expenses, then current debt equals initial debt`() =
+        runTest {
+            val visaCard = createVisaCard()
+            val expenseResult = expenseCreator.create(
+                accountId = visaCard.id,
+                amount = "200000",
+                date = today,
+                categoryInput = CategoryInput.New("Viajes"),
+                description = ""
+            )
+            assertTrue("Expense creation should succeed: $expenseResult", expenseResult is Outcome.Success)
+            val loadedCard = loadAccount(
+                visaCard.id,
+                AccountCriteria(includeIncomes = true, includeExpenses = false)
+            )
+            val credit = loadedCard.funding as AccountFunding.Credit
+            assertEquals(credit.initialDebt, credit.currentDebt(loadedCard.expenses))
+        }
+
+    private suspend fun createVisaCard(): Account = (
+        accountCreator.create(
+            CreateAccountCommand.CreditCard("Visa", "3000000", "500000", Currency.COP, "")
+        ) as Outcome.Success
+        ).value
+
+    private suspend fun loadAccount(accountId: String, criteria: AccountCriteria): Account {
+        val loaded = accountFinder.find(accountId, criteria).first()
+        assertTrue("AccountFinder.find should succeed: $loaded", loaded is Outcome.Success)
+        return (loaded as Outcome.Success).value
     }
 }

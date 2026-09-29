@@ -82,7 +82,12 @@ class Account private constructor(
     ): Outcome<Expense> {
         val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         val parsedAmount = parseAmount(amount)
-        val amountError = validateExpenseAmount(amount, parsedAmount, this.balance.amount)
+        val amountError = validateExpenseAmount(
+            amount,
+            parsedAmount,
+            this.funding.spendable(this.incomes, this.expenses).amount,
+            this.funding.overSpendMessage
+        )
         val (parsedDate, dateError) = parseAndValidateDate(date, today)
         val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
         if (anyError(amountError, dateError, categoryError)) {
@@ -126,10 +131,10 @@ class Account private constructor(
         }
         val original = this._expenses[expenseIndex]
         val otherExpenses = this._expenses.filterIndexed { index, _ -> index != expenseIndex }
-        val ceiling = this.funding.balance(this._incomes, otherExpenses).amount
+        val ceiling = this.funding.spendable(this._incomes, otherExpenses).amount
         val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         val parsedAmount = parseAmount(amount)
-        val amountError = validateExpenseAmount(amount, parsedAmount, ceiling)
+        val amountError = validateExpenseAmount(amount, parsedAmount, ceiling, this.funding.overSpendMessage)
         val (parsedDate, dateError) = parseAndValidateDate(date, today)
         val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
         if (anyError(amountError, dateError, categoryError)) {
@@ -204,9 +209,13 @@ class Account private constructor(
         null
     }
 
-    private fun validateExpenseAmount(rawAmount: String, parsed: BigDecimal?, ceiling: BigDecimal): String? =
-        validateAmount(rawAmount, parsed)
-            ?: if (parsed != null && parsed > ceiling) "El monto supera el saldo disponible." else null
+    private fun validateExpenseAmount(
+        rawAmount: String,
+        parsed: BigDecimal?,
+        ceiling: BigDecimal,
+        overSpendMessage: String
+    ): String? = validateAmount(rawAmount, parsed)
+        ?: if (parsed != null && parsed > ceiling) overSpendMessage else null
 
     private fun validateAmount(rawAmount: String, parsed: BigDecimal?): String? = when {
         rawAmount.isBlank() -> "El monto es obligatorio."
@@ -339,7 +348,7 @@ class Account private constructor(
                     name = trimmedName,
                     funding = AccountFunding.Credit(
                         creditLimit = Money.of(parsedCreditLimit!!, currency!!),
-                        debt = Money.of(parsedDebt!!, currency)
+                        initialDebt = Money.of(parsedDebt!!, currency)
                     ),
                     type = AccountType.CREDIT_CARD,
                     description = trimmedDescription,

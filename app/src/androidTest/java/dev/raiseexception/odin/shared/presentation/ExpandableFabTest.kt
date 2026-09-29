@@ -23,6 +23,7 @@ class ExpandableFabTest {
             ExpandableFab(
                 expanded = false,
                 onToggle = {},
+                showIncomeOption = true,
                 showTransferOption = true,
                 onIncomeSelected = {},
                 onExpenseSelected = {},
@@ -42,6 +43,7 @@ class ExpandableFabTest {
             ExpandableFab(
                 expanded = expanded,
                 onToggle = { expanded = !expanded },
+                showIncomeOption = true,
                 showTransferOption = true,
                 onIncomeSelected = {},
                 onExpenseSelected = {},
@@ -61,6 +63,7 @@ class ExpandableFabTest {
             ExpandableFab(
                 expanded = expanded,
                 onToggle = { expanded = !expanded },
+                showIncomeOption = true,
                 showTransferOption = true,
                 onIncomeSelected = {},
                 onExpenseSelected = {},
@@ -82,6 +85,7 @@ class ExpandableFabTest {
             ExpandableFab(
                 expanded = true,
                 onToggle = {},
+                showIncomeOption = true,
                 showTransferOption = true,
                 onIncomeSelected = { incomeCalled = true },
                 onExpenseSelected = {},
@@ -99,6 +103,7 @@ class ExpandableFabTest {
             ExpandableFab(
                 expanded = true,
                 onToggle = {},
+                showIncomeOption = true,
                 showTransferOption = true,
                 onIncomeSelected = {},
                 onExpenseSelected = { expenseCalled = true },
@@ -116,6 +121,7 @@ class ExpandableFabTest {
             ExpandableFab(
                 expanded = true,
                 onToggle = {},
+                showIncomeOption = true,
                 showTransferOption = true,
                 onIncomeSelected = {},
                 onExpenseSelected = {},
@@ -132,6 +138,7 @@ class ExpandableFabTest {
             ExpandableFab(
                 expanded = true,
                 onToggle = {},
+                showIncomeOption = true,
                 showTransferOption = false,
                 onIncomeSelected = {},
                 onExpenseSelected = {},
@@ -141,5 +148,39 @@ class ExpandableFabTest {
         composeTestRule.onNodeWithTag("create_income_fab").assertIsDisplayed()
         composeTestRule.onNodeWithTag("create_expense_fab").assertIsDisplayed()
         composeTestRule.onNodeWithTag("create_transfer_fab").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_show_income_and_transfer_false_when_fab_expanded_then_shows_only_expense_action() {
+        composeTestRule.setContent {
+            ExpandableFab(
+                expanded = true,
+                onToggle = {},
+                showIncomeOption = false,
+                showTransferOption = false,
+                onIncomeSelected = {},
+                onExpenseSelected = {},
+                onTransferSelected = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("create_expense_fab").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("create_income_fab").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("create_transfer_fab").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_show_income_true_when_fab_expanded_then_shows_income_action() {
+        composeTestRule.setContent {
+            ExpandableFab(
+                expanded = true,
+                onToggle = {},
+                showIncomeOption = true,
+                showTransferOption = false,
+                onIncomeSelected = {},
+                onExpenseSelected = {},
+                onTransferSelected = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("create_income_fab").assertIsDisplayed()
     }
 }

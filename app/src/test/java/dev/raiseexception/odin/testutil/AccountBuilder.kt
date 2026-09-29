@@ -18,7 +18,7 @@ class AccountBuilder {
     private var name = "Ahorros"
     private var initialBalance = Money.of(BigDecimal("100000.00"), Currency.COP)
     private var creditLimit: Money? = null
-    private var debt: Money? = null
+    private var initialDebt: Money? = null
     private var type = AccountType.SAVINGS
     private var description = ""
     private var createdAt = Instant.parse("2026-01-01T00:00:00Z")
@@ -47,9 +47,9 @@ class AccountBuilder {
         return this
     }
 
-    fun creditCard(creditLimit: Money, debt: Money): AccountBuilder {
+    fun creditCard(creditLimit: Money, initialDebt: Money): AccountBuilder {
         this.creditLimit = creditLimit
-        this.debt = debt
+        this.initialDebt = initialDebt
         this.type = AccountType.CREDIT_CARD
         return this
     }
@@ -151,9 +151,9 @@ class AccountBuilder {
 
     private fun funding(): AccountFunding {
         val limit = this.creditLimit
-        val currentDebt = this.debt
-        return if (limit != null && currentDebt != null) {
-            AccountFunding.Credit(limit, currentDebt)
+        val openingDebt = this.initialDebt
+        return if (limit != null && openingDebt != null) {
+            AccountFunding.Credit(limit, openingDebt)
         } else {
             AccountFunding.Funds(this.initialBalance)
         }

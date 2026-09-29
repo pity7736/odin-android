@@ -49,8 +49,7 @@ list.
 - **An account's money is a sealed `AccountFunding`, not a bare balance field.**
   `Account` holds `funding: AccountFunding`, and both `currency` and `balance`
   derive from it. `Funds(initialBalance)` funds savings and cash;
-  `Credit(creditLimit, debt)` funds a credit card and exposes `availableCredit`
-  (`creditLimit − debt`). The sum type keeps the debt-bearing kind a sibling
+  `Credit(creditLimit, initialDebt)` funds a credit card. The sum type keeps the debt-bearing kind a sibling
   variant instead of bolting it onto a money-only shape. Rejected alternatives:
   nullable fields on `Account` (an optional credit limit), whose "valid only for
   some types" partiality the sum type removes; and a separate entity per
@@ -58,13 +57,26 @@ list.
   accounts list — surfaces that treat every account uniformly.
 - **Money-kind behavior lives on the funding variant; `Account` delegates.**
   `AccountFunding` declares `balance(incomes, expenses)`; `Funds` computes
-  `initialBalance + incomes − expenses`, and `Credit` returns its `debt`.
+  `initialBalance + incomes − expenses`, and `Credit` returns its current debt.
   `Account.balance` delegates to `funding.balance(...)` — no `when` in `Account`,
   so it never accumulates per-kind branches. A credit card's `balance` is its
-  debt; no screen displays a card's `balance` as money (the accounts list reads
-  `Credit.debt` and `availableCredit` directly, and the summary filters cards
-  out). Rejected alternative: `when (funding)` spread across
-  `Account`'s methods, centralizing every money-kind's behavior in the aggregate.
+  debt; no screen displays a card's `balance` as money (the accounts list and
+  card details read `Credit.currentDebt` and `Credit.availableCredit` directly,
+  and the summary filters cards out). The same delegation covers spending:
+  `AccountFunding` answers how much can still be spent and the over-limit
+  message (see `specs/accounting/expense/creation/design.md`). Rejected
+  alternative: `when (funding)` spread across `Account`'s methods, centralizing
+  every money-kind's behavior in the aggregate.
+- **A card's debt is derived, never stored as a running figure.** `initialDebt`
+  is the debt the user entered at creation. The current debt is
+  `initialDebt + expenses` and the available credit is
+  `creditLimit − current debt`, both computed from the expenses loaded with the
+  account, exactly as `Funds` derives balance from `initialBalance`. A reader that
+  loads a card without expenses sees its opening debt, so every screen that shows
+  card figures loads with `includeExpenses = true`. Incomes do not affect a card.
+  Rejected alternative: adding each expense to a stored debt — the stored figure
+  can drift from the records, and editing or deleting an expense would have to
+  patch it.
 - **Creation is kind-specific; the use case routes on a command.** Each kind has
   its own domain factory — `Account.create` (money) and `Account.createCreditCard`
   (credit card, validating cupo > 0 and existing debt in `[0, cupo]`, a blank debt
@@ -86,7 +98,8 @@ list.
   the type/funding invariant).
 - **Persistence keeps three honest amount columns; the schema is versioned.**
   `AccountEntity` has nullable `initialBalanceAmount` plus nullable
-  `creditLimitAmount`/`debtAmount`, read and written by variant. Relaxing
+  `creditLimitAmount`/`debtAmount`, read and written by variant; `debtAmount`
+  holds the card's opening debt (`Credit.initialDebt`). Relaxing
   `initialBalanceAmount` to nullable cannot be done in place (SQLite cannot drop a
   `NOT NULL` constraint), so `MIGRATION_1_2` (schema v2) recreates the accounts
   table, copying existing rows and leaving the new columns null. Overloading
@@ -196,11 +209,15 @@ specs/accounting/accounts/creation/
 
 ## Known Limitations
 
-- **Credit cards are only partly shown and not yet used.** A created credit card
-  appears in the accounts list (see `specs/accounting/accounts/list/design.md`)
-  but is filtered out of the home summary (in its ViewModel) and has no detail or
-  edit screen. Recording transactions on a card, paying it down, transfers and
-  cash advances are out of scope.
+- **Credit cards support only expenses.** A card appears in the accounts list
+  and has a details view (see `specs/accounting/accounts/list/design.md` and
+  `specs/accounting/accounts/detail/design.md`), takes expenses (see
+  `specs/accounting/expense/creation/design.md`), and is filtered out of the home
+  summary. Editing a card, paying it down, and cash advances are out of scope.
+- **The home income and transfer pickers list credit cards.** They load every
+  account unfiltered. An income on a card or a transfer into a card is saved but
+  ignored by the card's figures, and a transfer out of a card raises its debt.
+  Nothing blocks these today; a separate fix is pending.
 - **Out of scope** (per spec): deleting accounts, account types beyond savings,
   cash and credit card, and currencies beyond USD/EUR/COP.
 

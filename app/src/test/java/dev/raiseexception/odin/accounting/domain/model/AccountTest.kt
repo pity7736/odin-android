@@ -2,6 +2,7 @@ package dev.raiseexception.odin.accounting.domain.model
 
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
 import dev.raiseexception.odin.accounting.domain.AccountUpdateError
+import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
 import dev.raiseexception.odin.accounting.domain.ExpenseUpdateError
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -558,7 +559,7 @@ class AccountCreateCreditCardTest {
         assertEquals("Visa", account.name)
         assertEquals(AccountType.CREDIT_CARD, account.type)
         assertEquals(Money.of(BigDecimal("3000000"), Currency.COP), credit.creditLimit)
-        assertEquals(Money.of(BigDecimal("500000"), Currency.COP), credit.debt)
+        assertEquals(Money.of(BigDecimal("500000"), Currency.COP), credit.initialDebt)
         assertEquals(Currency.COP, account.currency)
         assertEquals(fixedInstant, account.createdAt)
     }
@@ -575,7 +576,7 @@ class AccountCreateCreditCardTest {
 
         assertTrue(result is Outcome.Success)
         val credit = (result as Outcome.Success).value.funding as AccountFunding.Credit
-        assertEquals(0, credit.debt.amount.compareTo(BigDecimal.ZERO))
+        assertEquals(0, credit.initialDebt.amount.compareTo(BigDecimal.ZERO))
     }
 
     @Test
@@ -681,7 +682,7 @@ class AccountCreateCreditCardTest {
 
         assertTrue(result is Outcome.Success)
         val credit = (result as Outcome.Success).value.funding as AccountFunding.Credit
-        assertEquals(Money.of(BigDecimal("1000000"), Currency.COP), credit.debt)
+        assertEquals(Money.of(BigDecimal("1000000"), Currency.COP), credit.initialDebt)
     }
 
     @Test
@@ -1000,4 +1001,166 @@ class AccountEditExpenseTest {
         assertTrue(error is ExpenseUpdateError.InvalidInput)
         return error as ExpenseUpdateError.InvalidInput
     }
+}
+
+class AccountCreditCardExpenseTest {
+
+    private val fixedInstant = Instant.parse("2026-08-29T12:00:00Z")
+    private val fixedClock = object : Clock {
+        override fun now(): Instant = fixedInstant
+    }
+    private val expenseCreatedAt = Instant.parse("2026-03-10T12:00:00Z")
+    private val expenseClock = object : Clock {
+        override fun now(): Instant = expenseCreatedAt
+    }
+
+    @Test
+    fun `given a card with limit 3000000 and debt 500000, when creating expense 200000, then debt and credit update`() {
+        val visaCard = this.visaCard()
+
+        val result = this.createExpense(visaCard, "200000")
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(this.pesos("700000"), this.currentDebt(visaCard))
+        assertEquals(this.pesos("2300000"), this.availableCredit(visaCard))
+    }
+
+    @Test
+    fun `given a card with available credit 2500000, when creating expense 2500001, then fails with cupo error`() {
+        val visaCard = this.visaCard()
+
+        val result = this.createExpense(visaCard, "2500001")
+
+        val error = this.creationInvalidInput(result)
+        assertEquals("El monto supera el cupo disponible.", error.amountError)
+        assertNull(error.dateError)
+        assertNull(error.categoryError)
+        assertTrue(visaCard.expenses.isEmpty())
+        assertEquals(this.pesos("500000"), this.currentDebt(visaCard))
+    }
+
+    @Test
+    fun `given a card with 2500000 available, when creating expense 2500000, then succeeds with none left`() {
+        val visaCard = this.visaCard()
+
+        val result = this.createExpense(visaCard, "2500000")
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(this.pesos("3000000"), this.currentDebt(visaCard))
+        assertEquals(this.pesos("0"), this.availableCredit(visaCard))
+    }
+
+    @Test
+    fun `given a card whose debt equals its limit, when creating expense 1, then fails with cupo error`() {
+        val maxedOutCard = this.visaCard(initialDebt = "3000000")
+
+        val result = this.createExpense(maxedOutCard, "1")
+
+        assertEquals("El monto supera el cupo disponible.", this.creationInvalidInput(result).amountError)
+        assertTrue(maxedOutCard.expenses.isEmpty())
+    }
+
+    @Test
+    fun `given a card created on March 1, when creating an expense dated February 28, then fails with date error`() {
+        val visaCard = this.visaCard()
+
+        val result = this.createExpense(visaCard, "200000", date = "2026-02-28")
+
+        val error = this.creationInvalidInput(result)
+        assertEquals("La fecha no puede ser anterior a la fecha de creación de la cuenta.", error.dateError)
+    }
+
+    @Test
+    fun `given a card created on March 1, when creating an expense dated March 1, then succeeds`() {
+        val visaCard = this.visaCard()
+
+        val result = this.createExpense(visaCard, "200000", date = "2026-03-01")
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(LocalDate.parse("2026-03-01"), (result as Outcome.Success).value.date)
+    }
+
+    @Test
+    fun `given a card, when creating expense with zero blank or non-numeric amount, then fails as a money account`() {
+        val visaCard = this.visaCard()
+
+        val zeroError = this.creationInvalidInput(this.createExpense(visaCard, "0"))
+        val blankError = this.creationInvalidInput(this.createExpense(visaCard, ""))
+        val nonNumericError = this.creationInvalidInput(this.createExpense(visaCard, "abc"))
+
+        assertEquals("El monto debe ser mayor que cero.", zeroError.amountError)
+        assertEquals("El monto es obligatorio.", blankError.amountError)
+        assertEquals("El monto no es un número válido.", nonNumericError.amountError)
+    }
+
+    @Test
+    fun `given a card with expense 300000, when editing it to 2500000, then succeeds as the edited one is excluded`() {
+        val visaCard = this.visaCardWithExpense()
+
+        val result = this.editAmount(visaCard, "2500000")
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(this.pesos("3000000"), this.currentDebt(visaCard))
+        assertEquals(this.pesos("0"), this.availableCredit(visaCard))
+    }
+
+    @Test
+    fun `given a card with expense 300000, when editing it to 2500001, then fails with cupo error`() {
+        val visaCard = this.visaCardWithExpense()
+
+        val result = this.editAmount(visaCard, "2500001")
+
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error as ExpenseUpdateError.InvalidInput
+        assertEquals("El monto supera el cupo disponible.", error.amountError)
+        assertEquals(this.pesos("800000"), this.currentDebt(visaCard))
+    }
+
+    private fun visaCard(initialDebt: String = "500000"): Account = AccountBuilder()
+        .id("card-1")
+        .name("Visa")
+        .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+        .creditCard(creditLimit = this.pesos("3000000"), initialDebt = this.pesos(initialDebt))
+        .build()
+
+    private fun visaCardWithExpense(): Account = AccountBuilder()
+        .id("card-1")
+        .name("Visa")
+        .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+        .creditCard(creditLimit = this.pesos("3000000"), initialDebt = this.pesos("500000"))
+        .withExpense(amount = "300000", date = "2026-03-10", categoryId = "cat-1", clock = this.expenseClock)
+        .build()
+
+    private fun createExpense(account: Account, amount: String, date: String = "2026-03-10"): Outcome<Expense> =
+        account.createExpense(
+            amount = amount,
+            date = date,
+            categoryId = "cat-1",
+            description = "",
+            clock = this.fixedClock
+        )
+
+    private fun editAmount(account: Account, amount: String): Outcome<Expense> = account.editExpense(
+        expenseId = account.expenses.first().id,
+        amount = amount,
+        date = "2026-03-10",
+        categoryId = "cat-1",
+        description = "",
+        clock = this.fixedClock
+    )
+
+    private fun currentDebt(account: Account): Money =
+        (account.funding as AccountFunding.Credit).currentDebt(account.expenses)
+
+    private fun availableCredit(account: Account): Money =
+        (account.funding as AccountFunding.Credit).availableCredit(account.expenses)
+
+    private fun creationInvalidInput(result: Outcome<Expense>): ExpenseCreationError.InvalidInput {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is ExpenseCreationError.InvalidInput)
+        return error as ExpenseCreationError.InvalidInput
+    }
+
+    private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)
 }

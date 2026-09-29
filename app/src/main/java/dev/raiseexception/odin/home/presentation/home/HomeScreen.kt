@@ -123,6 +123,7 @@ fun HomeScreen(
                 ExpandableFab(
                     expanded = fabExpanded,
                     onToggle = { fabExpanded = !fabExpanded },
+                    showIncomeOption = true,
                     showTransferOption = uiState.accounts.size >= MINIMUM_ACCOUNTS_FOR_TRANSFER,
                     onIncomeSelected = {
                         fabExpanded = false
