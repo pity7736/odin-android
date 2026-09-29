@@ -27,24 +27,55 @@ class AccountDetailScreenTest {
 
     @Test
     fun given_credit_card_content_when_displayed_then_shows_the_fab() {
-        this.setScreen(AccountDetailUiState.CreditCardContent(this.visaCard))
+        this.setScreen(AccountDetailUiState.CreditCardContent(this.visaCard, canPay = true))
         this.composeTestRule.onNodeWithTag("expandable_fab").assertIsDisplayed()
     }
 
     @Test
-    fun given_credit_card_content_when_fab_expanded_then_offers_only_expense() {
-        this.setScreen(AccountDetailUiState.CreditCardContent(this.visaCard))
+    fun given_credit_card_that_can_be_paid_when_fab_expanded_then_offers_expense_and_payment_only() {
+        this.setScreen(AccountDetailUiState.CreditCardContent(this.visaCard, canPay = true))
         this.composeTestRule.onNodeWithTag("expandable_fab").performClick()
         this.composeTestRule.onNodeWithTag("create_expense_fab").assertIsDisplayed()
+        this.composeTestRule.onNodeWithTag("create_payment_fab").assertIsDisplayed()
         this.composeTestRule.onNodeWithTag("create_income_fab").assertDoesNotExist()
         this.composeTestRule.onNodeWithTag("create_transfer_fab").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_credit_card_that_cannot_be_paid_when_fab_expanded_then_offers_only_expense() {
+        this.setScreen(AccountDetailUiState.CreditCardContent(this.visaCard, canPay = false))
+        this.composeTestRule.onNodeWithTag("expandable_fab").performClick()
+        this.composeTestRule.onNodeWithTag("create_expense_fab").assertIsDisplayed()
+        this.composeTestRule.onNodeWithTag("create_payment_fab").assertDoesNotExist()
+        this.composeTestRule.onNodeWithTag("create_income_fab").assertDoesNotExist()
+        this.composeTestRule.onNodeWithTag("create_transfer_fab").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_credit_card_with_no_debt_that_can_be_paid_when_fab_expanded_then_still_offers_payment() {
+        val unusedCard = this.visaCard.copy(debt = pesos("0"), availableCredit = pesos("3000000.00"))
+        this.setScreen(AccountDetailUiState.CreditCardContent(unusedCard, canPay = true))
+        this.composeTestRule.onNodeWithTag("expandable_fab").performClick()
+        this.composeTestRule.onNodeWithTag("create_payment_fab").assertIsDisplayed()
+    }
+
+    @Test
+    fun given_credit_card_that_can_be_paid_when_payment_selected_then_calls_create_transfer_callback() {
+        var createTransferCalled = false
+        this.setScreen(
+            AccountDetailUiState.CreditCardContent(this.visaCard, canPay = true),
+            onCreateTransfer = { createTransferCalled = true }
+        )
+        this.composeTestRule.onNodeWithTag("expandable_fab").performClick()
+        this.composeTestRule.onNodeWithTag("create_payment_fab").performClick()
+        assertTrue(createTransferCalled)
     }
 
     @Test
     fun given_credit_card_content_when_expense_selected_then_calls_create_expense_callback() {
         var createExpenseCalled = false
         this.setScreen(
-            AccountDetailUiState.CreditCardContent(this.visaCard),
+            AccountDetailUiState.CreditCardContent(this.visaCard, canPay = true),
             onCreateExpense = { createExpenseCalled = true }
         )
         this.composeTestRule.onNodeWithTag("expandable_fab").performClick()
@@ -55,14 +86,14 @@ class AccountDetailScreenTest {
     @Test
     fun given_credit_card_with_no_available_credit_when_fab_expanded_then_still_offers_expense() {
         val maxedOutCard = this.visaCard.copy(debt = pesos("3000000.00"), availableCredit = pesos("0"))
-        this.setScreen(AccountDetailUiState.CreditCardContent(maxedOutCard))
+        this.setScreen(AccountDetailUiState.CreditCardContent(maxedOutCard, canPay = true))
         this.composeTestRule.onNodeWithTag("expandable_fab").performClick()
         this.composeTestRule.onNodeWithTag("create_expense_fab").assertIsDisplayed()
     }
 
     @Test
     fun given_credit_card_content_when_displayed_then_shows_no_edit_filters_or_movements() {
-        this.setScreen(AccountDetailUiState.CreditCardContent(this.visaCard))
+        this.setScreen(AccountDetailUiState.CreditCardContent(this.visaCard, canPay = true))
         this.composeTestRule.onNodeWithTag("edit_account_button").assertDoesNotExist()
         this.composeTestRule.onNodeWithText("Todos").assertDoesNotExist()
         this.composeTestRule.onNodeWithText("Ingresos").assertDoesNotExist()
@@ -70,14 +101,18 @@ class AccountDetailScreenTest {
         this.composeTestRule.onNodeWithTag("empty_transactions_message").assertDoesNotExist()
     }
 
-    private fun setScreen(uiState: AccountDetailUiState, onCreateExpense: () -> Unit = {}) {
+    private fun setScreen(
+        uiState: AccountDetailUiState,
+        onCreateExpense: () -> Unit = {},
+        onCreateTransfer: () -> Unit = {}
+    ) {
         this.composeTestRule.setContent {
             AccountDetailScreen(
                 uiState = uiState,
                 navigationEvent = emptyFlow(),
                 onCreateIncome = {},
                 onCreateExpense = onCreateExpense,
-                onCreateTransfer = {},
+                onCreateTransfer = onCreateTransfer,
                 onNavigateToTransactionDetail = {},
                 onEditAccount = {},
                 onNavigateToEditAccount = {},

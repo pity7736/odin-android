@@ -9,6 +9,7 @@ import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.home.application.usecase.RecentTransactionLister
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.presentation.isMoneyAccount
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 import java.math.BigDecimal
 
 private const val MAX_DISPLAYED_ACCOUNTS = 3
+private const val MINIMUM_ACCOUNTS_FOR_TRANSFER = 2
 
 class HomeViewModel(
     private val accountLister: AccountLister,
@@ -43,7 +45,8 @@ class HomeViewModel(
             this@HomeViewModel.accountLister.list(criteria).collect { outcome ->
                 this@HomeViewModel.mutableUiState.value = when (outcome) {
                     is Outcome.Success -> this@HomeViewModel.mapToUiState(
-                        outcome.value.filter { it.type != AccountType.CREDIT_CARD }
+                        outcome.value.filter { it.type != AccountType.CREDIT_CARD },
+                        this@HomeViewModel.canTransfer(outcome.value)
                     )
                     is Outcome.Failure -> HomeUiState.Error("Error al cargar la información")
                 }
@@ -87,7 +90,10 @@ class HomeViewModel(
         }
     }
 
-    private fun mapToUiState(accounts: List<Account>): HomeUiState {
+    private fun canTransfer(allAccounts: List<Account>): Boolean =
+        allAccounts.any { isMoneyAccount(it) } && allAccounts.size >= MINIMUM_ACCOUNTS_FOR_TRANSFER
+
+    private fun mapToUiState(accounts: List<Account>, canTransfer: Boolean): HomeUiState {
         if (accounts.isEmpty()) {
             return HomeUiState.Empty
         }
@@ -100,6 +106,7 @@ class HomeViewModel(
             accounts = displayedAccounts,
             hasMoreAccounts = hasMoreAccounts,
             recentTransactions = recentTransactions,
+            canTransfer = canTransfer,
         )
     }
 

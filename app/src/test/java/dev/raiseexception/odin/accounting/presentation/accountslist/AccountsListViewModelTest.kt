@@ -187,6 +187,24 @@ class AccountsListViewModelTest {
         }
 
     @Test
+    fun `given a card with an expense and a payment, when initialized, then its figures are net of the payment`() =
+        runTest {
+            val creditCard = AccountBuilder()
+                .id("card-1")
+                .name("Visa")
+                .creditCard(creditLimit = pesos("3000000.00"), initialDebt = pesos("500000.00"))
+                .withExpense(amount = "200000")
+                .withIncome(amount = "150000")
+                .build()
+            every { accountLister.list(criteriaWithTransactions) } returns flowOf(Outcome.Success(listOf(creditCard)))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            val cardItem = (viewModel.uiState.value as AccountsListUiState.Content).creditCards.single()
+            assertEquals(pesos("550000.00"), cardItem.debt)
+            assertEquals(pesos("2450000.00"), cardItem.availableCredit)
+        }
+
+    @Test
     fun `given a credit card with no debt, when initialized, then available credit is the full limit`() = runTest {
         val creditCard = creditCard("card-1", "Visa", "3000000.00", "0")
         every { accountLister.list(criteriaWithTransactions) } returns flowOf(Outcome.Success(listOf(creditCard)))

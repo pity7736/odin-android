@@ -2,8 +2,10 @@ package dev.raiseexception.odin.accounting.presentation.accountdetail
 
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
+import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.application.usecase.AccountTransactionLister
 import dev.raiseexception.odin.accounting.domain.AccountLookupError
+import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
@@ -11,12 +13,14 @@ import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.domain.StorageError
 import dev.raiseexception.odin.testutil.AccountBuilder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -26,6 +30,7 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -35,6 +40,7 @@ import java.math.BigDecimal
 class AccountDetailViewModelTest {
 
     private val accountFinder = mockk<AccountFinder>()
+    private val accountLister = mockk<AccountLister>()
     private val accountTransactionLister = AccountTransactionLister()
     private val testDispatcher = StandardTestDispatcher()
     private val accountId = "test-account-id"
@@ -43,6 +49,7 @@ class AccountDetailViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        every { accountLister.list() } returns flowOf(Outcome.Success(emptyList()))
     }
 
     @After
@@ -51,7 +58,7 @@ class AccountDetailViewModelTest {
     }
 
     private fun buildViewModel() =
-        AccountDetailViewModel(accountId, accountFinder, accountTransactionLister, testDispatcher)
+        AccountDetailViewModel(accountId, accountFinder, accountLister, accountTransactionLister, testDispatcher)
 
     private fun clockAt(instant: String): Clock = object : Clock {
         override fun now(): Instant = Instant.parse(instant)
@@ -321,7 +328,8 @@ class AccountDetailViewModelTest {
                             debt = Money.of(BigDecimal("500000"), Currency.COP),
                             availableCredit = Money.of(BigDecimal("2500000"), Currency.COP),
                             creditLimit = Money.of(BigDecimal("3000000"), Currency.COP)
-                        )
+                        ),
+                        canPay = false
                     ),
                     awaitItem()
                 )
@@ -397,7 +405,8 @@ class AccountDetailViewModelTest {
                             debt = Money.of(BigDecimal("700000"), Currency.COP),
                             availableCredit = Money.of(BigDecimal("2300000"), Currency.COP),
                             creditLimit = Money.of(BigDecimal("3000000"), Currency.COP)
-                        )
+                        ),
+                        canPay = false
                     ),
                     awaitItem()
                 )
@@ -430,4 +439,119 @@ class AccountDetailViewModelTest {
                 cancelAndIgnoreRemainingEvents()
             }
         }
+
+    @Test
+    fun `given a card with an expense and a payment, when the screen loads, then shows the debt net of the payment`() =
+        runTest {
+            val visaCard = visaCard()
+                .withExpense(amount = "200000", date = "2026-08-26", clock = clockAt("2026-08-26T10:00:00Z"))
+                .withIncome(amount = "100000", date = "2026-08-26", clock = clockAt("2026-08-26T10:00:00Z"))
+                .build()
+            every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(visaCard))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = viewModel.uiState.value as AccountDetailUiState.CreditCardContent
+            assertEquals(Money.of(BigDecimal("600000"), Currency.COP), state.creditCard.debt)
+            assertEquals(Money.of(BigDecimal("2400000"), Currency.COP), state.creditCard.availableCredit)
+        }
+
+    @Test
+    fun `given the user has a money account, when a card's details load, then the payment is offered`() = runTest {
+        val visaCard = visaCard().build()
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(visaCard))
+        every { accountLister.list() } returns flowOf(Outcome.Success(listOf(visaCard, savingsAccount())))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue((viewModel.uiState.value as AccountDetailUiState.CreditCardContent).canPay)
+    }
+
+    @Test
+    fun `given the user has only credit cards, when a card's details load, then the payment is not offered`() =
+        runTest {
+            val visaCard = visaCard().build()
+            val mastercard = AccountBuilder()
+                .id("card-2")
+                .creditCard(
+                    creditLimit = Money.of(BigDecimal("1000000"), Currency.COP),
+                    initialDebt = Money.of(BigDecimal("0"), Currency.COP)
+                )
+                .build()
+            every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(visaCard))
+            every { accountLister.list() } returns flowOf(Outcome.Success(listOf(visaCard, mastercard)))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertFalse((viewModel.uiState.value as AccountDetailUiState.CreditCardContent).canPay)
+        }
+
+    @Test
+    fun `given a money account and a card with no debt, when the card's details load, then payment is offered`() =
+        runTest {
+            val unusedCard = AccountBuilder()
+                .id(accountId)
+                .creditCard(
+                    creditLimit = Money.of(BigDecimal("3000000"), Currency.COP),
+                    initialDebt = Money.of(BigDecimal("0"), Currency.COP)
+                )
+                .build()
+            every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(unusedCard))
+            every { accountLister.list() } returns flowOf(Outcome.Success(listOf(unusedCard, savingsAccount())))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertTrue((viewModel.uiState.value as AccountDetailUiState.CreditCardContent).canPay)
+        }
+
+    @Test
+    fun `given only cards at first, when a money account appears later, then the payment becomes offered`() =
+        runTest {
+            val visaCard = visaCard().build()
+            val listedAccounts = MutableStateFlow<Outcome<List<Account>>>(Outcome.Success(listOf(visaCard)))
+            every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(visaCard))
+            every { accountLister.list() } returns listedAccounts
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            val canPayBefore = (viewModel.uiState.value as AccountDetailUiState.CreditCardContent).canPay
+            listedAccounts.value = Outcome.Success(listOf(visaCard, savingsAccount()))
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertFalse(canPayBefore)
+            assertTrue((viewModel.uiState.value as AccountDetailUiState.CreditCardContent).canPay)
+        }
+
+    @Test
+    fun `given the account list cannot load, when a card's details load, then the payment is not offered`() =
+        runTest {
+            val visaCard = visaCard().build()
+            every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(visaCard))
+            every { accountLister.list() } returns flowOf(Outcome.Failure(StorageError("DB error")))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertFalse((viewModel.uiState.value as AccountDetailUiState.CreditCardContent).canPay)
+        }
+
+    @Test
+    fun `given a money account and other accounts, when its details load, then its state is unchanged`() = runTest {
+        val savings = AccountBuilder().id(accountId).build()
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(savings))
+        every { accountLister.list() } returns flowOf(Outcome.Success(listOf(savings, savingsAccount())))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            AccountDetailUiState.MoneyAccountContent(
+                account = savings,
+                initialBalance = Money.of(BigDecimal("100000.00"), Currency.COP),
+                transactions = emptyList(),
+                activeFilter = TransactionFilter.ALL,
+            ),
+            viewModel.uiState.value
+        )
+    }
+
+    private fun visaCard(): AccountBuilder = AccountBuilder()
+        .id(this.accountId)
+        .name("Visa")
+        .creditCard(
+            creditLimit = Money.of(BigDecimal("3000000"), Currency.COP),
+            initialDebt = Money.of(BigDecimal("500000"), Currency.COP)
+        )
+
+    private fun savingsAccount(): Account = AccountBuilder().id("savings-1").build()
 }

@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -25,9 +26,11 @@ class ExpandableFabTest {
                 onToggle = {},
                 showIncomeOption = true,
                 showTransferOption = true,
+                showPaymentOption = false,
                 onIncomeSelected = {},
                 onExpenseSelected = {},
                 onTransferSelected = {},
+                onPaymentSelected = {},
             )
         }
         composeTestRule.onNodeWithTag("expandable_fab").assertIsDisplayed()
@@ -45,9 +48,11 @@ class ExpandableFabTest {
                 onToggle = { expanded = !expanded },
                 showIncomeOption = true,
                 showTransferOption = true,
+                showPaymentOption = false,
                 onIncomeSelected = {},
                 onExpenseSelected = {},
                 onTransferSelected = {},
+                onPaymentSelected = {},
             )
         }
         composeTestRule.onNodeWithTag("expandable_fab").performClick()
@@ -65,9 +70,11 @@ class ExpandableFabTest {
                 onToggle = { expanded = !expanded },
                 showIncomeOption = true,
                 showTransferOption = true,
+                showPaymentOption = false,
                 onIncomeSelected = {},
                 onExpenseSelected = {},
                 onTransferSelected = {},
+                onPaymentSelected = {},
             )
         }
         composeTestRule.onNodeWithTag("expandable_fab").performClick()
@@ -87,9 +94,11 @@ class ExpandableFabTest {
                 onToggle = {},
                 showIncomeOption = true,
                 showTransferOption = true,
+                showPaymentOption = false,
                 onIncomeSelected = { incomeCalled = true },
                 onExpenseSelected = {},
                 onTransferSelected = {},
+                onPaymentSelected = {},
             )
         }
         composeTestRule.onNodeWithTag("create_income_fab").performClick()
@@ -105,9 +114,11 @@ class ExpandableFabTest {
                 onToggle = {},
                 showIncomeOption = true,
                 showTransferOption = true,
+                showPaymentOption = false,
                 onIncomeSelected = {},
                 onExpenseSelected = { expenseCalled = true },
                 onTransferSelected = {},
+                onPaymentSelected = {},
             )
         }
         composeTestRule.onNodeWithTag("create_expense_fab").performClick()
@@ -123,9 +134,11 @@ class ExpandableFabTest {
                 onToggle = {},
                 showIncomeOption = true,
                 showTransferOption = true,
+                showPaymentOption = false,
                 onIncomeSelected = {},
                 onExpenseSelected = {},
                 onTransferSelected = { transferCalled = true },
+                onPaymentSelected = {},
             )
         }
         composeTestRule.onNodeWithTag("create_transfer_fab").performClick()
@@ -140,9 +153,11 @@ class ExpandableFabTest {
                 onToggle = {},
                 showIncomeOption = true,
                 showTransferOption = false,
+                showPaymentOption = false,
                 onIncomeSelected = {},
                 onExpenseSelected = {},
                 onTransferSelected = {},
+                onPaymentSelected = {},
             )
         }
         composeTestRule.onNodeWithTag("create_income_fab").assertIsDisplayed()
@@ -158,9 +173,11 @@ class ExpandableFabTest {
                 onToggle = {},
                 showIncomeOption = false,
                 showTransferOption = false,
+                showPaymentOption = false,
                 onIncomeSelected = {},
                 onExpenseSelected = {},
                 onTransferSelected = {},
+                onPaymentSelected = {},
             )
         }
         composeTestRule.onNodeWithTag("create_expense_fab").assertIsDisplayed()
@@ -176,11 +193,70 @@ class ExpandableFabTest {
                 onToggle = {},
                 showIncomeOption = true,
                 showTransferOption = false,
+                showPaymentOption = false,
                 onIncomeSelected = {},
                 onExpenseSelected = {},
                 onTransferSelected = {},
+                onPaymentSelected = {},
             )
         }
         composeTestRule.onNodeWithTag("create_income_fab").assertIsDisplayed()
+    }
+
+    @Test
+    fun given_show_payment_true_when_fab_expanded_then_shows_the_payment_action_labeled_pago() {
+        composeTestRule.setContent {
+            ExpandableFab(
+                expanded = true,
+                onToggle = {},
+                showIncomeOption = false,
+                showTransferOption = false,
+                showPaymentOption = true,
+                onIncomeSelected = {},
+                onExpenseSelected = {},
+                onTransferSelected = {},
+                onPaymentSelected = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("create_payment_fab").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Pago").assertIsDisplayed()
+    }
+
+    @Test
+    fun given_show_payment_false_when_fab_expanded_then_hides_the_payment_action() {
+        composeTestRule.setContent {
+            ExpandableFab(
+                expanded = true,
+                onToggle = {},
+                showIncomeOption = true,
+                showTransferOption = true,
+                showPaymentOption = false,
+                onIncomeSelected = {},
+                onExpenseSelected = {},
+                onTransferSelected = {},
+                onPaymentSelected = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("create_payment_fab").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_fab_expanded_when_payment_selected_then_calls_callback() {
+        var paymentCalled = false
+        composeTestRule.setContent {
+            ExpandableFab(
+                expanded = true,
+                onToggle = {},
+                showIncomeOption = false,
+                showTransferOption = false,
+                showPaymentOption = true,
+                onIncomeSelected = {},
+                onExpenseSelected = {},
+                onTransferSelected = {},
+                onPaymentSelected = { paymentCalled = true },
+            )
+        }
+        composeTestRule.onNodeWithTag("create_payment_fab").performClick()
+        assertTrue(paymentCalled)
     }
 }

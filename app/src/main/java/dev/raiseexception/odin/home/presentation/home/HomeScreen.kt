@@ -124,7 +124,8 @@ fun HomeScreen(
                     expanded = fabExpanded,
                     onToggle = { fabExpanded = !fabExpanded },
                     showIncomeOption = true,
-                    showTransferOption = uiState.accounts.size >= MINIMUM_ACCOUNTS_FOR_TRANSFER,
+                    showTransferOption = uiState.canTransfer,
+                    showPaymentOption = false,
                     onIncomeSelected = {
                         fabExpanded = false
                         onIncomeShortcutSelected()
@@ -137,6 +138,7 @@ fun HomeScreen(
                         fabExpanded = false
                         onTransferShortcutSelected()
                     },
+                    onPaymentSelected = {},
                 )
             }
         },
@@ -576,5 +578,3 @@ private fun formatDate(date: kotlinx.datetime.LocalDate): String {
     )
     return "${date.dayOfMonth} ${months[date.monthNumber - 1]} ${date.year}"
 }
-
-private const val MINIMUM_ACCOUNTS_FOR_TRANSFER = 2

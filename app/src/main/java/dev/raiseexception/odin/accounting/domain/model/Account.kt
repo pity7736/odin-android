@@ -49,6 +49,7 @@ class Account private constructor(
         val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         val parsedAmount = parseAmount(amount)
         val amountError = validateAmount(amount, parsedAmount)
+            ?: parsedAmount?.let { this.funding.validateIncomingAmount(it, this.incomes, this.expenses) }
         val (parsedDate, dateError) = parseAndValidateDate(date, today)
         val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
         if (anyError(amountError, dateError, categoryError)) {

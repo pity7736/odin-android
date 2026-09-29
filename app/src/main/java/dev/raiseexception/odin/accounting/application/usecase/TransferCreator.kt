@@ -35,16 +35,11 @@ class TransferCreator(
     ): Outcome<Transfer> {
         val accountError = this.validateAccountIds(sourceAccountId, destinationAccountId)
         if (accountError != null) return Outcome.Failure(accountError)
-        val sourceAccount = when (
-            val outcome = this.loadAccount(
-                sourceAccountId,
-                AccountCriteria(includeIncomes = true, includeExpenses = true)
-            )
-        ) {
+        val sourceAccount = when (val outcome = this.loadAccount(sourceAccountId)) {
             is Outcome.Success -> outcome.value
             is Outcome.Failure -> return outcome
         }
-        val destinationAccount = when (val outcome = this.loadAccount(destinationAccountId, AccountCriteria())) {
+        val destinationAccount = when (val outcome = this.loadAccount(destinationAccountId)) {
             is Outcome.Success -> outcome.value
             is Outcome.Failure -> return outcome
         }
@@ -72,8 +67,13 @@ class TransferCreator(
         return null
     }
 
-    private suspend fun loadAccount(accountId: String, criteria: AccountCriteria): Outcome<Account> =
-        when (val outcome = this.accountRepository.findById(accountId, criteria).first()) {
+    private suspend fun loadAccount(accountId: String): Outcome<Account> =
+        when (
+            val outcome = this.accountRepository.findById(
+                accountId,
+                AccountCriteria(includeIncomes = true, includeExpenses = true)
+            ).first()
+        ) {
             is Outcome.Success -> outcome
             is Outcome.Failure -> Outcome.Failure(storageFailure(outcome.error))
         }

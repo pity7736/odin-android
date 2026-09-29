@@ -12,6 +12,7 @@ sealed interface HomeUiState {
         val accounts: List<Account>,
         val hasMoreAccounts: Boolean,
         val recentTransactions: List<RecentTransaction>,
+        val canTransfer: Boolean,
     ) : HomeUiState
     data class Error(val message: String) : HomeUiState
 }

@@ -64,16 +64,19 @@ list.
   card details read `Credit.currentDebt` and `Credit.availableCredit` directly,
   and the summary filters cards out). The same delegation covers spending:
   `AccountFunding` answers how much can still be spent and the over-limit
-  message (see `specs/accounting/expense/creation/design.md`). Rejected
+  message (see `specs/accounting/expense/creation/design.md`), and what an
+  incoming amount may be (see `specs/technical/account-funding/design.md`). Rejected
   alternative: `when (funding)` spread across `Account`'s methods, centralizing
   every money-kind's behavior in the aggregate.
 - **A card's debt is derived, never stored as a running figure.** `initialDebt`
   is the debt the user entered at creation. The current debt is
-  `initialDebt + expenses` and the available credit is
-  `creditLimit − current debt`, both computed from the expenses loaded with the
-  account, exactly as `Funds` derives balance from `initialBalance`. A reader that
-  loads a card without expenses sees its opening debt, so every screen that shows
-  card figures loads with `includeExpenses = true`. Incomes do not affect a card.
+  `initialDebt + expenses − incomes` and the available credit is
+  `creditLimit − current debt`, both computed from the transactions loaded with
+  the account, exactly as `Funds` derives balance from `initialBalance`. A card's
+  incomes are its payments (see `specs/accounting/transfers/design.md`). A reader
+  that loads a card without its transactions sees its opening debt, so every
+  screen that shows card figures loads with `includeIncomes = true` and
+  `includeExpenses = true`.
   Rejected alternative: adding each expense to a stored debt — the stored figure
   can drift from the records, and editing or deleting an expense would have to
   patch it.
@@ -209,15 +212,15 @@ specs/accounting/accounts/creation/
 
 ## Known Limitations
 
-- **Credit cards support only expenses.** A card appears in the accounts list
-  and has a details view (see `specs/accounting/accounts/list/design.md` and
-  `specs/accounting/accounts/detail/design.md`), takes expenses (see
-  `specs/accounting/expense/creation/design.md`), and is filtered out of the home
-  summary. Editing a card, paying it down, and cash advances are out of scope.
-- **The home income and transfer pickers list credit cards.** They load every
-  account unfiltered. An income on a card or a transfer into a card is saved but
-  ignored by the card's figures, and a transfer out of a card raises its debt.
-  Nothing blocks these today; a separate fix is pending.
+- **Credit cards support expenses and payments only.** A card appears in the
+  accounts list and has a details view (see `specs/accounting/accounts/list/design.md`
+  and `specs/accounting/accounts/detail/design.md`), takes expenses (see
+  `specs/accounting/expense/creation/design.md`) and payments (see
+  `specs/accounting/transfers/design.md`), and is filtered out of the home
+  summary. Editing a card and cash advances are out of scope.
+- **The home income picker lists credit cards.** It loads every account
+  unfiltered, and nothing rejects a card as an income's account, so an income
+  recorded on a card lowers its debt like a payment (tracked in `TASKS.md`).
 - **Out of scope** (per spec): deleting accounts, account types beyond savings,
   cash and credit card, and currencies beyond USD/EUR/COP.
 

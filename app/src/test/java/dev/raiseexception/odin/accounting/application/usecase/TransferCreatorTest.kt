@@ -1,6 +1,7 @@
 package dev.raiseexception.odin.accounting.application.usecase
 
 import dev.raiseexception.odin.accounting.domain.TransferCreationError
+import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Money
@@ -25,6 +26,7 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -68,6 +70,8 @@ class TransferCreatorTest {
         .initialBalance(Money.of(BigDecimal("500.00"), Currency.COP))
         .build()
 
+    private val fullCriteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
+
     private val transferCategory = CategoryBuilder()
         .id("cat-transfer")
         .name("Transferencia")
@@ -81,7 +85,7 @@ class TransferCreatorTest {
                 accountRepository.findById("src-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
             } returns flowOf(Outcome.Success(sourceAccount))
             every {
-                accountRepository.findById("dst-1", AccountCriteria())
+                accountRepository.findById("dst-1", fullCriteria)
             } returns flowOf(Outcome.Success(destinationAccount))
             every {
                 categoryRepository.findByType(CategoryType.TRANSFER)
@@ -152,7 +156,7 @@ class TransferCreatorTest {
             accountRepository.findById("src-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
         } returns flowOf(Outcome.Success(sourceAccount))
         every {
-            accountRepository.findById("dst-1", AccountCriteria())
+            accountRepository.findById("dst-1", fullCriteria)
         } returns flowOf(Outcome.Failure(StorageError("Account not found")))
         val result = transferCreator.create(
             sourceAccountId = "src-1",
@@ -170,7 +174,7 @@ class TransferCreatorTest {
             accountRepository.findById("src-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
         } returns flowOf(Outcome.Success(sourceAccount))
         every {
-            accountRepository.findById("src-1", AccountCriteria())
+            accountRepository.findById("src-1", fullCriteria)
         } returns flowOf(Outcome.Success(sourceAccount))
         every {
             categoryRepository.findByType(CategoryType.TRANSFER)
@@ -198,7 +202,7 @@ class TransferCreatorTest {
             accountRepository.findById("src-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
         } returns flowOf(Outcome.Success(sourceAccount))
         every {
-            accountRepository.findById("dst-1", AccountCriteria())
+            accountRepository.findById("dst-1", fullCriteria)
         } returns flowOf(Outcome.Success(usdAccount))
         every {
             categoryRepository.findByType(CategoryType.TRANSFER)
@@ -221,7 +225,7 @@ class TransferCreatorTest {
             accountRepository.findById("src-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
         } returns flowOf(Outcome.Success(sourceAccount))
         every {
-            accountRepository.findById("dst-1", AccountCriteria())
+            accountRepository.findById("dst-1", fullCriteria)
         } returns flowOf(Outcome.Success(destinationAccount))
         every {
             categoryRepository.findByType(CategoryType.TRANSFER)
@@ -245,7 +249,7 @@ class TransferCreatorTest {
                 accountRepository.findById("src-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
             } returns flowOf(Outcome.Success(sourceAccount))
             every {
-                accountRepository.findById("dst-1", AccountCriteria())
+                accountRepository.findById("dst-1", fullCriteria)
             } returns flowOf(Outcome.Success(destinationAccount))
             every {
                 categoryRepository.findByType(CategoryType.TRANSFER)
@@ -266,7 +270,7 @@ class TransferCreatorTest {
             accountRepository.findById("src-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
         } returns flowOf(Outcome.Success(sourceAccount))
         every {
-            accountRepository.findById("dst-1", AccountCriteria())
+            accountRepository.findById("dst-1", fullCriteria)
         } returns flowOf(Outcome.Success(destinationAccount))
         every {
             categoryRepository.findByType(CategoryType.TRANSFER)
@@ -288,7 +292,7 @@ class TransferCreatorTest {
             accountRepository.findById("src-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
         } returns flowOf(Outcome.Success(sourceAccount))
         every {
-            accountRepository.findById("dst-1", AccountCriteria())
+            accountRepository.findById("dst-1", fullCriteria)
         } returns flowOf(Outcome.Success(destinationAccount))
         every {
             categoryRepository.findByType(CategoryType.TRANSFER)
@@ -311,7 +315,7 @@ class TransferCreatorTest {
             accountRepository.findById("src-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
         } returns flowOf(Outcome.Success(sourceAccount))
         every {
-            accountRepository.findById("dst-1", AccountCriteria())
+            accountRepository.findById("dst-1", fullCriteria)
         } returns flowOf(Outcome.Success(destinationAccount))
         every {
             categoryRepository.findByType(CategoryType.TRANSFER)
@@ -327,5 +331,115 @@ class TransferCreatorTest {
         )
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is TransferCreationError.StorageFailure)
+    }
+
+    @Test
+    fun `given a transfer, when creating it, then loads the destination with its incomes and expenses`() = runTest {
+        stubAccounts(destinationAccount)
+        stubSuccessfulSaves()
+
+        transferCreator.create(
+            sourceAccountId = "src-1",
+            destinationAccountId = "dst-1",
+            amount = "200.00",
+            date = today.toString()
+        )
+
+        coVerify { accountRepository.findById("dst-1", AccountCriteria(includeIncomes = true, includeExpenses = true)) }
+    }
+
+    @Test
+    fun `given a card whose expenses make a debt of 300, when paying 400, then rejects it and saves nothing`() =
+        runTest {
+            stubAccounts(cardWithSpending())
+            stubSuccessfulSaves()
+
+            val result = transferCreator.create(
+                sourceAccountId = "src-1",
+                destinationAccountId = "dst-1",
+                amount = "400.00",
+                date = today.toString()
+            )
+
+            val error = (result as Outcome.Failure).error as TransferCreationError.InvalidInput
+            assertEquals("El pago no puede superar la deuda actual.", error.amountError)
+            coVerify(exactly = 0) { expenseRepository.add(any()) }
+            coVerify(exactly = 0) { incomeRepository.add(any()) }
+            coVerify(exactly = 0) { transferRepository.add(any()) }
+        }
+
+    @Test
+    fun `given a valid payment of a card, when creating it, then saves all records inside the transaction`() =
+        runTest {
+            val recordingRunner = RecordingTransactionRunner()
+            val recordingCreator = TransferCreator(
+                accountRepository = accountRepository,
+                transferRepository = transferRepository,
+                categoryRepository = categoryRepository,
+                expenseRepository = expenseRepository,
+                incomeRepository = incomeRepository,
+                transactionRunner = recordingRunner,
+                clock = fixedClock
+            )
+            val recordsSavedInsideTransaction = mutableListOf<String>()
+            stubAccounts(cardWithSpending())
+            coEvery { expenseRepository.add(any()) } answers {
+                recordsSavedInsideTransaction.add("expense:${recordingRunner.isRunning}")
+                Outcome.Success(Unit)
+            }
+            coEvery { incomeRepository.add(any()) } answers {
+                recordsSavedInsideTransaction.add("income:${recordingRunner.isRunning}")
+                Outcome.Success(Unit)
+            }
+            coEvery { transferRepository.add(any()) } answers {
+                recordsSavedInsideTransaction.add("transfer:${recordingRunner.isRunning}")
+                Outcome.Success(Unit)
+            }
+
+            val result = recordingCreator.create(
+                sourceAccountId = "src-1",
+                destinationAccountId = "dst-1",
+                amount = "300.00",
+                date = today.toString()
+            )
+
+            assertTrue(result is Outcome.Success)
+            assertEquals(listOf("expense:true", "income:true", "transfer:true"), recordsSavedInsideTransaction)
+        }
+
+    private fun cardWithSpending() = AccountBuilder()
+        .id("dst-1")
+        .name("Visa")
+        .creditCard(
+            creditLimit = Money.of(BigDecimal("3000.00"), Currency.COP),
+            initialDebt = Money.of(BigDecimal("0.00"), Currency.COP)
+        )
+        .withExpense(amount = "300.00", date = this.today.toString(), clock = this.fixedClock)
+        .build()
+
+    private fun stubAccounts(destination: Account) {
+        every { accountRepository.findById("src-1", fullCriteria) } returns flowOf(Outcome.Success(sourceAccount))
+        every { accountRepository.findById("dst-1", fullCriteria) } returns flowOf(Outcome.Success(destination))
+        every {
+            categoryRepository.findByType(CategoryType.TRANSFER)
+        } returns flowOf(Outcome.Success(listOf(transferCategory)))
+    }
+
+    private fun stubSuccessfulSaves() {
+        coEvery { expenseRepository.add(any()) } returns Outcome.Success(Unit)
+        coEvery { incomeRepository.add(any()) } returns Outcome.Success(Unit)
+        coEvery { transferRepository.add(any()) } returns Outcome.Success(Unit)
+    }
+
+    private class RecordingTransactionRunner : TransactionRunner {
+        var isRunning = false
+            private set
+
+        override suspend fun <T> run(block: suspend () -> Outcome<T>): Outcome<T> {
+            this.isRunning = true
+            val outcome = block()
+            this.isRunning = false
+            return outcome
+        }
     }
 }

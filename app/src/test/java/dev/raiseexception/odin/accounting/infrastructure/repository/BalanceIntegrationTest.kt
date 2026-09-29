@@ -203,8 +203,14 @@ class BalanceIntegrationTest {
             assertTrue("Expense creation should succeed: $expenseResult", expenseResult is Outcome.Success)
             val loadedCard = loadAccount(visaCard.id, AccountCriteria(includeIncomes = true, includeExpenses = true))
             val credit = loadedCard.funding as AccountFunding.Credit
-            assertEquals(Money.of(BigDecimal("700000"), Currency.COP), credit.currentDebt(loadedCard.expenses))
-            assertEquals(Money.of(BigDecimal("2300000"), Currency.COP), credit.availableCredit(loadedCard.expenses))
+            assertEquals(
+                Money.of(BigDecimal("700000"), Currency.COP),
+                credit.currentDebt(loadedCard.incomes, loadedCard.expenses)
+            )
+            assertEquals(
+                Money.of(BigDecimal("2300000"), Currency.COP),
+                credit.availableCredit(loadedCard.incomes, loadedCard.expenses)
+            )
         }
 
     @Test
@@ -224,7 +230,7 @@ class BalanceIntegrationTest {
                 AccountCriteria(includeIncomes = true, includeExpenses = false)
             )
             val credit = loadedCard.funding as AccountFunding.Credit
-            assertEquals(credit.initialDebt, credit.currentDebt(loadedCard.expenses))
+            assertEquals(credit.initialDebt, credit.currentDebt(loadedCard.incomes, loadedCard.expenses))
         }
 
     private suspend fun createVisaCard(): Account = (

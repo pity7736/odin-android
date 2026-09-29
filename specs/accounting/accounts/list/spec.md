@@ -113,8 +113,9 @@ that I can see its details.
   (a later feature)
 - Showing a credit card's total credit limit in the list
 - Editing or deleting accounts or credit cards from this list
-- Spending on a credit card, paying it off, transferring to or from it, or
-  taking a cash advance
+- Spending on a credit card or paying it (see
+  `specs/accounting/expense/creation/spec.md` and
+  `specs/accounting/transfers/spec.md`), and taking a cash advance
 - Searching or filtering accounts
 - Paginating a large account list
 - Viewing a money account's or credit card's details (separate feature)

@@ -62,9 +62,10 @@ the ViewModel.
   carries the figures the row needs. The `when` has no `else`, so a new funding
   variant fails to compile until it is assigned a group. `id` is carried so the
   row can navigate to the card's details. `debt` and `availableCredit` come from
-  `Credit.currentDebt(account.expenses)` and `Credit.availableCredit(account.expenses)`,
-  so a card's row reflects its recorded expenses (see
-  `specs/accounting/accounts/creation/design.md`). Alternative rejected: `List<Account>` for cards with an
+  `Credit.currentDebt(account.incomes, account.expenses)` and
+  `Credit.availableCredit(account.incomes, account.expenses)`, so a card's row
+  reflects its recorded expenses and payments (see
+  `specs/technical/account-funding/design.md`). Alternative rejected: `List<Account>` for cards with an
   `as AccountFunding.Credit` cast in the composable — unsafe at runtime,
   untestable on the JVM, and it hides that a card's `balance` means its debt.
 
@@ -141,7 +142,7 @@ specs/accounting/accounts/list/
 
 **Loading accounts:**
 1. `AccountsListViewModel.init` launches a coroutine on `ioDispatcher`
-2. Collects `AccountLister.list(AccountCriteria(includeIncomes = true, includeExpenses = true))` — delegates to `AccountRepository.getAll(criteria)`, a reactive `Flow<Outcome<List<Account>>>`. The criteria ensures accounts are loaded with their transactions so `Account.balance` returns the computed balance and a card's debt and available credit include its expenses
+2. Collects `AccountLister.list(AccountCriteria(includeIncomes = true, includeExpenses = true))` — delegates to `AccountRepository.getAll(criteria)`, a reactive `Flow<Outcome<List<Account>>>`. The criteria ensures accounts are loaded with their transactions so `Account.balance` returns the computed balance and a card's debt and available credit include its expenses and payments
 3. `RoomAccountRepository.getAll()` queries the `accounts` table via `AccountDao`;
    Room re-emits whenever the table changes
 4. ViewModel pattern-matches on `Outcome`: `Success` → splits the accounts by

@@ -132,7 +132,7 @@ As a user, I want to record a purchase I paid with a credit card I am viewing, s
 - Recurring or repeating expenses
 - Expense reports or analytics
 - Selecting the account inside the expense form when recording from within an account (the account comes from the context the user navigated from)
-- Credit card payments, transfers to or from a credit card, income on a credit card, and cash advances
+- Credit card payments (see `specs/accounting/transfers/spec.md`), income on a credit card, and cash advances
 - Spending beyond a credit card's credit limit
 - Showing credit cards or credit card expenses in the home summary
 - Statement or cut-off dates, due dates, minimum payment, installments, and interest

@@ -55,9 +55,12 @@ full situation in one place.
 - A credit card's details show its name, type, and these three figures. The user
   cannot edit the card or see a list of movements or filters.
 - The user can start recording a new expense from a credit card's details, as
-  described in `specs/accounting/expense/creation/spec.md`. When they choose to
-  record something new, the only option offered is an expense; income and
-  transfer are not offered for a credit card.
+  described in `specs/accounting/expense/creation/spec.md`.
+- The user can start a payment of the card from its details, as described in
+  `specs/accounting/transfers/spec.md`. The payment is offered only when the user
+  has at least one money account to pay from.
+- When they choose to record something new on a credit card, the options offered
+  are an expense and a payment; income and transfer are not offered.
 
 ## Expected Behavior
 
@@ -101,16 +104,26 @@ full situation in one place.
 - Then they do not see the option to edit the card
 - And they do not see a list of movements or the movement filters
 
-### Recording an expense from a credit card
-- Given the user is viewing a credit card's details
+### Recording something new from a credit card
+- Given the user has a money account and is viewing a credit card's details
+- When they choose to record something new
+- Then the options offered are an expense and a payment
+- And they are not offered an income or a transfer
+
+### No payment without a money account
+- Given the user has no money account and is viewing a credit card's details
 - When they choose to record something new
 - Then the only option offered is an expense
-- And they are not offered an income or a transfer
 
 ### Recording an expense from a credit card with no available credit
 - Given the user is viewing a credit card whose debt equals its credit limit
 - When they choose to record something new
 - Then the expense option is still offered
+
+### Paying a credit card with no debt is still offered
+- Given the user has a money account and is viewing a credit card with no debt
+- When they choose to record something new
+- Then the payment option is still offered
 
 ### Account not found
 - Given the user opens the details of an account or credit card that does not
@@ -127,9 +140,9 @@ full situation in one place.
 ## Out of Scope
 - Editing a credit card
 - Deleting any account or credit card
-- Credit card movements other than recording an expense: paying the card off,
-  transferring to or from it, recording an income on it, taking a cash advance,
-  and showing any movement history for a card
+- Credit card movements other than recording an expense or a payment: recording
+  an income on it, taking a cash advance, and showing any movement history for a
+  card
 - Showing credit cards in the home summary or counting them in its total
 - Statement or cut-off dates, due dates, minimum payment, and interest
 - Showing the description or the creation date of any account

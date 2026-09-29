@@ -65,7 +65,9 @@ import kotlinx.datetime.toLocalDateTime
 @Composable
 fun CreateTransferScreen(
     uiState: CreateTransferUiState,
-    onSave: (String, String, String, String) -> Unit,
+    onSourceSelected: (String) -> Unit,
+    onDestinationSelected: (String) -> Unit,
+    onSave: (String, String) -> Unit,
     navigationEvent: Flow<NavigationTarget>,
     onNavigateBack: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -81,22 +83,24 @@ fun CreateTransferScreen(
         is CreateTransferUiState.Loading -> LoadingContent(modifier)
         is CreateTransferUiState.Error -> ErrorContent(message = uiState.message, modifier = modifier)
         else -> TransferForm(
-            accounts = when (uiState) {
-                is CreateTransferUiState.Idle -> uiState.accounts
-                is CreateTransferUiState.ValidationError -> uiState.accounts
-                else -> emptyList()
-            },
-            selectedSourceAccountId = when (uiState) {
-                is CreateTransferUiState.Idle -> uiState.selectedSourceAccountId
-                else -> ""
-            },
+            form = transferFormState(uiState),
             validation = uiState as? CreateTransferUiState.ValidationError,
             isSaving = uiState is CreateTransferUiState.Saving,
+            onSourceSelected = onSourceSelected,
+            onDestinationSelected = onDestinationSelected,
             onSave = onSave,
             modifier = modifier,
         )
     }
 }
+
+private data class TransferFormState(
+    val sourceAccounts: List<Account>,
+    val destinationAccounts: List<Account>,
+    val selectedSourceAccountId: String,
+    val selectedDestinationAccountId: String,
+    val saveLabel: String,
+)
 
 @Composable
 private fun LoadingContent(modifier: Modifier = Modifier) {
@@ -128,22 +132,20 @@ private fun ErrorContent(message: String, modifier: Modifier = Modifier) {
 
 @Composable
 private fun TransferForm(
-    accounts: List<Account>,
-    selectedSourceAccountId: String,
+    form: TransferFormState,
     validation: CreateTransferUiState.ValidationError?,
     isSaving: Boolean,
-    onSave: (String, String, String, String) -> Unit,
+    onSourceSelected: (String) -> Unit,
+    onDestinationSelected: (String) -> Unit,
+    onSave: (String, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var sourceAccountId by rememberSaveable { mutableStateOf(selectedSourceAccountId) }
-    var destinationAccountId by rememberSaveable { mutableStateOf("") }
     var amount by rememberSaveable { mutableStateOf("") }
     var rawDate by rememberSaveable {
         mutableStateOf(Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString())
     }
-    val destinationAccounts = accounts.filter { it.id != sourceAccountId }
-    val sourceAccount = accounts.firstOrNull { it.id == sourceAccountId }
-    val destinationAccount = accounts.firstOrNull { it.id == destinationAccountId }
+    val sourceAccount = form.sourceAccounts.firstOrNull { it.id == form.selectedSourceAccountId }
+    val destinationAccount = form.destinationAccounts.firstOrNull { it.id == form.selectedDestinationAccountId }
     val transferMinDate = transferMinDate(sourceAccount, destinationAccount)
     Column(
         modifier = modifier
@@ -162,21 +164,18 @@ private fun TransferForm(
         )
         Spacer(modifier = Modifier.height(28.dp))
         AccountDropdown(
-            accounts = accounts,
-            selectedAccountId = sourceAccountId,
-            onAccountSelected = {
-                sourceAccountId = it
-                if (destinationAccountId == it) destinationAccountId = ""
-            },
+            accounts = form.sourceAccounts,
+            selectedAccountId = form.selectedSourceAccountId,
+            onAccountSelected = onSourceSelected,
             label = "Cuenta origen",
             testTagPrefix = "source_account",
             errorMessage = validation?.sourceAccountError,
         )
         Spacer(modifier = Modifier.height(16.dp))
         AccountDropdown(
-            accounts = destinationAccounts,
-            selectedAccountId = destinationAccountId,
-            onAccountSelected = { destinationAccountId = it },
+            accounts = form.destinationAccounts,
+            selectedAccountId = form.selectedDestinationAccountId,
+            onAccountSelected = onDestinationSelected,
             label = "Cuenta destino",
             testTagPrefix = "destination_account",
             errorMessage = validation?.destinationAccountError,
@@ -200,7 +199,7 @@ private fun TransferForm(
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
             else -> Button(
-                onClick = { onSave(sourceAccountId, destinationAccountId, amountInputToRaw(amount), rawDate) },
+                onClick = { onSave(amountInputToRaw(amount), rawDate) },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Slate800,
@@ -212,7 +211,7 @@ private fun TransferForm(
                     .testTag("save_button"),
             ) {
                 Text(
-                    text = "Transferir",
+                    text = form.saveLabel,
                     style = MaterialTheme.typography.titleMedium,
                 )
             }
@@ -398,6 +397,37 @@ private fun FieldError(errorMessage: String?, testTag: String) {
                 .testTag(testTag),
         )
     }
+}
+
+private fun transferFormState(uiState: CreateTransferUiState): TransferFormState = when (uiState) {
+    is CreateTransferUiState.Idle -> TransferFormState(
+        sourceAccounts = uiState.sourceAccounts,
+        destinationAccounts = uiState.destinationAccounts,
+        selectedSourceAccountId = uiState.selectedSourceAccountId,
+        selectedDestinationAccountId = uiState.selectedDestinationAccountId,
+        saveLabel = uiState.saveLabel,
+    )
+    is CreateTransferUiState.ValidationError -> TransferFormState(
+        sourceAccounts = uiState.sourceAccounts,
+        destinationAccounts = uiState.destinationAccounts,
+        selectedSourceAccountId = uiState.selectedSourceAccountId,
+        selectedDestinationAccountId = uiState.selectedDestinationAccountId,
+        saveLabel = uiState.saveLabel,
+    )
+    is CreateTransferUiState.Saving -> TransferFormState(
+        sourceAccounts = uiState.sourceAccounts,
+        destinationAccounts = uiState.destinationAccounts,
+        selectedSourceAccountId = uiState.selectedSourceAccountId,
+        selectedDestinationAccountId = uiState.selectedDestinationAccountId,
+        saveLabel = uiState.saveLabel,
+    )
+    else -> TransferFormState(
+        sourceAccounts = emptyList(),
+        destinationAccounts = emptyList(),
+        selectedSourceAccountId = "",
+        selectedDestinationAccountId = "",
+        saveLabel = "",
+    )
 }
 
 private fun transferMinDate(sourceAccount: Account?, destinationAccount: Account?): LocalDate? {

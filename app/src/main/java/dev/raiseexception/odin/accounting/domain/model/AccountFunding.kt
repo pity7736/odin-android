@@ -11,6 +11,8 @@ sealed interface AccountFunding {
 
     fun spendable(incomes: List<Income>, expenses: List<Expense>): Money
 
+    fun validateIncomingAmount(amount: BigDecimal, incomes: List<Income>, expenses: List<Expense>): String?
+
     data class Funds(val initialBalance: Money) : AccountFunding {
         override val currency: Currency get() = this.initialBalance.currency
 
@@ -24,6 +26,12 @@ sealed interface AccountFunding {
 
         override fun spendable(incomes: List<Income>, expenses: List<Expense>): Money =
             this.balance(incomes, expenses)
+
+        override fun validateIncomingAmount(
+            amount: BigDecimal,
+            incomes: List<Income>,
+            expenses: List<Expense>
+        ): String? = null
     }
 
     data class Credit(val creditLimit: Money, val initialDebt: Money) : AccountFunding {
@@ -31,17 +39,29 @@ sealed interface AccountFunding {
 
         override val overSpendMessage: String get() = "El monto supera el cupo disponible."
 
-        override fun balance(incomes: List<Income>, expenses: List<Expense>): Money = this.currentDebt(expenses)
+        override fun balance(incomes: List<Income>, expenses: List<Expense>): Money =
+            this.currentDebt(incomes, expenses)
 
         override fun spendable(incomes: List<Income>, expenses: List<Expense>): Money =
-            this.availableCredit(expenses)
+            this.availableCredit(incomes, expenses)
 
-        fun availableCredit(expenses: List<Expense>): Money =
-            Money.of(this.creditLimit.amount.subtract(this.currentDebt(expenses).amount), this.currency)
+        override fun validateIncomingAmount(
+            amount: BigDecimal,
+            incomes: List<Income>,
+            expenses: List<Expense>
+        ): String? = if (amount > this.currentDebt(incomes, expenses).amount) {
+            "El pago no puede superar la deuda actual."
+        } else {
+            null
+        }
 
-        fun currentDebt(expenses: List<Expense>): Money {
+        fun availableCredit(incomes: List<Income>, expenses: List<Expense>): Money =
+            Money.of(this.creditLimit.amount.subtract(this.currentDebt(incomes, expenses).amount), this.currency)
+
+        fun currentDebt(incomes: List<Income>, expenses: List<Expense>): Money {
             val expenseSum = expenses.fold(BigDecimal.ZERO) { total, expense -> total.add(expense.amount.amount) }
-            return Money.of(this.initialDebt.amount.add(expenseSum), this.currency)
+            val paymentSum = incomes.fold(BigDecimal.ZERO) { total, income -> total.add(income.amount.amount) }
+            return Money.of(this.initialDebt.amount.add(expenseSum).subtract(paymentSum), this.currency)
         }
     }
 }
