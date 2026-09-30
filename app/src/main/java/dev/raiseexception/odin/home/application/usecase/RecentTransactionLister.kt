@@ -12,9 +12,6 @@ class RecentTransactionLister {
                 RecentTransaction(transaction = transaction, accountName = account.name)
             }
         }
-            .sortedWith(
-                compareByDescending<RecentTransaction> { it.transaction.date }
-                    .thenByDescending { it.transaction.createdAt }
-            )
+            .sortedWith(compareBy(mostRecentTransactionFirst) { it.transaction })
             .take(limit)
 }

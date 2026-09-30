@@ -231,8 +231,6 @@ got to where it is.
 - Searching a credit card's movements, filtering them by date range, and
   loading them page by page
 - Showing a credit card's starting debt as a movement
-- Showing a credit card's movements anywhere other than its details
-- Showing credit cards in the home summary or counting them in its total
 - Statement or cut-off dates, grouping movements by statement period, due dates,
   minimum payment, interest, and installments
 - Showing the description or the creation date of any account

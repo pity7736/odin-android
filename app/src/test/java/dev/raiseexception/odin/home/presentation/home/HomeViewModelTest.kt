@@ -1,15 +1,16 @@
 package dev.raiseexception.odin.home.presentation.home
 
 import app.cash.turbine.test
-import dev.raiseexception.odin.accounting.application.usecase.AccountLister
-import dev.raiseexception.odin.accounting.domain.model.Account
+import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
-import dev.raiseexception.odin.home.application.usecase.RecentTransactionLister
+import dev.raiseexception.odin.home.application.usecase.HomeAccountEntry
+import dev.raiseexception.odin.home.application.usecase.HomeSummary
+import dev.raiseexception.odin.home.application.usecase.HomeSummaryLoader
+import dev.raiseexception.odin.home.application.usecase.RecentTransaction
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.Outcome
-import dev.raiseexception.odin.testutil.AccountBuilder
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +24,6 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -33,14 +33,36 @@ import java.math.BigDecimal
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
 
-    private val accountLister = mockk<AccountLister>()
-    private val recentTransactionLister = RecentTransactionLister()
+    private val homeSummaryLoader = mockk<HomeSummaryLoader>()
     private val testDispatcher = StandardTestDispatcher()
 
     private val storageError = object : DomainError {
         override val internalMessage = "Storage error"
         override val externalMessage = "Error interno"
     }
+
+    private val savingsEntry = HomeAccountEntry.MoneyAccountEntry(
+        id = "acc-1",
+        name = "Ahorros",
+        type = AccountType.SAVINGS,
+        balance = pesos("5000000.00")
+    )
+
+    private val visaEntry = HomeAccountEntry.CreditCardEntry(
+        id = "card-1",
+        name = "Visa",
+        debt = pesos("800000.00"),
+        availableCredit = pesos("2200000.00")
+    )
+
+    private val emptySummary = HomeSummary(
+        balanceTotals = emptyList(),
+        debtTotals = emptyList(),
+        entries = emptyList(),
+        hasMoreEntries = false,
+        recentTransactions = emptyList(),
+        canTransfer = false
+    )
 
     @Before
     fun setUp() {
@@ -52,129 +74,51 @@ class HomeViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun buildViewModel() = HomeViewModel(accountLister, recentTransactionLister, testDispatcher)
+    private fun buildViewModel() = HomeViewModel(homeSummaryLoader, testDispatcher)
 
     @Test
-    fun `given accounts, when initialized, then emits Content with total balances by currency`() = runTest {
-        val copAccount = AccountBuilder()
-            .id("acc-1")
-            .name("Ahorros COP")
-            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
-            .build()
-        val usdAccount = AccountBuilder()
-            .id("acc-2")
-            .name("Ahorros USD")
-            .initialBalance(Money.of(BigDecimal("500.00"), Currency.USD))
-            .build()
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(copAccount, usdAccount)))
-        val viewModel = buildViewModel()
-        viewModel.uiState.test {
-            assertEquals(HomeUiState.Loading, awaitItem())
-            testDispatcher.scheduler.advanceUntilIdle()
-            val content = awaitItem() as HomeUiState.Content
-            assertEquals(2, content.totalBalances.size)
-            val copBalance = content.totalBalances.first { it.currency == Currency.COP }
-            val usdBalance = content.totalBalances.first { it.currency == Currency.USD }
-            assertEquals(BigDecimal("1000.00"), copBalance.amount)
-            assertEquals(BigDecimal("500.00"), usdBalance.amount)
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun `given accounts with transactions, when initialized, then emits Content with up to 3 accounts`() = runTest {
-        val accounts = (1..4).map { index ->
-            AccountBuilder().id("acc-$index").name("Cuenta $index").build()
-        }
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(accounts))
-        val viewModel = buildViewModel()
-        viewModel.uiState.test {
-            assertEquals(HomeUiState.Loading, awaitItem())
-            testDispatcher.scheduler.advanceUntilIdle()
-            val content = awaitItem() as HomeUiState.Content
-            assertEquals(3, content.accounts.size)
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun `given more than 3 accounts, when initialized, then Content has hasMoreAccounts true`() = runTest {
-        val accounts = (1..4).map { index ->
-            AccountBuilder().id("acc-$index").name("Cuenta $index").build()
-        }
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(accounts))
-        val viewModel = buildViewModel()
-        viewModel.uiState.test {
-            assertEquals(HomeUiState.Loading, awaitItem())
-            testDispatcher.scheduler.advanceUntilIdle()
-            val content = awaitItem() as HomeUiState.Content
-            assertTrue(content.hasMoreAccounts)
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun `given 3 or fewer accounts, when initialized, then Content has hasMoreAccounts false`() = runTest {
-        val accounts = (1..3).map { index ->
-            AccountBuilder().id("acc-$index").name("Cuenta $index").build()
-        }
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(accounts))
-        val viewModel = buildViewModel()
-        viewModel.uiState.test {
-            assertEquals(HomeUiState.Loading, awaitItem())
-            testDispatcher.scheduler.advanceUntilIdle()
-            val content = awaitItem() as HomeUiState.Content
-            assertFalse(content.hasMoreAccounts)
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun `given accounts with transactions, when initialized, then emits Content with recent transactions`() = runTest {
-        val income = Income.restore(
+    fun `given a summary with entries, when initialized, then emits Content with every summary field`() = runTest {
+        val salary = Income.restore(
             id = "inc-1",
             accountId = "acc-1",
-            amount = Money.of(BigDecimal("100.00"), Currency.COP),
-            date = LocalDate.parse("2026-01-01"),
+            amount = pesos("100.00"),
+            date = LocalDate.parse("2026-09-10"),
             categoryId = "cat-1",
             description = "",
-            createdAt = Instant.parse("2026-01-01T10:00:00Z")
+            createdAt = Instant.parse("2026-09-10T10:00:00Z")
         )
-        val account = AccountBuilder()
-            .id("acc-1")
-            .name("Ahorros")
-            .incomes(listOf(income))
-            .build()
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(account)))
+        val recentTransactions = listOf(RecentTransaction(salary, "Ahorros"))
+        val summary = HomeSummary(
+            balanceTotals = listOf(pesos("5000000.00")),
+            debtTotals = listOf(pesos("800000.00")),
+            entries = listOf(savingsEntry, visaEntry),
+            hasMoreEntries = true,
+            recentTransactions = recentTransactions,
+            canTransfer = true
+        )
+        every { homeSummaryLoader.load() } returns flowOf(Outcome.Success(summary))
         val viewModel = buildViewModel()
         viewModel.uiState.test {
             assertEquals(HomeUiState.Loading, awaitItem())
             testDispatcher.scheduler.advanceUntilIdle()
-            val content = awaitItem() as HomeUiState.Content
-            assertEquals(1, content.recentTransactions.size)
-            assertEquals("inc-1", content.recentTransactions[0].transaction.id)
-            assertEquals("Ahorros", content.recentTransactions[0].accountName)
+            assertEquals(
+                HomeUiState.Content(
+                    balanceTotals = listOf(pesos("5000000.00")),
+                    debtTotals = listOf(pesos("800000.00")),
+                    accounts = listOf(savingsEntry, visaEntry),
+                    hasMoreAccounts = true,
+                    recentTransactions = recentTransactions,
+                    canTransfer = true
+                ),
+                awaitItem()
+            )
             cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
-    fun `given accounts but no transactions, when initialized, then emits Content with empty transactions`() = runTest {
-        val account = AccountBuilder().id("acc-1").name("Ahorros").build()
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(account)))
-        val viewModel = buildViewModel()
-        viewModel.uiState.test {
-            assertEquals(HomeUiState.Loading, awaitItem())
-            testDispatcher.scheduler.advanceUntilIdle()
-            val content = awaitItem() as HomeUiState.Content
-            assertTrue(content.recentTransactions.isEmpty())
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun `given no accounts, when initialized, then emits Empty`() = runTest {
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(emptyList()))
+    fun `given a summary with no entries, when initialized, then emits Empty`() = runTest {
+        every { homeSummaryLoader.load() } returns flowOf(Outcome.Success(emptySummary))
         val viewModel = buildViewModel()
         viewModel.uiState.test {
             assertEquals(HomeUiState.Loading, awaitItem())
@@ -185,8 +129,23 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `given repository failure, when initialized, then emits Error`() = runTest {
-        every { accountLister.list(any()) } returns flowOf(Outcome.Failure(storageError))
+    fun `given a summary with credit cards and no money accounts, when initialized, then emits Content`() = runTest {
+        val summary = emptySummary.copy(
+            debtTotals = listOf(pesos("800000.00")),
+            entries = listOf(visaEntry)
+        )
+        every { homeSummaryLoader.load() } returns flowOf(Outcome.Success(summary))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        val content = viewModel.uiState.value as HomeUiState.Content
+        assertTrue(content.balanceTotals.isEmpty())
+        assertEquals(listOf(pesos("800000.00")), content.debtTotals)
+        assertEquals(listOf(visaEntry), content.accounts)
+    }
+
+    @Test
+    fun `given the summary fails to load, when initialized, then emits Error`() = runTest {
+        every { homeSummaryLoader.load() } returns flowOf(Outcome.Failure(storageError))
         val viewModel = buildViewModel()
         viewModel.uiState.test {
             assertEquals(HomeUiState.Loading, awaitItem())
@@ -199,8 +158,7 @@ class HomeViewModelTest {
 
     @Test
     fun `given content state, when onAccountSelected, then emits AccountDetail navigation`() = runTest {
-        val account = AccountBuilder().id("acc-1").name("Ahorros").build()
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(account)))
+        every { homeSummaryLoader.load() } returns flowOf(Outcome.Success(summaryWith(savingsEntry)))
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.navigationEvent.test {
@@ -214,8 +172,7 @@ class HomeViewModelTest {
 
     @Test
     fun `given content state, when onTransactionSelected, then emits TransactionDetail navigation`() = runTest {
-        val account = AccountBuilder().id("acc-1").name("Ahorros").build()
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(account)))
+        every { homeSummaryLoader.load() } returns flowOf(Outcome.Success(summaryWith(savingsEntry)))
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.navigationEvent.test {
@@ -229,7 +186,7 @@ class HomeViewModelTest {
 
     @Test
     fun `given empty state, when onCreateAccountSelected, then emits AccountCreate navigation`() = runTest {
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(emptyList()))
+        every { homeSummaryLoader.load() } returns flowOf(Outcome.Success(emptySummary))
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.navigationEvent.test {
@@ -242,8 +199,7 @@ class HomeViewModelTest {
 
     @Test
     fun `given content state, when income shortcut selected, then emits income create target`() = runTest {
-        val account = AccountBuilder().id("acc-1").name("Ahorros").build()
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(account)))
+        every { homeSummaryLoader.load() } returns flowOf(Outcome.Success(summaryWith(savingsEntry)))
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.navigationEvent.test {
@@ -256,8 +212,7 @@ class HomeViewModelTest {
 
     @Test
     fun `given content state, when expense shortcut selected, then emits expense create target`() = runTest {
-        val account = AccountBuilder().id("acc-1").name("Ahorros").build()
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(account)))
+        every { homeSummaryLoader.load() } returns flowOf(Outcome.Success(summaryWith(savingsEntry)))
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.navigationEvent.test {
@@ -270,8 +225,7 @@ class HomeViewModelTest {
 
     @Test
     fun `given content state, when transfer shortcut selected, then emits transfer create target`() = runTest {
-        val account = AccountBuilder().id("acc-1").name("Ahorros").build()
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(account)))
+        every { homeSummaryLoader.load() } returns flowOf(Outcome.Success(summaryWith(savingsEntry)))
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.navigationEvent.test {
@@ -282,115 +236,7 @@ class HomeViewModelTest {
         }
     }
 
-    @Test
-    fun `given a credit card account, when initialized, then it is excluded from the summary`() = runTest {
-        val savings = AccountBuilder()
-            .id("acc-1")
-            .name("Ahorros")
-            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
-            .build()
-        val creditCard = AccountBuilder()
-            .id("card-1")
-            .name("Visa")
-            .creditCard(
-                creditLimit = Money.of(BigDecimal("3000000.00"), Currency.COP),
-                initialDebt = Money.of(BigDecimal("500000.00"), Currency.COP)
-            )
-            .build()
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(savings, creditCard)))
-        val viewModel = buildViewModel()
-        viewModel.uiState.test {
-            assertEquals(HomeUiState.Loading, awaitItem())
-            testDispatcher.scheduler.advanceUntilIdle()
-            val content = awaitItem() as HomeUiState.Content
-            assertEquals(1, content.accounts.size)
-            assertEquals("acc-1", content.accounts.first().id)
-            assertEquals(1, content.totalBalances.size)
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
+    private fun summaryWith(entry: HomeAccountEntry): HomeSummary = emptySummary.copy(entries = listOf(entry))
 
-    @Test
-    fun `given accounts in different currencies, when initialized, then emits one total per currency`() = runTest {
-        val copAccount1 = AccountBuilder()
-            .id("acc-1")
-            .name("Ahorros COP")
-            .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
-            .build()
-        val copAccount2 = AccountBuilder()
-            .id("acc-2")
-            .name("Corriente COP")
-            .initialBalance(Money.of(BigDecimal("2000.00"), Currency.COP))
-            .build()
-        val usdAccount = AccountBuilder()
-            .id("acc-3")
-            .name("Ahorros USD")
-            .initialBalance(Money.of(BigDecimal("500.00"), Currency.USD))
-            .build()
-        every { accountLister.list(any()) } returns flowOf(
-            Outcome.Success(listOf(copAccount1, copAccount2, usdAccount))
-        )
-        val viewModel = buildViewModel()
-        viewModel.uiState.test {
-            assertEquals(HomeUiState.Loading, awaitItem())
-            testDispatcher.scheduler.advanceUntilIdle()
-            val content = awaitItem() as HomeUiState.Content
-            assertEquals(2, content.totalBalances.size)
-            val copTotal = content.totalBalances.first { it.currency == Currency.COP }
-            val usdTotal = content.totalBalances.first { it.currency == Currency.USD }
-            assertEquals(BigDecimal("3000.00"), copTotal.amount)
-            assertEquals(BigDecimal("500.00"), usdTotal.amount)
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun `given one savings account and one credit card, when initialized, then transfer is available`() = runTest {
-        val savings = savingsAccount("acc-1")
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(savings, creditCard("card-1"))))
-        val viewModel = buildViewModel()
-        testDispatcher.scheduler.advanceUntilIdle()
-        val content = viewModel.uiState.value as HomeUiState.Content
-        assertTrue(content.canTransfer)
-        assertEquals(listOf(savings), content.accounts)
-    }
-
-    @Test
-    fun `given two savings accounts, when initialized, then transfer is available`() = runTest {
-        every { accountLister.list(any()) } returns flowOf(
-            Outcome.Success(listOf(savingsAccount("acc-1"), savingsAccount("acc-2")))
-        )
-        val viewModel = buildViewModel()
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertTrue((viewModel.uiState.value as HomeUiState.Content).canTransfer)
-    }
-
-    @Test
-    fun `given exactly one money account, when initialized, then transfer is not available`() = runTest {
-        every { accountLister.list(any()) } returns flowOf(Outcome.Success(listOf(savingsAccount("acc-1"))))
-        val viewModel = buildViewModel()
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertFalse((viewModel.uiState.value as HomeUiState.Content).canTransfer)
-    }
-
-    @Test
-    fun `given two credit cards and no money account, when initialized, then the empty state is shown`() = runTest {
-        every { accountLister.list(any()) } returns flowOf(
-            Outcome.Success(listOf(creditCard("card-1"), creditCard("card-2")))
-        )
-        val viewModel = buildViewModel()
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(HomeUiState.Empty, viewModel.uiState.value)
-    }
-
-    private fun savingsAccount(id: String): Account = AccountBuilder().id(id).name("Ahorros $id").build()
-
-    private fun creditCard(id: String): Account = AccountBuilder()
-        .id(id)
-        .name("Visa $id")
-        .creditCard(
-            creditLimit = Money.of(BigDecimal("3000000.00"), Currency.COP),
-            initialDebt = Money.of(BigDecimal("500000.00"), Currency.COP)
-        )
-        .build()
+    private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)
 }
