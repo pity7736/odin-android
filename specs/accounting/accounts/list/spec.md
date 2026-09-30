@@ -109,8 +109,6 @@ that I can see its details.
 - And they still see the option to create a new account
 
 ## Out of Scope
-- Showing credit cards in the home summary or counting them in its total
-  (a later feature)
 - Showing a credit card's total credit limit in the list
 - Editing or deleting accounts or credit cards from this list
 - Spending on a credit card or paying it (see

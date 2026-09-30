@@ -48,12 +48,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.home.application.usecase.HomeAccountEntry
 import dev.raiseexception.odin.home.application.usecase.RecentTransaction
+import dev.raiseexception.odin.shared.presentation.AccountIcon
 import dev.raiseexception.odin.shared.presentation.BottomBarTab
+import dev.raiseexception.odin.shared.presentation.CreditCardRow
 import dev.raiseexception.odin.shared.presentation.ExpandableFab
 import dev.raiseexception.odin.shared.presentation.OdinBottomBar
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
@@ -65,6 +67,7 @@ import dev.raiseexception.odin.ui.theme.IncomeBadge
 import dev.raiseexception.odin.ui.theme.IncomeGreen
 import dev.raiseexception.odin.ui.theme.OrangePrimary
 import dev.raiseexception.odin.ui.theme.Slate100
+import dev.raiseexception.odin.ui.theme.Slate200
 import dev.raiseexception.odin.ui.theme.Slate400
 import dev.raiseexception.odin.ui.theme.Slate50
 import dev.raiseexception.odin.ui.theme.Slate500
@@ -157,7 +160,8 @@ fun HomeScreen(
                         .padding(innerPadding)
                 )
                 is HomeUiState.Content -> SummaryContent(
-                    totalBalances = uiState.totalBalances,
+                    balanceTotals = uiState.balanceTotals,
+                    debtTotals = uiState.debtTotals,
                     accounts = uiState.accounts,
                     hasMoreAccounts = uiState.hasMoreAccounts,
                     recentTransactions = uiState.recentTransactions,
@@ -271,8 +275,9 @@ private fun EmptyContent(onCreateAccount: () -> Unit, modifier: Modifier = Modif
 @Suppress("LongParameterList")
 @Composable
 private fun SummaryContent(
-    totalBalances: List<Money>,
-    accounts: List<Account>,
+    balanceTotals: List<Money>,
+    debtTotals: List<Money>,
+    accounts: List<HomeAccountEntry>,
     hasMoreAccounts: Boolean,
     recentTransactions: List<RecentTransaction>,
     onAccountSelected: (String) -> Unit,
@@ -283,7 +288,8 @@ private fun SummaryContent(
     LazyColumn(modifier = modifier.padding(horizontal = 20.dp)) {
         item(key = "total_balances") {
             BalanceCard(
-                totalBalances = totalBalances,
+                balanceTotals = balanceTotals,
+                debtTotals = debtTotals,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp, bottom = 24.dp),
@@ -309,7 +315,7 @@ private fun SummaryContent(
                     ),
             ) {
                 accounts.forEachIndexed { index, account ->
-                    AccountRow(account = account, onClick = { onAccountSelected(account.id) })
+                    AccountEntryRow(entry = account, onClick = { onAccountSelected(account.id) })
                     if (index < accounts.lastIndex) {
                         HorizontalDivider(
                             color = Slate100,
@@ -362,36 +368,84 @@ private fun SummaryContent(
 }
 
 @Composable
-private fun BalanceCard(totalBalances: List<Money>, modifier: Modifier = Modifier) {
+private fun BalanceCard(
+    balanceTotals: List<Money>,
+    debtTotals: List<Money>,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
             .background(Slate800)
             .padding(24.dp),
     ) {
-        Text(
-            text = "SALDO TOTAL",
-            style = MaterialTheme.typography.labelLarge,
-            color = Slate400,
-            letterSpacing = 1.sp,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        totalBalances.forEach { balance ->
-            Text(
-                text = formatMoney(balance),
-                style = MaterialTheme.typography.displayLarge,
-                color = Slate50,
-                modifier = Modifier.testTag("total_balance_${balance.currency.name}"),
-            )
-            Text(
-                text = balance.currency.name,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = Slate500,
-                modifier = Modifier.padding(top = 4.dp),
+        if (balanceTotals.isNotEmpty()) {
+            BalanceSection(balanceTotals = balanceTotals)
+        }
+        if (balanceTotals.isNotEmpty() && debtTotals.isNotEmpty()) {
+            HorizontalDivider(
+                color = Slate600,
+                modifier = Modifier.padding(vertical = 18.dp),
             )
         }
+        if (debtTotals.isNotEmpty()) {
+            DebtSection(debtTotals = debtTotals, isHeadline = balanceTotals.isEmpty())
+        }
     }
+}
+
+@Composable
+private fun BalanceSection(balanceTotals: List<Money>) {
+    BalanceCardLabel(text = "SALDO TOTAL")
+    Spacer(modifier = Modifier.height(8.dp))
+    balanceTotals.forEach { balance ->
+        Text(
+            text = formatMoney(balance),
+            style = MaterialTheme.typography.displayLarge,
+            color = Slate50,
+            modifier = Modifier.testTag("total_balance_${balance.currency.name}"),
+        )
+        CurrencyCaption(money = balance)
+    }
+}
+
+@Composable
+private fun DebtSection(debtTotals: List<Money>, isHeadline: Boolean) {
+    val headlineStyle = MaterialTheme.typography.displayLarge
+    val amountStyle = if (isHeadline) headlineStyle else headlineStyle.copy(fontSize = 22.sp, lineHeight = 28.sp)
+    val amountColor = if (isHeadline) Slate50 else Slate200
+    BalanceCardLabel(text = "DEUDA")
+    Spacer(modifier = Modifier.height(8.dp))
+    debtTotals.forEach { debt ->
+        Text(
+            text = formatMoney(debt),
+            style = amountStyle,
+            color = amountColor,
+            modifier = Modifier.testTag("debt_total_${debt.currency.name}"),
+        )
+        CurrencyCaption(money = debt)
+    }
+}
+
+@Composable
+private fun BalanceCardLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = Slate400,
+        letterSpacing = 1.sp,
+    )
+}
+
+@Composable
+private fun CurrencyCaption(money: Money) {
+    Text(
+        text = money.currency.name,
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.Medium,
+        color = Slate500,
+        modifier = Modifier.padding(top = 4.dp),
+    )
 }
 
 @Composable
@@ -441,7 +495,20 @@ private fun EmptyTransactionsMessage() {
 }
 
 @Composable
-private fun AccountRow(account: Account, onClick: () -> Unit) {
+private fun AccountEntryRow(entry: HomeAccountEntry, onClick: () -> Unit) {
+    when (entry) {
+        is HomeAccountEntry.MoneyAccountEntry -> MoneyAccountRow(entry = entry, onClick = onClick)
+        is HomeAccountEntry.CreditCardEntry -> CreditCardRow(
+            name = entry.name,
+            debt = entry.debt,
+            availableCredit = entry.availableCredit,
+            onClick = onClick,
+        )
+    }
+}
+
+@Composable
+private fun MoneyAccountRow(entry: HomeAccountEntry.MoneyAccountEntry, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -449,40 +516,29 @@ private fun AccountRow(account: Account, onClick: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Slate100),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = when (account.type) {
-                    AccountType.SAVINGS -> Icons.Outlined.Savings
-                    AccountType.CASH -> Icons.Filled.Payments
-                    AccountType.CREDIT_CARD -> Icons.Filled.CreditCard
-                },
-                contentDescription = null,
-                tint = Slate600,
-                modifier = Modifier.size(18.dp),
-            )
-        }
+        AccountIcon(
+            imageVector = when (entry.type) {
+                AccountType.SAVINGS -> Icons.Outlined.Savings
+                AccountType.CASH -> Icons.Filled.Payments
+                AccountType.CREDIT_CARD -> Icons.Filled.CreditCard
+            },
+        )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = capitalizeFirst(account.name),
+                text = capitalizeFirst(entry.name),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
                 color = Slate800,
             )
             Text(
-                text = accountTypeLabel(account.type),
+                text = accountTypeLabel(entry.type),
                 style = MaterialTheme.typography.bodySmall,
                 color = Slate400,
             )
         }
         Text(
-            text = formatMoney(account.balance),
+            text = formatMoney(entry.balance),
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
             color = Slate800,

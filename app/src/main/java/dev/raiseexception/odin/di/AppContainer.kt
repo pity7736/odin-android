@@ -60,6 +60,7 @@ import dev.raiseexception.odin.crypto.domain.repository.SaltRepository
 import dev.raiseexception.odin.crypto.infrastructure.BouncyCastleVaultCrypto
 import dev.raiseexception.odin.crypto.infrastructure.DataStoreSaltRepository
 import dev.raiseexception.odin.crypto.infrastructure.InMemoryMasterKeyRepository
+import dev.raiseexception.odin.home.application.usecase.HomeSummaryLoader
 import dev.raiseexception.odin.home.application.usecase.RecentTransactionLister
 import dev.raiseexception.odin.home.presentation.home.HomeViewModel
 import dev.raiseexception.odin.persistence.DatabaseProvider
@@ -119,6 +120,7 @@ class AppContainer(context: Context) {
     private val accountUpdater by lazy { AccountUpdater(accountFinder, accountRepository) }
     private val accountTransactionLister by lazy { AccountTransactionLister() }
     private val recentTransactionLister by lazy { RecentTransactionLister() }
+    private val homeSummaryLoader by lazy { HomeSummaryLoader(accountLister, recentTransactionLister) }
     private val categoryRepository: CategoryRepository by lazy {
         RoomCategoryRepository(databaseProvider.requireDatabase().categoryDao())
     }
@@ -231,7 +233,7 @@ class AppContainer(context: Context) {
             }
         }
 
-    fun homeViewModel(): HomeViewModel = HomeViewModel(accountLister, recentTransactionLister, ioDispatcher)
+    fun homeViewModel(): HomeViewModel = HomeViewModel(homeSummaryLoader, ioDispatcher)
 
     fun createCategoryViewModel(): CreateCategoryViewModel = CreateCategoryViewModel(categoryCreator)
 

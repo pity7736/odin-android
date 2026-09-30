@@ -283,8 +283,8 @@ see how long I have been tracking it.
 - Paying a credit card (see `specs/accounting/transfers/spec.md`) and cash
   advances.
 - Showing a credit card after it is created. The account list shows it (see
-  `specs/accounting/accounts/list/spec.md`) and so do its details (see
-  `specs/accounting/accounts/detail/spec.md`); the home summary does not, and is
-  a separate, later feature.
+  `specs/accounting/accounts/list/spec.md`), and so do its details (see
+  `specs/accounting/accounts/detail/spec.md`) and the home summary (see
+  `specs/home/summary/spec.md`).
 - Account types beyond savings, cash, and credit card.
 - Currencies beyond US Dollar, Euro and Colombian Peso.

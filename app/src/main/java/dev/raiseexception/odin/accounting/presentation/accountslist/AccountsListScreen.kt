@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,28 +32,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
-import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.shared.presentation.AccountIcon
 import dev.raiseexception.odin.shared.presentation.BottomBarTab
+import dev.raiseexception.odin.shared.presentation.CreditCardRow
 import dev.raiseexception.odin.shared.presentation.OdinBottomBar
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
 import dev.raiseexception.odin.shared.presentation.formatMoney
 import dev.raiseexception.odin.ui.theme.OrangePrimary
-import dev.raiseexception.odin.ui.theme.Slate100
 import dev.raiseexception.odin.ui.theme.Slate400
 import dev.raiseexception.odin.ui.theme.Slate50
-import dev.raiseexception.odin.ui.theme.Slate500
-import dev.raiseexception.odin.ui.theme.Slate600
 import dev.raiseexception.odin.ui.theme.Slate800
 import dev.raiseexception.odin.ui.theme.Slate900
 import kotlinx.coroutines.flow.Flow
@@ -187,9 +178,11 @@ private fun AccountsContent(
                 ) {
                     creditCards.forEachIndexed { index, creditCard ->
                         CreditCardRow(
-                            creditCard = creditCard,
-                            backgroundColor = alternatingRowBackground(index),
+                            name = creditCard.name,
+                            debt = creditCard.debt,
+                            availableCredit = creditCard.availableCredit,
                             onClick = { onAccountSelected(creditCard.id) },
+                            modifier = Modifier.background(alternatingRowBackground(index)),
                         )
                     }
                 }
@@ -268,55 +261,6 @@ private fun AccountRow(account: Account, backgroundColor: Color, onClick: () -> 
 }
 
 @Composable
-private fun CreditCardRow(creditCard: CreditCardItem, backgroundColor: Color, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(backgroundColor)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp)
-            .testTag("credit_card_row_${creditCard.id}"),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AccountIcon(imageVector = Icons.Filled.CreditCard)
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = capitalizeFirst(creditCard.name),
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium,
-            color = Slate800,
-            modifier = Modifier.weight(1f),
-        )
-        Column(horizontalAlignment = Alignment.End) {
-            Text(text = debtLine(creditCard.debt))
-            Text(
-                text = "Disponible ${formatMoney(creditCard.availableCredit)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = Slate400,
-            )
-        }
-    }
-}
-
-@Composable
-private fun AccountIcon(imageVector: ImageVector) {
-    Box(
-        modifier = Modifier
-            .size(38.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(Slate100),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = imageVector,
-            contentDescription = null,
-            tint = Slate600,
-            modifier = Modifier.size(18.dp),
-        )
-    }
-}
-
-@Composable
 private fun ErrorContent(message: String, modifier: Modifier = Modifier) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Text(
@@ -334,12 +278,3 @@ private fun accountTypeLabel(type: AccountType): String = when (type) {
 }
 
 private fun alternatingRowBackground(index: Int): Color = if (index % 2 == 0) Color.White else Slate50
-
-private fun debtLine(debt: Money): AnnotatedString = buildAnnotatedString {
-    withStyle(SpanStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Slate500)) {
-        append("Deuda ")
-    }
-    withStyle(SpanStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Slate800)) {
-        append(formatMoney(debt))
-    }
-}
