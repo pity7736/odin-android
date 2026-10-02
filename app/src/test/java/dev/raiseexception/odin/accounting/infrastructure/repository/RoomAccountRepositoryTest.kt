@@ -267,4 +267,72 @@ class RoomAccountRepositoryTest {
         assertTrue(result is Outcome.Success)
         assertTrue((result as Outcome.Success).value.isEmpty())
     }
+
+    @Test
+    fun `given a tagged expense, when findById with full criteria, then the expense carries its tag ids`() = runTest {
+        seedAccountWithTransactions()
+        linkTags("exp-tagged", "tag-nala", "tag-comida")
+        val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
+        val account = (repository.findById("acc-1", criteria).first() as Outcome.Success).value
+        val taggedExpense = account.expenses.single { it.id == "exp-tagged" }
+        assertEquals(setOf("tag-nala", "tag-comida"), taggedExpense.tagIds.toSet())
+    }
+
+    @Test
+    fun `given an untagged expense, when findById with full criteria, then the expense has no tag ids`() = runTest {
+        seedAccountWithTransactions()
+        linkTags("exp-tagged", "tag-nala")
+        val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
+        val account = (repository.findById("acc-1", criteria).first() as Outcome.Success).value
+        assertTrue(account.expenses.single { it.id == "exp-untagged" }.tagIds.isEmpty())
+        assertEquals(listOf("inc-1"), account.incomes.map { it.id })
+    }
+
+    @Test
+    fun `given a tagged expense, when getAll with full criteria, then the expense carries its tag ids`() = runTest {
+        seedAccountWithTransactions()
+        linkTags("exp-tagged", "tag-nala")
+        val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
+        val accounts = (repository.getAll(criteria).first() as Outcome.Success).value
+        val expenses = accounts.single().expenses
+        assertEquals(listOf("tag-nala"), expenses.single { it.id == "exp-tagged" }.tagIds)
+        assertTrue(expenses.single { it.id == "exp-untagged" }.tagIds.isEmpty())
+        assertEquals(1, accounts.single().incomes.size)
+    }
+
+    private suspend fun seedAccountWithTransactions() {
+        repository.add(AccountBuilder().id("acc-1").build())
+        database.categoryDao().insert(
+            CategoryEntity(
+                id = "cat-1",
+                name = "Perros",
+                type = "EXPENSE",
+                description = "",
+                color = "#FF0000",
+                createdAt = "2026-01-01T00:00:00Z"
+            )
+        )
+        database.transactionDao().insert(transaction("inc-1", "INCOME"))
+        database.transactionDao().insert(transaction("exp-tagged", "EXPENSE"))
+        database.transactionDao().insert(transaction("exp-untagged", "EXPENSE"))
+    }
+
+    private suspend fun linkTags(expenseId: String, vararg tagIds: String) {
+        tagIds.forEach { tagId ->
+            database.tagDao().insert(TagEntity(tagId, tagId, tagId, "2026-01-01T00:00:00Z"))
+        }
+        database.expenseTagDao().insertAll(tagIds.map { ExpenseTagEntity(expenseId = expenseId, tagId = it) })
+    }
+
+    private fun transaction(id: String, type: String) = TransactionEntity(
+        id = id,
+        type = type,
+        accountId = "acc-1",
+        amount = "100.00",
+        currency = "COP",
+        date = "2026-08-01",
+        categoryId = "cat-1",
+        description = "",
+        createdAt = "2026-08-01T10:00:00Z"
+    )
 }

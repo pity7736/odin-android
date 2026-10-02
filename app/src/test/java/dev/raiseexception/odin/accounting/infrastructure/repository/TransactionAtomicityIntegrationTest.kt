@@ -8,6 +8,7 @@ import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
+import dev.raiseexception.odin.accounting.application.usecase.TagResolver
 import dev.raiseexception.odin.accounting.application.usecase.TransferCreator
 import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
@@ -64,8 +65,10 @@ class TransactionAtomicityIntegrationTest {
         accountRepository = RoomAccountRepository(database.accountDao())
         categoryRepository = RoomCategoryRepository(database.categoryDao())
         val transactionDao = database.transactionDao()
-        val expenseRepository = RoomExpenseRepository(transactionDao)
+        val expenseRepository = RoomExpenseRepository(transactionDao, database.expenseTagDao())
         val transactionRunner = RoomTransactionRunner(database)
+        val tagRepository = RoomTagRepository(database.tagDao())
+        val tagResolver = TagResolver(tagRepository)
         accountCreator = AccountCreator(accountRepository)
         categoryCreator = CategoryCreator(categoryRepository)
         expenseCreator = ExpenseCreator(
@@ -73,6 +76,7 @@ class TransactionAtomicityIntegrationTest {
             expenseRepository = expenseRepository,
             categoryRepository = categoryRepository,
             categoryCreator = categoryCreator,
+            tagResolver = tagResolver,
             transactionRunner = transactionRunner
         )
         incomeCreator = IncomeCreator(
@@ -106,7 +110,8 @@ class TransactionAtomicityIntegrationTest {
                 amount = "0",
                 date = today,
                 categoryInput = CategoryInput.New("Mascotas"),
-                description = ""
+                description = "",
+                tagInputs = emptyList()
             )
             assertTrue(
                 "Expected InvalidInput: $result",
@@ -130,7 +135,8 @@ class TransactionAtomicityIntegrationTest {
                 amount = "2500001",
                 date = today,
                 categoryInput = CategoryInput.New("Mascotas"),
-                description = ""
+                description = "",
+                tagInputs = emptyList()
             )
             assertTrue(
                 "Expected InvalidInput: $result",

@@ -372,7 +372,8 @@ class CreateTransferViewModelTest {
                 date = this.transferDate,
                 categoryId = "cat-transfer",
                 description = "Transferencia a Efectivo",
-                createdAt = fixedInstant
+                createdAt = fixedInstant,
+                tagIds = emptyList()
             ),
             income = Income.restore(
                 id = "inc-1",

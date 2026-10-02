@@ -11,10 +11,14 @@ class Expense internal constructor(
     override val date: LocalDate,
     override val categoryId: String,
     override val description: String,
-    override val createdAt: Instant
+    override val createdAt: Instant,
+    val tagIds: List<String>
 ) : Transaction {
 
     companion object {
+        const val MAX_TAGS = 5
+        const val TAG_LIMIT_MESSAGE = "Máximo 5 etiquetas por gasto."
+
         @Suppress("LongParameterList")
         fun restore(
             id: String,
@@ -23,7 +27,8 @@ class Expense internal constructor(
             date: LocalDate,
             categoryId: String,
             description: String,
-            createdAt: Instant
+            createdAt: Instant,
+            tagIds: List<String>
         ): Expense = Expense(
             id = id,
             accountId = accountId,
@@ -31,7 +36,11 @@ class Expense internal constructor(
             date = date,
             categoryId = categoryId,
             description = description,
-            createdAt = createdAt
+            createdAt = createdAt,
+            tagIds = tagIds
         )
+
+        internal fun validateTagCount(uniqueTagIds: List<String>): String? =
+            if (uniqueTagIds.size > MAX_TAGS) TAG_LIMIT_MESSAGE else null
     }
 }

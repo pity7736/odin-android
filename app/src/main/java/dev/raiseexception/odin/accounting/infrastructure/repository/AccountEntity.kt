@@ -29,8 +29,8 @@ data class AccountEntity(
 
 data class AccountWithTransactions(
     @Embedded val account: AccountEntity,
-    @Relation(parentColumn = "id", entityColumn = "accountId")
-    val transactions: List<TransactionEntity>
+    @Relation(parentColumn = "id", entityColumn = "accountId", entity = TransactionEntity::class)
+    val transactions: List<TransactionWithTagIds>
 )
 
 internal fun AccountEntity.toDomain(incomes: List<Income>, expenses: List<Expense>): Account =

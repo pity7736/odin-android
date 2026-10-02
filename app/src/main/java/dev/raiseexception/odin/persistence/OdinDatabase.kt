@@ -6,6 +6,10 @@ import dev.raiseexception.odin.accounting.infrastructure.repository.AccountDao
 import dev.raiseexception.odin.accounting.infrastructure.repository.AccountEntity
 import dev.raiseexception.odin.accounting.infrastructure.repository.CategoryDao
 import dev.raiseexception.odin.accounting.infrastructure.repository.CategoryEntity
+import dev.raiseexception.odin.accounting.infrastructure.repository.ExpenseTagDao
+import dev.raiseexception.odin.accounting.infrastructure.repository.ExpenseTagEntity
+import dev.raiseexception.odin.accounting.infrastructure.repository.TagDao
+import dev.raiseexception.odin.accounting.infrastructure.repository.TagEntity
 import dev.raiseexception.odin.accounting.infrastructure.repository.TransactionDao
 import dev.raiseexception.odin.accounting.infrastructure.repository.TransactionEntity
 import dev.raiseexception.odin.accounting.infrastructure.repository.TransferDao
@@ -20,8 +24,10 @@ import dev.raiseexception.odin.accounts.infrastructure.repository.UserEntity
         CategoryEntity::class,
         TransactionEntity::class,
         TransferEntity::class,
+        TagEntity::class,
+        ExpenseTagEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class OdinDatabase : RoomDatabase() {
@@ -30,4 +36,6 @@ abstract class OdinDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun transactionDao(): TransactionDao
     abstract fun transferDao(): TransferDao
+    abstract fun tagDao(): TagDao
+    abstract fun expenseTagDao(): ExpenseTagDao
 }

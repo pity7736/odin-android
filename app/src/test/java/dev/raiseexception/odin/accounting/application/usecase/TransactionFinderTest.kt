@@ -41,7 +41,8 @@ class TransactionFinderTest {
             categoryName = "Salario",
             accountName = "Ahorros",
             isTransfer = false,
-            accountType = AccountType.SAVINGS
+            accountType = AccountType.SAVINGS,
+            tags = emptyList()
         )
         every { transactionRepository.findById("tx-123") } returns flowOf(Outcome.Success(detail))
         val result = transactionFinder.find("tx-123").first()

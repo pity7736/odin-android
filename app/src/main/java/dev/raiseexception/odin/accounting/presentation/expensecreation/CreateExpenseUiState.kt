@@ -2,6 +2,8 @@ package dev.raiseexception.odin.accounting.presentation.expensecreation
 
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.Category
+import dev.raiseexception.odin.accounting.domain.model.Tag
+import dev.raiseexception.odin.shared.presentation.TagSelection
 import kotlinx.datetime.LocalDate
 
 sealed interface CreateExpenseUiState {
@@ -11,6 +13,8 @@ sealed interface CreateExpenseUiState {
         val accountCreatedAt: LocalDate? = null,
         val accounts: List<Account> = emptyList(),
         val selectedAccountId: String? = null,
+        val tags: List<Tag> = emptyList(),
+        val tagSelection: TagSelection = TagSelection(),
     ) : CreateExpenseUiState
     data object Saving : CreateExpenseUiState
 
@@ -25,6 +29,8 @@ sealed interface CreateExpenseUiState {
         val categoryError: String? = null,
         val descriptionError: String? = null,
         val accountError: String? = null,
+        val tags: List<Tag> = emptyList(),
+        val tagSelection: TagSelection = TagSelection(),
     ) : CreateExpenseUiState
     data class Error(val message: String) : CreateExpenseUiState
 }

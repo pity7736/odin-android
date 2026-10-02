@@ -19,8 +19,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -30,11 +32,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
+import dev.raiseexception.odin.accounting.domain.model.Tag
 import dev.raiseexception.odin.shared.presentation.AccountAutocomplete
 import dev.raiseexception.odin.shared.presentation.AmountField
 import dev.raiseexception.odin.shared.presentation.CategoryAutocomplete
 import dev.raiseexception.odin.shared.presentation.DatePickerField
 import dev.raiseexception.odin.shared.presentation.OdinField
+import dev.raiseexception.odin.shared.presentation.TagField
+import dev.raiseexception.odin.shared.presentation.TagSelection
 import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.shared.presentation.resolveCategoryInput
 import dev.raiseexception.odin.ui.theme.ExpenseRed
@@ -53,6 +58,10 @@ fun CreateExpenseScreen(
     uiState: CreateExpenseUiState,
     onSave: (String, String, CategoryInput, String) -> Unit,
     onAccountSelected: (String) -> Unit = {},
+    onTagTextChange: (String) -> Unit = {},
+    onAddTag: () -> Unit = {},
+    onTagPicked: (Tag) -> Unit = {},
+    onTagRemoved: (Int) -> Unit = {},
     navigationEvent: Flow<NavigationTarget>,
     onNavigateBack: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -64,6 +73,15 @@ fun CreateExpenseScreen(
                 is NavigationTarget.Back -> onNavigateBack("")
             }
         }
+    }
+    val currentTagSelection = when (uiState) {
+        is CreateExpenseUiState.Idle -> uiState.tagSelection
+        is CreateExpenseUiState.ValidationError -> uiState.tagSelection
+        else -> null
+    }
+    var lastTagSelection by remember { mutableStateOf(TagSelection()) }
+    SideEffect {
+        if (currentTagSelection != null) lastTagSelection = currentTagSelection
     }
     when (uiState) {
         is CreateExpenseUiState.Loading -> LoadingContent(modifier)
@@ -91,6 +109,16 @@ fun CreateExpenseScreen(
             },
             accountError = (uiState as? CreateExpenseUiState.ValidationError)?.accountError,
             onAccountSelected = onAccountSelected,
+            tagSelection = currentTagSelection ?: lastTagSelection,
+            tags = when (uiState) {
+                is CreateExpenseUiState.Idle -> uiState.tags
+                is CreateExpenseUiState.ValidationError -> uiState.tags
+                else -> emptyList()
+            },
+            onTagTextChange = onTagTextChange,
+            onAddTag = onAddTag,
+            onTagPicked = onTagPicked,
+            onTagRemoved = onTagRemoved,
             validation = uiState as? CreateExpenseUiState.ValidationError,
             isSaving = uiState is CreateExpenseUiState.Saving,
             onSave = onSave,
@@ -135,6 +163,12 @@ private fun ExpenseForm(
     selectedAccountId: String?,
     accountError: String?,
     onAccountSelected: (String) -> Unit,
+    tagSelection: TagSelection,
+    tags: List<Tag>,
+    onTagTextChange: (String) -> Unit,
+    onAddTag: () -> Unit,
+    onTagPicked: (Tag) -> Unit,
+    onTagRemoved: (Int) -> Unit,
     validation: CreateExpenseUiState.ValidationError?,
     isSaving: Boolean,
     onSave: (String, String, CategoryInput, String) -> Unit,
@@ -196,6 +230,16 @@ private fun ExpenseForm(
                 selectedCategoryId = category.id
             },
             errorMessage = validation?.categoryError,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        TagField(
+            selection = tagSelection,
+            suggestions = tagSelection.suggestions(tags),
+            isEnabled = !isSaving,
+            onTextChange = onTagTextChange,
+            onConfirm = onAddTag,
+            onSuggestionPicked = onTagPicked,
+            onRemove = onTagRemoved,
         )
         Spacer(modifier = Modifier.height(16.dp))
         OdinField(

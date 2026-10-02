@@ -6,13 +6,16 @@ import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
+import dev.raiseexception.odin.accounting.application.usecase.TagLister
 import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
+import dev.raiseexception.odin.accounting.domain.model.Tag
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.presentation.TagSelection
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -33,6 +36,7 @@ class CreateExpenseViewModel(
     private val categoryLister: CategoryLister,
     private val accountFinder: AccountFinder,
     private val accountLister: AccountLister,
+    private val tagLister: TagLister,
     private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -52,10 +56,14 @@ class CreateExpenseViewModel(
 
     fun save(amount: String, date: String, categoryInput: CategoryInput, description: String) {
         if (this.mutableUiState.value is CreateExpenseUiState.Saving) return
-        val snapshot = currentSnapshot()
+        val snapshot = this.currentSnapshot().withTypedTagAdded()
         val resolvedAccountId = this.accountId ?: snapshot.selectedAccountId
         if (resolvedAccountId == null) {
-            this.mutableUiState.value = this.withAccountError(snapshot)
+            this.mutableUiState.value = this.validationError(snapshot, "La cuenta es obligatoria.")
+            return
+        }
+        if (snapshot.tagSelection.error != null) {
+            this.mutableUiState.value = this.validationError(snapshot, null)
             return
         }
         this.mutableUiState.value = CreateExpenseUiState.Saving
@@ -65,7 +73,8 @@ class CreateExpenseViewModel(
                 amount = amount,
                 date = date,
                 categoryInput = categoryInput,
-                description = description
+                description = description,
+                tagInputs = snapshot.tagSelection.inputs
             )
             when (outcome) {
                 is Outcome.Success -> {
@@ -95,22 +104,57 @@ class CreateExpenseViewModel(
         }
     }
 
+    fun onTagTextChange(text: String) {
+        this.updateTagSelection { selection, _ -> selection.withText(text) }
+    }
+
+    fun addTag() {
+        this.updateTagSelection { selection, tags -> selection.withTextAdded(tags) }
+    }
+
+    fun pickTag(tag: Tag) {
+        this.updateTagSelection { selection, _ -> selection.withTagPicked(tag) }
+    }
+
+    fun removeTag(index: Int) {
+        this.updateTagSelection { selection, _ -> selection.withTagRemoved(index) }
+    }
+
+    private fun updateTagSelection(update: (TagSelection, List<Tag>) -> TagSelection) {
+        when (val current = this.mutableUiState.value) {
+            is CreateExpenseUiState.Idle -> this.mutableUiState.value = current.copy(
+                tagSelection = update(current.tagSelection, current.tags)
+            )
+            is CreateExpenseUiState.ValidationError -> this.mutableUiState.value = current.copy(
+                tagSelection = update(current.tagSelection, current.tags)
+            )
+            else -> Unit
+        }
+    }
+
     private fun loadWithAccount() {
         this.viewModelScope.launch(this.ioDispatcher) {
             val categoriesOutcome = this@CreateExpenseViewModel.categoryLister
                 .list(CategoryType.EXPENSE, "").first()
             val accountOutcome = this@CreateExpenseViewModel.accountFinder
                 .find(this@CreateExpenseViewModel.accountId!!).first()
+            val tagsOutcome = this@CreateExpenseViewModel.tagLister.list().first()
             this@CreateExpenseViewModel.mutableUiState.value = when {
                 categoriesOutcome is Outcome.Failure ->
                     CreateExpenseUiState.Error(categoriesOutcome.error.externalMessage)
                 accountOutcome is Outcome.Failure ->
                     CreateExpenseUiState.Error(accountOutcome.error.externalMessage)
+                tagsOutcome is Outcome.Failure ->
+                    CreateExpenseUiState.Error(tagsOutcome.error.externalMessage)
                 else -> {
                     val categories = (categoriesOutcome as Outcome.Success).value
                     val account = (accountOutcome as Outcome.Success).value
                     val createdAt = account.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
-                    CreateExpenseUiState.Idle(categories = categories, accountCreatedAt = createdAt)
+                    CreateExpenseUiState.Idle(
+                        categories = categories,
+                        accountCreatedAt = createdAt,
+                        tags = (tagsOutcome as Outcome.Success).value
+                    )
                 }
             }
         }
@@ -122,18 +166,22 @@ class CreateExpenseViewModel(
                 .list(CategoryType.EXPENSE, "").first()
             val accountsOutcome = this@CreateExpenseViewModel.accountLister
                 .list().first()
+            val tagsOutcome = this@CreateExpenseViewModel.tagLister.list().first()
             this@CreateExpenseViewModel.mutableUiState.value = when {
                 categoriesOutcome is Outcome.Failure ->
                     CreateExpenseUiState.Error(categoriesOutcome.error.externalMessage)
                 accountsOutcome is Outcome.Failure ->
                     CreateExpenseUiState.Error(accountsOutcome.error.externalMessage)
+                tagsOutcome is Outcome.Failure ->
+                    CreateExpenseUiState.Error(tagsOutcome.error.externalMessage)
                 else -> {
                     val categories = (categoriesOutcome as Outcome.Success).value
                     val accounts = (accountsOutcome as Outcome.Success).value
                     CreateExpenseUiState.Idle(
                         categories = categories,
                         accountCreatedAt = null,
-                        accounts = accounts
+                        accounts = accounts,
+                        tags = (tagsOutcome as Outcome.Success).value
                     )
                 }
             }
@@ -150,19 +198,23 @@ class CreateExpenseViewModel(
                 amountError = error.amountError,
                 dateError = error.dateError,
                 categoryError = error.categoryError,
-                descriptionError = error.descriptionError
+                descriptionError = error.descriptionError,
+                tags = snapshot.tags,
+                tagSelection = snapshot.tagSelection.copy(error = error.tagsError ?: snapshot.tagSelection.error)
             )
             else -> CreateExpenseUiState.Error(error.externalMessage)
         }
     }
 
-    private fun withAccountError(snapshot: FormSnapshot): CreateExpenseUiState =
+    private fun validationError(snapshot: FormSnapshot, accountError: String?): CreateExpenseUiState =
         CreateExpenseUiState.ValidationError(
             categories = snapshot.categories,
             accountCreatedAt = snapshot.accountCreatedAt,
             accounts = snapshot.accounts,
             selectedAccountId = snapshot.selectedAccountId,
-            accountError = "La cuenta es obligatoria."
+            accountError = accountError,
+            tags = snapshot.tags,
+            tagSelection = snapshot.tagSelection
         )
 
     private fun currentSnapshot() = when (val current = this.mutableUiState.value) {
@@ -171,14 +223,18 @@ class CreateExpenseViewModel(
             current.accountCreatedAt,
             current.accounts,
             current.selectedAccountId,
+            current.tags,
+            current.tagSelection,
         )
         is CreateExpenseUiState.ValidationError -> FormSnapshot(
             current.categories,
             current.accountCreatedAt,
             current.accounts,
             current.selectedAccountId,
+            current.tags,
+            current.tagSelection,
         )
-        else -> FormSnapshot(emptyList(), EPOCH_DATE, emptyList(), null)
+        else -> FormSnapshot(emptyList(), EPOCH_DATE, emptyList(), null, emptyList(), TagSelection())
     }
 
     private data class FormSnapshot(
@@ -186,7 +242,11 @@ class CreateExpenseViewModel(
         val accountCreatedAt: LocalDate?,
         val accounts: List<Account>,
         val selectedAccountId: String?,
-    )
+        val tags: List<Tag>,
+        val tagSelection: TagSelection,
+    ) {
+        fun withTypedTagAdded(): FormSnapshot = this.copy(tagSelection = this.tagSelection.withTextAdded(this.tags))
+    }
 
     companion object {
         private val EPOCH_DATE = LocalDate(1970, 1, 1)

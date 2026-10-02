@@ -26,6 +26,7 @@ As a user, I want to record a purchase I paid with a credit card I am viewing, s
 - As the user types the amount, it is formatted while typing as described by the shared amount-formatting behavior (see `specs/shared/amount-formatting/spec.md`). The value used for validation and storage is the raw amount the user entered, without the separators.
 - The date must be today or in the past, and no earlier than the day the account was created.
 - When the category field is focused, all existing expense categories are shown. As the user types, the list filters to matching categories. The user can pick one from the list or finish typing a new name to create a new expense category. Money accounts and credit cards share the same expense categories.
+- Optional tags can be added to the expense, as described in `specs/accounting/expense-tags/spec.md`.
 - If any required field is invalid or missing, an error is shown next to that field.
 
 ### Money accounts (savings and cash)

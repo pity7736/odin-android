@@ -14,6 +14,10 @@ belong to a single tab.
 
 ## Design Decisions & Rationale
 
+- **An expense's tags are part of its detail.** `TransactionDetail` carries the
+  expense's tags in alphabetical order, shown as read-only chips; see
+  `specs/accounting/expense-tags/design.md`.
+
 - **`TransactionDetail` is a domain read model composing a `Transaction` with
   resolved category and account names.** The `Transaction` interface holds only
   `categoryId` and `accountId`. The detail screen needs names, not IDs. Rather

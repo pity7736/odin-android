@@ -1,12 +1,13 @@
 package dev.raiseexception.odin.accounting.presentation.transactiondetail
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import dev.raiseexception.odin.ui.theme.IncomeGreen
+import androidx.compose.ui.test.performClick
 import dev.raiseexception.odin.ui.theme.ExpenseRed
+import dev.raiseexception.odin.ui.theme.IncomeGreen
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -199,6 +200,37 @@ class TransactionDetailScreenTest {
         }
         composeTestRule.onNodeWithText("Pago").assertIsDisplayed()
         composeTestRule.onNodeWithText("Ingreso").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_content_with_tags_when_displayed_then_shows_etiquetas_with_a_chip_per_tag_in_order() {
+        composeTestRule.setContent {
+            TransactionDetailScreen(
+                uiState = expenseContent(isEditable = true).copy(tagNames = listOf("Comida", "Nala")),
+                onNavigateToHome = {},
+                onNavigateToAccounts = {},
+                onNavigateToCategories = {},
+                onEditExpense = {},
+            )
+        }
+        composeTestRule.onNodeWithText("ETIQUETAS").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("tag_detail_chip_0").assertTextEquals("Comida")
+        composeTestRule.onNodeWithTag("tag_detail_chip_1").assertTextEquals("Nala")
+    }
+
+    @Test
+    fun given_content_without_tags_when_displayed_then_nothing_about_tags_is_shown() {
+        composeTestRule.setContent {
+            TransactionDetailScreen(
+                uiState = expenseContent(isEditable = true),
+                onNavigateToHome = {},
+                onNavigateToAccounts = {},
+                onNavigateToCategories = {},
+                onEditExpense = {},
+            )
+        }
+        composeTestRule.onNodeWithText("ETIQUETAS").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("tags_chips").assertDoesNotExist()
     }
 
     private fun expenseContent(isEditable: Boolean) = TransactionDetailUiState.Content(

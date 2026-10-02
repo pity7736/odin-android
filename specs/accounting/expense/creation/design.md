@@ -8,6 +8,8 @@ Records an expense against an existing money account or credit card. The user st
 
 ## Design Decisions & Rationale
 
+- **Tags are part of recording an expense.** The form's tag field, tag resolution inside the save transaction and the tag rules on the aggregate are described in `specs/accounting/expense-tags/design.md`.
+
 - **`Expense` is an entity within the `Account` aggregate, created via `Account.createExpense()`** — the `Expense` constructor is `internal`; only `Account` can create expenses. This keeps every spending invariant (including the "amount must not exceed what the account can spend" rule) enforced at the aggregate root. `Expense.restore()` exists for hydration from the repository. Alternative rejected: a standalone factory — it cannot enforce aggregate invariants like the spending ceiling.
 
 - **`Account.balance` is a computed property derived from the account's funding and its transactions** — for a money account it is the `Funds` funding's initial balance plus the sum of incomes minus the sum of expenses. Balance is never stored separately; it is always derived from the current lists of incomes and expenses on the `Account` instance. For a credit card, `balance` is its current debt, derived the same way from the card's expenses and payments (see `specs/accounting/accounts/creation/design.md`). This avoids stale balance data and eliminates the need for balance update operations. Alternative rejected: a stored balance updated on each transaction — introduces sync risk between the stored value and the actual records.
@@ -20,7 +22,7 @@ Records an expense against an existing money account or credit card. The user st
 
 - **Income and expense ViewModels load the account to expose `accountCreatedAt: LocalDate` in the UI state** — `CreateExpenseViewModel` injects `AccountFinder` and loads the account in `init` alongside categories. The `createdAt` instant is converted to `LocalDate` and included in both `Idle` and `ValidationError` states. Alternative rejected: passing only the creation date string from the navigation arguments — fragile, couples the screen to a serialization format.
 
-- **The form fields are shared composables** — `OdinField`, `FieldError`, `DatePickerField`, and `CategoryAutocomplete` live in `shared/presentation/` and are used by both expense creation and expense edit (`specs/accounting/expense/update/design.md`), alongside the shared `AmountField`. `DatePickerField` opens the calendar on the currently selected date; creation selects today, so the calendar opens on today. Alternative rejected: private copies per screen — they drift independently.
+- **The form fields are shared composables** — `OdinField`, `FieldError`, `DatePickerField`, `CategoryAutocomplete` and `TagField` live in `shared/presentation/` and are used by both expense creation and expense edit (`specs/accounting/expense/update/design.md`), alongside the shared `AmountField`. `DatePickerField` opens the calendar on the currently selected date; creation selects today, so the calendar opens on today. Alternative rejected: private copies per screen — they drift independently.
 
 - **Date picker constrains selectable dates to `[accountCreatedAt, today]`** — `DatePickerField` accepts a `minDate: LocalDate?` parameter. `SelectableDates.isSelectableDate` checks `utcTimeMillis in [minDateMillis, todayMillis]`. This prevents the user from selecting invalid dates rather than relying solely on domain rejection. Alternative rejected: no picker constraint — poor UX, the user can select dates that will always be rejected.
 
@@ -30,7 +32,7 @@ Records an expense against an existing money account or credit card. The user st
 
 - **`ExpenseCreator` mirrors `IncomeCreator`** — resolves `CategoryInput` (validating `CategoryType.EXPENSE`), delegates to `Account.createExpense()`, saves via `ExpenseRepository`, wraps in `TransactionRunner`. `CategoryInput` is reused as-is; the existing-vs-new category distinction is the same for both income and expense. Alternative rejected: a generic `TransactionCreator` for both — income and expense have diverging validation rules (spending ceiling), so merging them adds conditional complexity without reducing code.
 
-- **Category resolution and the expense save run in one transaction** — `ExpenseCreator` resolves the category (existing or new) and saves the expense inside `TransactionRunner.run {}`. A returned failure rolls back every write, so a rejected or failed save keeps neither the expense nor a newly created category. See `specs/technical/transaction-atomicity/design.md`.
+- **Category and tag resolution and the expense save run in one transaction** — `ExpenseCreator` resolves the category (existing or new) and the tags (through `TagResolver`) and saves the expense inside `TransactionRunner.run {}`. A returned failure rolls back every write, so a rejected or failed save keeps neither the expense nor a newly created category or tag. See `specs/technical/transaction-atomicity/design.md`.
 
 - **`CategoryCreationError.DuplicateName` maps to a field error, not a full-screen error** — when creating a new expense category inline and the name already exists, the error appears next to the category field as an `InvalidInput.categoryError`. Alternative rejected: a separate error state — inconsistent with the field-level validation pattern used for all other input errors.
 
@@ -98,13 +100,13 @@ specs/accounting/expense/creation/
 **Recording an expense:**
 1. User taps the expandable FAB on the account detail screen of a money account or a credit card and selects "Gasto" (from home, the expense shortcut opens the same form with an account picker — see `specs/home/shortcuts/design.md`)
 2. `AccountDetailViewModel` emits `AccountDetailNavigationTarget.CreateExpense(accountId)`, which navigates to the expense creation route; money accounts and cards share it
-3. `CreateExpenseViewModel.init` loads expense categories via `CategoryLister` and the account via `AccountFinder` in parallel, transitions to `Idle` with categories and `accountCreatedAt`
-4. User fills in amount, date, category, and optional description; taps "Guardar"
-5. `CreateExpenseViewModel.save()` delegates to `ExpenseCreator.create()`
+3. `CreateExpenseViewModel.init` loads expense categories via `CategoryLister`, tags via `TagLister` and the account via `AccountFinder`, transitions to `Idle` with categories, tags and `accountCreatedAt`
+4. User fills in amount, date, category, optional tags, and optional description; taps "Guardar"
+5. `CreateExpenseViewModel.save()` adds any typed tag to the selection and delegates to `ExpenseCreator.create()` with the tag inputs
 6. `ExpenseCreator` loads the account via `AccountRepository.findById(id, AccountCriteria(includeIncomes = true, includeExpenses = true)).first()` so the spending ceiling is accurate
-7. `ExpenseCreator` resolves `CategoryInput` — for `Existing`, validates the category exists and is `CategoryType.EXPENSE`; for `New`, creates it via `CategoryCreator`
+7. `ExpenseCreator` resolves `CategoryInput` — for `Existing`, validates the category exists and is `CategoryType.EXPENSE`; for `New`, creates it via `CategoryCreator` — and resolves the tag inputs through `TagResolver` (see `specs/accounting/expense-tags/design.md`)
 8. `Account.createExpense()` validates all fields (including amount vs. `funding.spendable`), constructs the `Expense`, adds it to the aggregate's internal list
-9. `ExpenseCreator` saves via `ExpenseRepository.add()`, wrapped in `TransactionRunner`
+9. `ExpenseCreator` saves via `ExpenseRepository.add()`, which also writes the expense's tag links, wrapped in `TransactionRunner`
 10. On success, ViewModel emits `NavigationTarget.AccountDetail(accountId)` and the nav controller pops back to the account detail screen
 
 ## Screen & States
@@ -112,9 +114,9 @@ specs/accounting/expense/creation/
 `CreateExpenseScreen` observes `CreateExpenseUiState`:
 
 - `Loading` — spinner shown while expense categories are loading
-- `Idle(categories, accountCreatedAt)` — form displayed with amount, date (today pre-selected, picker constrained from account creation date through today), category autocomplete (expense categories), optional description, and save button
-- `Saving` — save button disabled; form field state preserved via `rememberSaveable`
-- `ValidationError(categories, accountCreatedAt, amountError?, dateError?, categoryError?, descriptionError?)` — per-field error messages shown below the relevant fields
+- `Idle(categories, accountCreatedAt, tags, tagSelection)` — form displayed with amount, date (today pre-selected, picker constrained from account creation date through today), category autocomplete (expense categories), tag field, optional description, and save button
+- `Saving` — save button disabled; form field state preserved via `rememberSaveable`, and the last tag selection kept on screen
+- `ValidationError(categories, accountCreatedAt, tags, tagSelection, amountError?, dateError?, categoryError?, descriptionError?)` — per-field error messages shown below the relevant fields; a tag error travels in the selection
 - `Error(message)` — centered Spanish error message
 
 ## Known Limitations

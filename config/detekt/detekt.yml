@@ -14,3 +14,7 @@ style:
       - '0xFF2E7D32'
   ReturnCount:
     max: 5
+
+complexity:
+  TooManyFunctions:
+    ignorePrivate: true

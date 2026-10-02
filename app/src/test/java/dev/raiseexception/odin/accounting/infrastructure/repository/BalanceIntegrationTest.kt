@@ -9,6 +9,7 @@ import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
+import dev.raiseexception.odin.accounting.application.usecase.TagResolver
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
@@ -55,8 +56,10 @@ class BalanceIntegrationTest {
         val categoryRepository = RoomCategoryRepository(database.categoryDao())
         val transactionDao = database.transactionDao()
         val incomeRepository = RoomIncomeRepository(transactionDao)
-        val expenseRepository = RoomExpenseRepository(transactionDao)
+        val expenseRepository = RoomExpenseRepository(transactionDao, database.expenseTagDao())
         val transactionRunner = RoomTransactionRunner(database)
+        val tagRepository = RoomTagRepository(database.tagDao())
+        val tagResolver = TagResolver(tagRepository)
         categoryCreator = CategoryCreator(categoryRepository)
         accountCreator = AccountCreator(accountRepository)
         accountFinder = AccountFinder(accountRepository)
@@ -72,6 +75,7 @@ class BalanceIntegrationTest {
             expenseRepository = expenseRepository,
             categoryRepository = categoryRepository,
             categoryCreator = categoryCreator,
+            tagResolver = tagResolver,
             transactionRunner = transactionRunner
         )
     }
@@ -176,7 +180,8 @@ class BalanceIntegrationTest {
             amount = "200000",
             date = today,
             categoryInput = CategoryInput.New("Alimentación"),
-            description = "Mercado"
+            description = "Mercado",
+            tagInputs = emptyList()
         )
         assertTrue("Expense creation should succeed: $expenseResult", expenseResult is Outcome.Success)
         val loaded = accountFinder.find(
@@ -198,7 +203,8 @@ class BalanceIntegrationTest {
                 amount = "200000",
                 date = today,
                 categoryInput = CategoryInput.New("Viajes"),
-                description = ""
+                description = "",
+                tagInputs = emptyList()
             )
             assertTrue("Expense creation should succeed: $expenseResult", expenseResult is Outcome.Success)
             val loadedCard = loadAccount(visaCard.id, AccountCriteria(includeIncomes = true, includeExpenses = true))
@@ -222,7 +228,8 @@ class BalanceIntegrationTest {
                 amount = "200000",
                 date = today,
                 categoryInput = CategoryInput.New("Viajes"),
-                description = ""
+                description = "",
+                tagInputs = emptyList()
             )
             assertTrue("Expense creation should succeed: $expenseResult", expenseResult is Outcome.Success)
             val loadedCard = loadAccount(

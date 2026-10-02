@@ -11,7 +11,8 @@ sealed class ExpenseCreationError(
         val amountError: String?,
         val dateError: String?,
         val categoryError: String?,
-        val descriptionError: String? = null
+        val descriptionError: String? = null,
+        val tagsError: String? = null
     ) : ExpenseCreationError(
         internalMessage = "One or more expense fields are invalid",
         externalMessage = "Revisa los datos del gasto"

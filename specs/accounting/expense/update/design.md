@@ -13,6 +13,10 @@ returns to the transaction details, which reflect the new values live.
 
 ## Design Decisions & Rationale
 
+- **Tags are part of editing an expense.** Adding and removing tags, merging a
+  rejected tag name with the other field errors, and deleting tags left unused
+  are described in `specs/accounting/expense-tags/design.md`.
+
 - **`Account.editExpense` is the edit entry, and the aggregate owns the amount
   ceiling.** The ceiling is `funding.spendable` computed from the account's
   incomes and every expense except the one being edited — for a money account,
@@ -52,9 +56,10 @@ returns to the transaction details, which reflect the new values live.
   generic "required" message in the merged `InvalidInput`.
 
 - **The whole write path runs in one transaction.** Category resolution
-  (including creating a new category), the domain edit and the expense update run
-  inside `TransactionRunner.run`; any returned failure rolls back, so a rejected
-  or failed edit keeps no newly typed category (see
+  (including creating a new category), tag resolution (including creating new
+  tags), the domain edit, the expense update and the deletion of tags left unused
+  run inside `TransactionRunner.run`; any returned failure rolls back, so a
+  rejected or failed edit keeps no newly typed category or tag (see
   `specs/technical/transaction-atomicity/design.md`).
 
 - **Category resolution is duplicated with `ExpenseCreator` for now.** The two
@@ -77,17 +82,18 @@ returns to the transaction details, which reflect the new values live.
 
 - **The edit form is a snapshot, loaded once, with one folded content state.**
   The ViewModel takes the first emission of the transaction, the account (for the
-  calendar's minimum date) and the expense categories on the injected IO
+  calendar's minimum date), the expense categories and the tags on the injected IO
   dispatcher. Any load failure — including an income id or a transfer expense —
   yields `NotFound`, the defensive fallback for states the UI does not expose.
-  `Editing` holds the pre-fill, per-field errors, an in-progress flag and a save
-  error, so a failed save overlays errors without losing context. The screen owns
+  `Editing` holds the pre-fill (including the expense's tags as the selection),
+  per-field errors, an in-progress flag and a save error, so a failed save
+  overlays errors without losing context. The screen owns
   the editable text, seeded once from `Editing`, so typed values survive a failed
   save. The amount pre-fill swaps the stored decimal point for the comma the
   amount field uses; the category pre-fill resolves to the existing category.
 
 - **The form fields are shared composables.** Amount, date picker, category
-  autocomplete, text field and field error live in `shared/presentation/` and are
+  autocomplete, tag field, text field and field error live in `shared/presentation/` and are
   used by both expense creation and edit. The date picker opens on the selected
   date, so edit shows the expense's date and creation (which selects today) is
   unaffected.
@@ -117,7 +123,7 @@ app/src/main/java/dev/raiseexception/odin/
 │   └── presentation/
 │       ├── expenseedit/      # EditExpenseViewModel, EditExpenseUiState, EditExpenseScreen
 │       └── transactiondetail/ # Content.isEditable, "Editar" action
-├── shared/presentation/       # OdinField, FieldError, DatePickerField, CategoryAutocomplete, AmountField, Routes (expense edit)
+├── shared/presentation/       # OdinField, FieldError, DatePickerField, CategoryAutocomplete, TagField, AmountField, Routes (expense edit)
 ├── MainActivity.kt            # edit destination; single-top navigation from details
 └── di/AppContainer.kt         # ExpenseUpdater + edit ViewModel factory
 
@@ -137,15 +143,16 @@ specs/accounting/expense/update/
    with `isEditable`; the "Editar" action navigates (single-top) to the edit
    destination for the expense id.
 2. **ViewModel (load):** on the IO dispatcher it reads the transaction, the
-   account and the expense categories once, building `Editing` or `NotFound`.
+   account, the expense categories and the tags once, building `Editing` or `NotFound`.
 3. The screen renders the form from `Editing`, owning the editable fields.
 4. **ViewModel (save):** ignores re-entry while saving, clears prior errors, and
    calls `ExpenseUpdater.update` inside `withContext(ioDispatcher)`.
 5. **Use case:** loads the expense through `TransactionFinder` (not found, income
    or transfer are rejected), loads the account through `AccountFinder`, then
-   inside `TransactionRunner.run` resolves the category, calls
-   `Account.editExpense`, merges errors, and persists through
-   `ExpenseRepository.update`. A returned failure rolls the transaction back.
+   inside `TransactionRunner.run` resolves the category and the tags, calls
+   `Account.editExpense`, merges errors, persists through
+   `ExpenseRepository.update` (which replaces the expense's tag links) and deletes
+   tags left unused. A returned failure rolls the transaction back.
 6. **Domain (`Account.editExpense`):** validates against the ceiling and the
    creation rules, returns the edited expense and replaces it in the aggregate.
 7. Success emits a one-shot event that pops back to the details, which re-emit
@@ -158,8 +165,9 @@ specs/accounting/expense/update/
   `expense_edit/{expenseId}`.
 - **UiState:** `Loading` / `NotFound` / `Editing`. `Editing` holds the pre-filled
   amount, date, category id and name, description, the read-only account name,
-  the account's creation date (calendar minimum), the expense categories,
-  per-field errors, an in-progress flag and a save error. Navigation after a save
+  the account's creation date (calendar minimum), the expense categories, all
+  tags and the tag selection, per-field errors, an in-progress flag and a save
+  error. Navigation after a save
   is a one-shot event, separate from state.
 - **Backend Interaction:** none. Standalone/on-device only.
 

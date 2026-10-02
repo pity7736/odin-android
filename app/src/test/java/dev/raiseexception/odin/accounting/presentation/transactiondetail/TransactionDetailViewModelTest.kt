@@ -11,6 +11,7 @@ import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.TransactionDetail
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.StorageError
+import dev.raiseexception.odin.testutil.TagBuilder
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.IncomeGreen
 import io.mockk.every
@@ -26,6 +27,7 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
@@ -156,7 +158,8 @@ class TransactionDetailViewModelTest {
             categoryName = "Salario",
             accountName = "Ahorros",
             isTransfer = false,
-            accountType = AccountType.SAVINGS
+            accountType = AccountType.SAVINGS,
+            tags = emptyList()
         )
         every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(detail))
         val viewModel = buildViewModel()
@@ -253,6 +256,35 @@ class TransactionDetailViewModelTest {
         assertEquals("Gasto", (viewModel.uiState.value as TransactionDetailUiState.Content).typeLabel)
     }
 
+    @Test
+    fun `given an expense with tags, when observing, then Content carries the tag names in order`() = runTest {
+        val tags = listOf(TagBuilder().name("Comida").build(), TagBuilder().name("Nala").build())
+        every { transactionFinder.find(transactionId) } returns
+            flowOf(Outcome.Success(expenseDetail().copy(tags = tags)))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        val state = viewModel.uiState.value as TransactionDetailUiState.Content
+        assertEquals(listOf("Comida", "Nala"), state.tagNames)
+    }
+
+    @Test
+    fun `given an expense without tags, when observing, then Content has no tag names`() = runTest {
+        every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(expenseDetail()))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        val state = viewModel.uiState.value as TransactionDetailUiState.Content
+        assertTrue(state.tagNames.isEmpty())
+    }
+
+    @Test
+    fun `given an income, when observing, then Content has no tag names`() = runTest {
+        every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(incomeDetail()))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        val state = viewModel.uiState.value as TransactionDetailUiState.Content
+        assertTrue(state.tagNames.isEmpty())
+    }
+
     private fun incomeDetail(): TransactionDetail =
         TransactionDetail(
             transaction = Income.restore(
@@ -267,7 +299,8 @@ class TransactionDetailViewModelTest {
             categoryName = "Salario",
             accountName = "Ahorros",
             isTransfer = false,
-            accountType = AccountType.SAVINGS
+            accountType = AccountType.SAVINGS,
+            tags = emptyList()
         )
 
     private fun expenseDetail(): TransactionDetail =
@@ -279,11 +312,13 @@ class TransactionDetailViewModelTest {
                 date = LocalDate.parse("2026-09-15"),
                 categoryId = "cat-2",
                 description = "Mercado semanal",
-                createdAt = Instant.parse("2026-09-15T10:00:00Z")
+                createdAt = Instant.parse("2026-09-15T10:00:00Z"),
+                tagIds = emptyList()
             ),
             categoryName = "Alimentación",
             accountName = "Efectivo",
             isTransfer = false,
-            accountType = AccountType.CASH
+            accountType = AccountType.CASH,
+            tags = emptyList()
         )
 }

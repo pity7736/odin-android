@@ -352,6 +352,10 @@ private fun CreateExpenseDestination(accountId: String?, navController: NavHostC
         uiState = uiState,
         onSave = createExpenseViewModel::save,
         onAccountSelected = createExpenseViewModel::onAccountSelected,
+        onTagTextChange = createExpenseViewModel::onTagTextChange,
+        onAddTag = createExpenseViewModel::addTag,
+        onTagPicked = createExpenseViewModel::pickTag,
+        onTagRemoved = createExpenseViewModel::removeTag,
         navigationEvent = createExpenseViewModel.navigationEvent,
         onNavigateBack = { navController.popBackStack() }
     )
@@ -495,7 +499,11 @@ private fun EditExpenseDestination(expenseId: String, navController: NavHostCont
         onSave = editExpenseViewModel::save,
         navigationEvent = editExpenseViewModel.navigationEvent,
         onSaved = { navController.popBackStack() },
-        onCancel = { navController.popBackStack() }
+        onCancel = { navController.popBackStack() },
+        onTagTextChange = editExpenseViewModel::onTagTextChange,
+        onAddTag = editExpenseViewModel::addTag,
+        onTagPicked = editExpenseViewModel::pickTag,
+        onTagRemoved = editExpenseViewModel::removeTag
     )
 }
 

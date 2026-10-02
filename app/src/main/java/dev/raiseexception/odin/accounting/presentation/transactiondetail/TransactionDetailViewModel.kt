@@ -66,6 +66,7 @@ class TransactionDetailViewModel(
             isIncome = isIncome,
             typeLabel = this.typeLabel(detail),
             isEditable = transaction is Expense && !detail.isTransfer,
+            tagNames = detail.tags.map { it.name },
         )
     }
 

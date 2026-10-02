@@ -746,6 +746,7 @@ class AccountEditExpenseTest {
             date = "2026-04-02",
             categoryId = "cat-2",
             description = "  Restaurante  ",
+            tagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -771,6 +772,7 @@ class AccountEditExpenseTest {
             date = "2026-03-10",
             categoryId = "cat-1",
             description = "",
+            tagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -834,6 +836,7 @@ class AccountEditExpenseTest {
             date = original.date.toString(),
             categoryId = original.categoryId,
             description = original.description,
+            tagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -874,6 +877,7 @@ class AccountEditExpenseTest {
             date = "2099-01-01",
             categoryId = "cat-1",
             description = "",
+            tagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -894,6 +898,7 @@ class AccountEditExpenseTest {
             date = "2026-02-28",
             categoryId = "cat-1",
             description = "",
+            tagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -912,6 +917,7 @@ class AccountEditExpenseTest {
             date = "2026-03-01",
             categoryId = "cat-1",
             description = "",
+            tagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -930,6 +936,7 @@ class AccountEditExpenseTest {
             date = "",
             categoryId = "",
             description = "",
+            tagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -950,6 +957,7 @@ class AccountEditExpenseTest {
             date = "2026-03-10",
             categoryId = "cat-1",
             description = "   ",
+            tagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -967,6 +975,7 @@ class AccountEditExpenseTest {
             date = "2026-03-10",
             categoryId = "cat-1",
             description = "",
+            tagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -993,6 +1002,7 @@ class AccountEditExpenseTest {
         date = "2026-03-10",
         categoryId = "cat-1",
         description = "",
+        tagIds = emptyList(),
         clock = this.fixedClock
     )
 
@@ -1138,6 +1148,7 @@ class AccountCreditCardExpenseTest {
             date = date,
             categoryId = "cat-1",
             description = "",
+            tagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -1147,6 +1158,7 @@ class AccountCreditCardExpenseTest {
         date = "2026-03-10",
         categoryId = "cat-1",
         description = "",
+        tagIds = emptyList(),
         clock = this.fixedClock
     )
 
@@ -1224,6 +1236,7 @@ class AccountCreditCardPaymentTest {
             date = "2026-03-10",
             categoryId = "cat-1",
             description = "",
+            tagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -1265,4 +1278,233 @@ class AccountCreditCardPaymentTest {
     }
 
     private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)
+}
+
+class AccountExpenseTagsTest {
+
+    private val fixedInstant = Instant.parse("2026-08-29T12:00:00Z")
+    private val fixedClock = object : Clock {
+        override fun now(): Instant = fixedInstant
+    }
+    private val expenseCreatedAt = Instant.parse("2026-03-10T12:00:00Z")
+    private val expenseClock = object : Clock {
+        override fun now(): Instant = expenseCreatedAt
+    }
+
+    @Test
+    fun `given two tag ids, when creating an expense, then it carries them in order`() {
+        val account = this.savingsAccount()
+
+        val result = this.createExpense(account, "30000", listOf("tag-nala", "tag-comida"))
+
+        assertEquals(listOf("tag-nala", "tag-comida"), (result as Outcome.Success).value.tagIds)
+    }
+
+    @Test
+    fun `given duplicated tag ids, when creating an expense, then each is stored once in first occurrence order`() {
+        val account = this.savingsAccount()
+
+        val result = this.createExpense(account, "30000", listOf("tag-nala", "tag-toby", "tag-nala"))
+
+        assertEquals(listOf("tag-nala", "tag-toby"), (result as Outcome.Success).value.tagIds)
+    }
+
+    @Test
+    fun `given five tag ids, when creating an expense, then it carries all five`() {
+        val account = this.savingsAccount()
+
+        val result = this.createExpense(account, "30000", this.tagIds(FIVE_TAGS))
+
+        assertEquals(this.tagIds(FIVE_TAGS), (result as Outcome.Success).value.tagIds)
+    }
+
+    @Test
+    fun `given six distinct tag ids, when creating an expense, then fails with the tag limit error`() {
+        val account = this.savingsAccount()
+
+        val result = this.createExpense(account, "30000", this.tagIds(SIX_TAGS))
+
+        assertEquals("Máximo 5 etiquetas por gasto.", this.creationInvalidInput(result).tagsError)
+        assertTrue(account.expenses.isEmpty())
+    }
+
+    @Test
+    fun `given six tag ids where two repeat, when creating an expense, then succeeds with five`() {
+        val account = this.savingsAccount()
+
+        val result = this.createExpense(account, "30000", this.tagIds(FIVE_TAGS) + "tag-1")
+
+        assertEquals(this.tagIds(FIVE_TAGS), (result as Outcome.Success).value.tagIds)
+    }
+
+    @Test
+    fun `given six tag ids and a blank amount, when creating an expense, then reports both errors at once`() {
+        val account = this.savingsAccount()
+
+        val result = this.createExpense(account, "", this.tagIds(SIX_TAGS))
+
+        val error = this.creationInvalidInput(result)
+        assertEquals("El monto es obligatorio.", error.amountError)
+        assertEquals("Máximo 5 etiquetas por gasto.", error.tagsError)
+    }
+
+    @Test
+    fun `given a blank amount and one tag, when creating an expense, then reports no tags error`() {
+        val account = this.savingsAccount()
+
+        val result = this.createExpense(account, "", listOf("tag-nala"))
+
+        assertNull(this.creationInvalidInput(result).tagsError)
+    }
+
+    @Test
+    fun `given no tag ids, when creating an expense, then it has no tags`() {
+        val account = this.savingsAccount()
+
+        val result = this.createExpense(account, "30000", emptyList())
+
+        assertTrue((result as Outcome.Success).value.tagIds.isEmpty())
+    }
+
+    @Test
+    fun `given a credit card, when creating an expense with a tag, then it carries the tag`() {
+        val visaCard = AccountBuilder()
+            .id("card-1")
+            .name("Visa")
+            .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+            .creditCard(creditLimit = this.pesos("3000000"), initialDebt = this.pesos("0"))
+            .build()
+
+        val result = this.createExpense(visaCard, "30000", listOf("tag-gasolina"))
+
+        assertEquals(listOf("tag-gasolina"), (result as Outcome.Success).value.tagIds)
+    }
+
+    @Test
+    fun `given an expense with no tags, when editing it adding tags, then it carries the new tags`() {
+        val account = this.accountWithTaggedExpense(emptyList())
+
+        val result = this.editExpense(account, listOf("tag-carro", "tag-gasolina"))
+
+        assertEquals(listOf("tag-carro", "tag-gasolina"), (result as Outcome.Success).value.tagIds)
+        assertEquals(listOf("tag-carro", "tag-gasolina"), account.expenses.first().tagIds)
+    }
+
+    @Test
+    fun `given an expense with two tags, when editing it removing one, then it keeps only the other`() {
+        val account = this.accountWithTaggedExpense(listOf("tag-nala", "tag-toby"))
+
+        val result = this.editExpense(account, listOf("tag-nala"))
+
+        assertEquals(listOf("tag-nala"), (result as Outcome.Success).value.tagIds)
+    }
+
+    @Test
+    fun `given an expense with a tag, when editing it removing every tag, then it has no tags`() {
+        val account = this.accountWithTaggedExpense(listOf("tag-comida"))
+
+        val result = this.editExpense(account, emptyList())
+
+        assertTrue((result as Outcome.Success).value.tagIds.isEmpty())
+    }
+
+    @Test
+    fun `given duplicated tag ids, when editing an expense, then each is stored once`() {
+        val account = this.accountWithTaggedExpense(emptyList())
+
+        val result = this.editExpense(account, listOf("tag-nala", "tag-nala"))
+
+        assertEquals(listOf("tag-nala"), (result as Outcome.Success).value.tagIds)
+    }
+
+    @Test
+    fun `given six distinct tag ids, when editing an expense, then fails with the tag limit error and keeps tags`() {
+        val account = this.accountWithTaggedExpense(listOf("tag-nala"))
+
+        val result = this.editExpense(account, this.tagIds(SIX_TAGS))
+
+        assertEquals("Máximo 5 etiquetas por gasto.", this.updateInvalidInput(result).tagsError)
+        assertEquals(listOf("tag-nala"), account.expenses.first().tagIds)
+    }
+
+    @Test
+    fun `given six tag ids and a blank category, when editing an expense, then reports both errors at once`() {
+        val account = this.accountWithTaggedExpense(emptyList())
+
+        val result = account.editExpense(
+            expenseId = account.expenses.first().id,
+            amount = "30000",
+            date = "2026-03-10",
+            categoryId = "",
+            description = "",
+            tagIds = this.tagIds(SIX_TAGS),
+            clock = this.fixedClock
+        )
+
+        val error = this.updateInvalidInput(result)
+        assertEquals("La categoría es obligatoria.", error.categoryError)
+        assertEquals("Máximo 5 etiquetas por gasto.", error.tagsError)
+    }
+
+    private fun savingsAccount(): Account = AccountBuilder()
+        .id("acc-1")
+        .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+        .initialBalance(this.pesos("100000"))
+        .build()
+
+    private fun accountWithTaggedExpense(tagIds: List<String>): Account {
+        val account = this.savingsAccount()
+        account.createExpense(
+            amount = "30000",
+            date = "2026-03-10",
+            categoryId = "cat-1",
+            description = "",
+            tagIds = tagIds,
+            clock = this.expenseClock
+        )
+        return account
+    }
+
+    private fun createExpense(account: Account, amount: String, tagIds: List<String>): Outcome<Expense> =
+        account.createExpense(
+            amount = amount,
+            date = "2026-03-10",
+            categoryId = "cat-1",
+            description = "",
+            tagIds = tagIds,
+            clock = this.fixedClock
+        )
+
+    private fun editExpense(account: Account, tagIds: List<String>): Outcome<Expense> = account.editExpense(
+        expenseId = account.expenses.first().id,
+        amount = "30000",
+        date = "2026-03-10",
+        categoryId = "cat-1",
+        description = "",
+        tagIds = tagIds,
+        clock = this.fixedClock
+    )
+
+    private fun tagIds(count: Int): List<String> = (1..count).map { "tag-$it" }
+
+    private fun creationInvalidInput(result: Outcome<Expense>): ExpenseCreationError.InvalidInput {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is ExpenseCreationError.InvalidInput)
+        return error as ExpenseCreationError.InvalidInput
+    }
+
+    private fun updateInvalidInput(result: Outcome<Expense>): ExpenseUpdateError.InvalidInput {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is ExpenseUpdateError.InvalidInput)
+        return error as ExpenseUpdateError.InvalidInput
+    }
+
+    private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)
+
+    private companion object {
+        const val FIVE_TAGS = 5
+        const val SIX_TAGS = 6
+    }
 }

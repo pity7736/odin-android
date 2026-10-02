@@ -34,7 +34,8 @@ class RecentTransactionListerTest {
             date = LocalDate.parse("2026-01-15"),
             categoryId = "cat-2",
             description = "",
-            createdAt = Instant.parse("2026-01-15T10:00:00Z")
+            createdAt = Instant.parse("2026-01-15T10:00:00Z"),
+            tagIds = emptyList()
         )
         val account = AccountBuilder()
             .id("acc-1")
@@ -96,7 +97,8 @@ class RecentTransactionListerTest {
             date = LocalDate.parse("2026-01-02"),
             categoryId = "cat-2",
             description = "",
-            createdAt = Instant.parse("2026-01-02T10:00:00Z")
+            createdAt = Instant.parse("2026-01-02T10:00:00Z"),
+            tagIds = emptyList()
         )
         val savingsAccount = AccountBuilder()
             .id("acc-1")
@@ -133,7 +135,8 @@ class RecentTransactionListerTest {
             date = LocalDate.parse("2026-01-01"),
             categoryId = "cat-2",
             description = "",
-            createdAt = Instant.parse("2026-01-01T14:00:00Z")
+            createdAt = Instant.parse("2026-01-01T14:00:00Z"),
+            tagIds = emptyList()
         )
         val account = AccountBuilder()
             .id("acc-1")

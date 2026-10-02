@@ -3,10 +3,13 @@ package dev.raiseexception.odin.accounting.infrastructure.repository
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.model.Tag
 import dev.raiseexception.odin.persistence.OdinDatabase
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
@@ -33,7 +36,7 @@ class RoomTransactionRepositoryTest {
         database = Room.inMemoryDatabaseBuilder(context, OdinDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = RoomTransactionRepository(database.transactionDao())
+        repository = RoomTransactionRepository(database.transactionDao(), database.tagDao())
     }
 
     @After
@@ -136,4 +139,69 @@ class RoomTransactionRepositoryTest {
         description = "",
         createdAt = "2026-08-01T10:00:00Z"
     )
+
+    @Test
+    fun `given a tagged expense, when finding it, then the detail carries its tags sorted alphabetically`() =
+        runTest {
+            seedAccountsAndCategories()
+            database.transactionDao().insert(transaction("exp-1", "EXPENSE", "acc-savings", "cat-food"))
+            seedTag("tag-toby", "Toby")
+            seedTag("tag-comida", "comida")
+            seedTag("tag-alamo", "Álamo")
+            link("exp-1", "tag-toby", "tag-comida", "tag-alamo")
+            val detail = (repository.findById("exp-1").first() as Outcome.Success).value
+            assertEquals(listOf("Álamo", "comida", "Toby"), detail.tags.map { it.name })
+            assertEquals(listOf("tag-alamo", "tag-comida", "tag-toby"), (detail.transaction as Expense).tagIds)
+        }
+
+    @Test
+    fun `given an expense tagged with ñ, when finding it, then ñ is sorted right after n`() = runTest {
+        seedAccountsAndCategories()
+        database.transactionDao().insert(transaction("exp-1", "EXPENSE", "acc-savings", "cat-food"))
+        seedTag("tag-mozo", "mozo")
+        seedTag("tag-moño", "Moño")
+        seedTag("tag-mono", "mono")
+        link("exp-1", "tag-mozo", "tag-moño", "tag-mono")
+        val detail = (repository.findById("exp-1").first() as Outcome.Success).value
+        assertEquals(listOf("mono", "Moño", "mozo"), detail.tags.map { it.name })
+    }
+
+    @Test
+    fun `given an untagged expense, when finding it, then the detail has no tags`() = runTest {
+        seedAccountsAndCategories()
+        database.transactionDao().insert(transaction("exp-1", "EXPENSE", "acc-savings", "cat-food"))
+        val detail = (repository.findById("exp-1").first() as Outcome.Success).value
+        assertTrue(detail.tags.isEmpty())
+    }
+
+    @Test
+    fun `given an income, when finding it, then the detail has no tags`() = runTest {
+        seedAccountsAndCategories()
+        database.transactionDao().insert(transaction("inc-1", "INCOME", "acc-savings", "cat-salary"))
+        val detail = (repository.findById("inc-1").first() as Outcome.Success).value
+        assertTrue(detail.tags.isEmpty())
+    }
+
+    @Test
+    fun `given an expense being observed, when its tags change, then the detail emits again with the new tags`() =
+        runTest {
+            seedAccountsAndCategories()
+            database.transactionDao().insert(transaction("exp-1", "EXPENSE", "acc-savings", "cat-food"))
+            seedTag("tag-nala", "Nala")
+            repository.findById("exp-1").test {
+                assertTrue((awaitItem() as Outcome.Success).value.tags.isEmpty())
+                link("exp-1", "tag-nala")
+                val updated = (awaitItem() as Outcome.Success).value
+                assertEquals(listOf("Nala"), updated.tags.map { it.name })
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    private suspend fun seedTag(id: String, name: String) {
+        this.database.tagDao().insert(TagEntity(id, name, Tag.normalize(name), "2026-01-01T00:00:00Z"))
+    }
+
+    private suspend fun link(expenseId: String, vararg tagIds: String) {
+        this.database.expenseTagDao().insertAll(tagIds.map { ExpenseTagEntity(expenseId = expenseId, tagId = it) })
+    }
 }

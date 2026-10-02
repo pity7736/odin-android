@@ -30,7 +30,8 @@ class MostRecentTransactionFirstTest {
             date = LocalDate.parse("2026-09-20"),
             categoryId = "cat-2",
             description = "",
-            createdAt = Instant.parse("2026-09-20T10:00:00Z")
+            createdAt = Instant.parse("2026-09-20T10:00:00Z"),
+            tagIds = emptyList()
         )
         val sortedTransactions = listOf(olderIncome, newerExpense).sortedWith(mostRecentTransactionFirst)
         assertEquals(listOf("exp-1", "inc-1"), sortedTransactions.map { it.id })
@@ -54,7 +55,8 @@ class MostRecentTransactionFirstTest {
             date = LocalDate.parse("2026-09-28"),
             categoryId = "cat-2",
             description = "",
-            createdAt = Instant.parse("2026-09-28T14:00:00Z")
+            createdAt = Instant.parse("2026-09-28T14:00:00Z"),
+            tagIds = emptyList()
         )
         val sortedTransactions = listOf(earlierRecordedIncome, laterRecordedExpense)
             .sortedWith(mostRecentTransactionFirst)
