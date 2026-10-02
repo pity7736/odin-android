@@ -7,9 +7,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -25,10 +30,13 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -58,7 +66,18 @@ fun TagField(
     var isDismissed by remember { mutableStateOf(false) }
     val isInputEnabled = isEnabled && !selection.isAtLimit
     val showMenu = isFocused && !isDismissed && isInputEnabled && suggestions.isNotEmpty()
-    Column(modifier = Modifier.fillMaxWidth()) {
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(selection.selected.size) {
+        if (isFocused) {
+            withFrameNanos {}
+            bringIntoViewRequester.bringIntoView()
+        }
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .bringIntoViewRequester(bringIntoViewRequester),
+    ) {
         Text(
             text = "Etiquetas",
             style = MaterialTheme.typography.bodyMedium,
@@ -66,7 +85,6 @@ fun TagField(
             color = Slate800,
             modifier = Modifier.padding(bottom = 6.dp),
         )
-        TagChips(selection = selection, isEnabled = isEnabled, onRemove = onRemove)
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = selection.text,
@@ -125,6 +143,7 @@ fun TagField(
                     .testTag("tags_field_hint"),
             )
         }
+        TagChips(selection = selection, isEnabled = isEnabled, onRemove = onRemove)
     }
 }
 
@@ -133,9 +152,10 @@ private fun TagChips(selection: TagSelection, isEnabled: Boolean, onRemove: (Int
     if (selection.selected.isNotEmpty()) {
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 8.dp)
+                .padding(top = 8.dp)
                 .testTag("tag_chips"),
         ) {
             selection.selected.forEachIndexed { index, selectedTag ->
@@ -145,18 +165,21 @@ private fun TagChips(selection: TagSelection, isEnabled: Boolean, onRemove: (Int
                     enabled = isEnabled,
                     label = { Text(text = selectedTag.name) },
                     trailingIcon = {
-                        IconButton(
-                            onClick = { onRemove(index) },
-                            enabled = isEnabled,
-                            modifier = Modifier
-                                .size(24.dp)
-                                .testTag("tag_remove_$index"),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Close,
-                                contentDescription = "Quitar ${selectedTag.name}",
-                                modifier = Modifier.size(16.dp),
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Spacer(modifier = Modifier.width(16.dp))
+                            IconButton(
+                                onClick = { onRemove(index) },
+                                enabled = isEnabled,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .testTag("tag_remove_$index"),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = "Quitar ${selectedTag.name}",
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
                         }
                     },
                     modifier = Modifier.testTag("tag_chip_$index"),

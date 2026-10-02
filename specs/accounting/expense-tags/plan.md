@@ -276,14 +276,14 @@ data class TagSelection(val selected: List<SelectedTag> = emptyList(), val text:
 The user runs `MigrationTest` and, in the manual test, updates over an existing install that has data.
 
 ## Design decisions to hydrate into design.md
-- [ ] `Expense` owns `tagIds`; the aggregate enforces dedupe and the 5-tag limit (rejected: a separate association with rules in use cases).
-- [ ] `tags` stores a normalized name (trim, lowercase, strip accents, in the domain) with a unique index; used for duplicates, matching and ordering (rejected: SQLite `LOWER`/`NOCASE` — ASCII-only; ICU/custom functions — differ between SQLCipher and Robolectric tests).
-- [ ] A tag is created only when its expense is saved; unused tags are deleted in the edit transaction by a global "no link" cleanup (rejected: keep and hide — a hidden row would hijack a retyped name's spelling).
-- [ ] Tag rules are defined once in the domain and applied both on add (via `TagSelection`) and at save (aggregate); `TagInput.Existing`/`New` mirrors `CategoryInput`.
-- [ ] `TagResolver` is shared by `ExpenseCreator` and `ExpenseUpdater` and runs inside their transaction; it reuses a normalized match instead of failing on the unique index.
-- [ ] Tag ids are always loaded with an account's expenses (rejected: an `AccountCriteria.includeTags` flag — partially loaded expenses could erase tags on save).
-- [ ] `TransactionDetail.tags` carries full tags, sorted alphabetically, for display and edit pre-fill.
-- [ ] Form tag state (typed text + selection) lives in the ViewModel via the shared `TagSelection`; text typed but not added is added on save; the creation screen keeps the last selection visible while `Saving`.
-- [ ] Schema v3 with `MIGRATION_2_3`; migration verified by the instrumented `MigrationTest`, run by the user.
-- [ ] Quality pillars: tags are encrypted at rest with the whole database; tag names are never logged; one extra batched query per account load (Known Limitation alongside the balance-loading task).
-- [ ] Consumer designs: one-line pointers in `expense/creation/design.md`, `expense/update/design.md`, `transaction-details` design.
+- [x] `Expense` owns `tagIds`; the aggregate enforces dedupe and the 5-tag limit (rejected: a separate association with rules in use cases).
+- [x] `tags` stores a normalized name (trim, lowercase, strip accents, in the domain) with a unique index; used for duplicates, matching and ordering (rejected: SQLite `LOWER`/`NOCASE` — ASCII-only; ICU/custom functions — differ between SQLCipher and Robolectric tests).
+- [x] A tag is created only when its expense is saved; unused tags are deleted in the edit transaction by a global "no link" cleanup (rejected: keep and hide — a hidden row would hijack a retyped name's spelling).
+- [x] Tag rules are defined once in the domain and applied both on add (via `TagSelection`) and at save (aggregate); `TagInput.Existing`/`New` mirrors `CategoryInput`.
+- [x] `TagResolver` is shared by `ExpenseCreator` and `ExpenseUpdater` and runs inside their transaction; it reuses a normalized match instead of failing on the unique index.
+- [x] Tag ids are always loaded with an account's expenses (rejected: an `AccountCriteria.includeTags` flag — partially loaded expenses could erase tags on save).
+- [x] `TransactionDetail.tags` carries full tags, sorted alphabetically, for display and edit pre-fill.
+- [x] Form tag state (typed text + selection) lives in the ViewModel via the shared `TagSelection`; text typed but not added is added on save; the creation screen keeps the last selection visible while `Saving`.
+- [x] Schema v3 with `MIGRATION_2_3`; migration verified by the instrumented `MigrationTest`, run by the user.
+- [x] Quality pillars: tags are encrypted at rest with the whole database; tag names are never logged; one extra batched query per account load (Known Limitation alongside the balance-loading task).
+- [x] Consumer designs: one-line pointers in `expense/creation/design.md`, `expense/update/design.md`, `transaction-details` design.

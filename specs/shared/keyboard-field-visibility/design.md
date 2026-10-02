@@ -27,9 +27,11 @@ forms inherit it identically and no screen carries its own keyboard-handling cod
   above the keyboard; (2) each form's content is already vertically scrollable;
   (3) the framework's text fields request to be scrolled into view when focused.
   Together these bring the focused field into the shrunken region and re-bring
-  each newly focused field. No screen needs any keyboard-specific code of its own,
+  each newly focused field. Screens need no keyboard-specific code of their own,
   and the small gap above the keyboard is what the framework's scroll-into-view
-  leaves.
+  leaves. The one addition is a field whose own content grows while it stays
+  focused: the tags field re-requests to be brought into view when its chips
+  change (see `specs/accounting/expense-tags/design.md`).
 - **Correctness is guarded by the user-visible outcome, not by a proxy.** The
   regression guard asserts the focused field's on-screen position is above the
   keyboard's top edge, measured against the real keyboard on a real device. A
