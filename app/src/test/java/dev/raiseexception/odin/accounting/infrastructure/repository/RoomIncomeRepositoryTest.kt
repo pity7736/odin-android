@@ -68,7 +68,7 @@ class RoomIncomeRepositoryTest {
         assertTrue(result is Outcome.Success)
         val accountWithTransactions = database.accountDao().findByIdWithTransactions("acc-1").first()!!
         assertEquals(1, accountWithTransactions.transactions.size)
-        val stored = accountWithTransactions.transactions.first()
+        val stored = accountWithTransactions.transactions.first().transaction
         assertEquals("INCOME", stored.type)
         assertEquals("inc-1", stored.id)
         assertEquals("2000.00", stored.amount)

@@ -25,6 +25,8 @@ recorded, so that I can fix mistakes and keep track of where my money goes.
   (see `specs/accounting/transaction-details/spec.md`), and the edit starts with
   all of the expense's current information already filled in.
 - The amount, date, category and description can be changed.
+- The expense's tags can be added and removed, as described in
+  `specs/accounting/expense-tags/spec.md`.
 - The account the expense belongs to is shown but cannot be changed.
 - The amount, date, category and description follow the **same rules as
   recording an expense** (see `specs/accounting/expense/creation/spec.md`),

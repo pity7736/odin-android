@@ -78,6 +78,20 @@ class TransferTest {
     }
 
     @Test
+    fun `given successful transfer, when checking the expense side, then it has no tags`() {
+        val result = Transfer.create(
+            sourceAccount = sourceAccount,
+            destinationAccount = destinationAccount,
+            amount = "200.00",
+            date = "2026-08-29",
+            categoryId = "cat-transfer",
+            clock = fixedClock
+        )
+        val transfer = (result as Outcome.Success).value
+        assertTrue(transfer.expense.tagIds.isEmpty())
+    }
+
+    @Test
     fun `given same source and destination, when creating transfer, then returns source account error`() {
         val result = Transfer.create(
             sourceAccount = sourceAccount,
@@ -166,7 +180,8 @@ class TransferTest {
             date = kotlinx.datetime.LocalDate.parse("2026-08-29"),
             categoryId = "cat-transfer",
             description = "Transferencia a Efectivo",
-            createdAt = fixedInstant
+            createdAt = fixedInstant,
+            tagIds = emptyList()
         )
         val income = Income.restore(
             id = "inc-1",
@@ -332,7 +347,8 @@ class TransferTest {
         date = LocalDate.parse(date),
         categoryId = "cat-1",
         description = "",
-        createdAt = Instant.parse("${date}T12:00:00Z")
+        createdAt = Instant.parse("${date}T12:00:00Z"),
+        tagIds = emptyList()
     )
 
     private fun transfer(

@@ -19,6 +19,8 @@ import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseUpdater
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
+import dev.raiseexception.odin.accounting.application.usecase.TagLister
+import dev.raiseexception.odin.accounting.application.usecase.TagResolver
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
 import dev.raiseexception.odin.accounting.application.usecase.TransferCreator
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
@@ -26,12 +28,14 @@ import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
 import dev.raiseexception.odin.accounting.domain.repository.ExpenseRepository
 import dev.raiseexception.odin.accounting.domain.repository.IncomeRepository
+import dev.raiseexception.odin.accounting.domain.repository.TagRepository
 import dev.raiseexception.odin.accounting.domain.repository.TransactionRepository
 import dev.raiseexception.odin.accounting.domain.repository.TransferRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomAccountRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomCategoryRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomExpenseRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomIncomeRepository
+import dev.raiseexception.odin.accounting.infrastructure.repository.RoomTagRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomTransactionRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomTransferRepository
 import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAccountViewModel
@@ -131,10 +135,21 @@ class AppContainer(context: Context) {
         RoomIncomeRepository(databaseProvider.requireDatabase().transactionDao())
     }
     private val expenseRepository: ExpenseRepository by lazy {
-        RoomExpenseRepository(databaseProvider.requireDatabase().transactionDao())
+        RoomExpenseRepository(
+            databaseProvider.requireDatabase().transactionDao(),
+            databaseProvider.requireDatabase().expenseTagDao()
+        )
     }
+    private val tagRepository: TagRepository by lazy {
+        RoomTagRepository(databaseProvider.requireDatabase().tagDao())
+    }
+    private val tagLister by lazy { TagLister(tagRepository) }
+    private val tagResolver by lazy { TagResolver(tagRepository) }
     private val transactionRepository: TransactionRepository by lazy {
-        RoomTransactionRepository(databaseProvider.requireDatabase().transactionDao())
+        RoomTransactionRepository(
+            databaseProvider.requireDatabase().transactionDao(),
+            databaseProvider.requireDatabase().tagDao()
+        )
     }
     private val transactionFinder by lazy { TransactionFinder(transactionRepository) }
     private val transferRepository: TransferRepository by lazy {
@@ -158,6 +173,7 @@ class AppContainer(context: Context) {
             expenseRepository = expenseRepository,
             categoryRepository = categoryRepository,
             categoryCreator = categoryCreator,
+            tagResolver = tagResolver,
             transactionRunner = transactionRunner
         )
     }
@@ -168,6 +184,8 @@ class AppContainer(context: Context) {
             expenseRepository = expenseRepository,
             categoryRepository = categoryRepository,
             categoryCreator = categoryCreator,
+            tagResolver = tagResolver,
+            tagRepository = tagRepository,
             transactionRunner = transactionRunner
         )
     }
@@ -228,6 +246,7 @@ class AppContainer(context: Context) {
                     accountFinder = accountFinder,
                     categoryLister = categoryLister,
                     expenseUpdater = expenseUpdater,
+                    tagLister = tagLister,
                     ioDispatcher = ioDispatcher
                 )
             }
@@ -277,6 +296,7 @@ class AppContainer(context: Context) {
                     categoryLister,
                     accountFinder,
                     accountLister,
+                    tagLister,
                     ioDispatcher,
                 )
             }

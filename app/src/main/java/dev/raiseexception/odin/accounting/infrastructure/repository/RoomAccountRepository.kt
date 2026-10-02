@@ -115,16 +115,16 @@ class RoomAccountRepository(
     }
 
     private fun splitTransactions(
-        transactions: List<TransactionEntity>,
+        transactions: List<TransactionWithTagIds>,
         criteria: AccountCriteria
     ): Pair<List<Income>, List<Expense>> {
         val incomes = if (criteria.includeIncomes) {
-            transactions.filter { it.type == "INCOME" }.map { it.toIncome() }
+            transactions.filter { it.transaction.type == "INCOME" }.map { it.transaction.toIncome() }
         } else {
             emptyList()
         }
         val expenses = if (criteria.includeExpenses) {
-            transactions.filter { it.type == "EXPENSE" }.map { it.toExpense() }
+            transactions.filter { it.transaction.type == "EXPENSE" }.map { it.transaction.toExpense(it.tagIds) }
         } else {
             emptyList()
         }

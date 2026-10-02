@@ -33,6 +33,7 @@ class Transfer private constructor(
                     date = date,
                     categoryId = categoryId,
                     description = expenseDescription,
+                    tagIds = emptyList(),
                     clock = clock
                 )
             ) {

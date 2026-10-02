@@ -32,10 +32,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
+import dev.raiseexception.odin.accounting.domain.model.Tag
 import dev.raiseexception.odin.shared.presentation.AmountField
 import dev.raiseexception.odin.shared.presentation.CategoryAutocomplete
 import dev.raiseexception.odin.shared.presentation.DatePickerField
 import dev.raiseexception.odin.shared.presentation.OdinField
+import dev.raiseexception.odin.shared.presentation.TagField
 import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
 import dev.raiseexception.odin.shared.presentation.resolveCategoryInput
@@ -56,6 +58,10 @@ fun EditExpenseScreen(
     onSaved: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
+    onTagTextChange: (String) -> Unit = {},
+    onAddTag: () -> Unit = {},
+    onTagPicked: (Tag) -> Unit = {},
+    onTagRemoved: (Int) -> Unit = {},
 ) {
     LaunchedEffect(Unit) {
         navigationEvent.collect { onSaved() }
@@ -63,7 +69,16 @@ fun EditExpenseScreen(
     when (uiState) {
         is EditExpenseUiState.Loading -> EditExpenseLoading(modifier)
         is EditExpenseUiState.NotFound -> EditExpenseNotFound(modifier)
-        is EditExpenseUiState.Editing -> EditExpenseForm(uiState, onSave, onCancel, modifier)
+        is EditExpenseUiState.Editing -> EditExpenseForm(
+            editing = uiState,
+            onSave = onSave,
+            onCancel = onCancel,
+            onTagTextChange = onTagTextChange,
+            onAddTag = onAddTag,
+            onTagPicked = onTagPicked,
+            onTagRemoved = onTagRemoved,
+            modifier = modifier,
+        )
     }
 }
 
@@ -72,6 +87,10 @@ private fun EditExpenseForm(
     editing: EditExpenseUiState.Editing,
     onSave: (String, String, CategoryInput, String) -> Unit,
     onCancel: () -> Unit,
+    onTagTextChange: (String) -> Unit,
+    onAddTag: () -> Unit,
+    onTagPicked: (Tag) -> Unit,
+    onTagRemoved: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var amount by rememberSaveable { mutableStateOf(editing.amount.replace('.', ',')) }
@@ -120,6 +139,16 @@ private fun EditExpenseForm(
                 selectedCategoryId = category.id
             },
             errorMessage = editing.categoryError,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        TagField(
+            selection = editing.tagSelection,
+            suggestions = editing.tagSelection.suggestions(editing.tags),
+            isEnabled = !editing.isSaving,
+            onTextChange = onTagTextChange,
+            onConfirm = onAddTag,
+            onSuggestionPicked = onTagPicked,
+            onRemove = onTagRemoved,
         )
         Spacer(modifier = Modifier.height(16.dp))
         OdinField(

@@ -3,6 +3,8 @@ package dev.raiseexception.odin.accounting.application.usecase
 import dev.raiseexception.odin.accounting.domain.CategoryCreationError
 import dev.raiseexception.odin.accounting.domain.CategoryLookupError
 import dev.raiseexception.odin.accounting.domain.ExpenseUpdateError
+import dev.raiseexception.odin.accounting.domain.TagNameError
+import dev.raiseexception.odin.accounting.domain.TagResolutionError
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
@@ -12,10 +14,13 @@ import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.model.Tag
+import dev.raiseexception.odin.accounting.domain.model.TagInput
 import dev.raiseexception.odin.accounting.domain.model.TransactionDetail
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
 import dev.raiseexception.odin.accounting.domain.repository.ExpenseRepository
+import dev.raiseexception.odin.accounting.domain.repository.TagRepository
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.StorageError
 import dev.raiseexception.odin.shared.domain.TransactionRunner
@@ -23,6 +28,7 @@ import dev.raiseexception.odin.testutil.AccountBuilder
 import dev.raiseexception.odin.testutil.CategoryBuilder
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
@@ -32,6 +38,7 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
 
@@ -42,6 +49,8 @@ class ExpenseUpdaterTest {
     private val expenseRepository = mockk<ExpenseRepository>()
     private val categoryRepository = mockk<CategoryRepository>()
     private val categoryCreator = mockk<CategoryCreator>()
+    private val tagResolver = mockk<TagResolver>()
+    private val tagRepository = mockk<TagRepository>()
     private val transactionRunner = object : TransactionRunner {
         override suspend fun <T> run(block: suspend () -> Outcome<T>): Outcome<T> = block()
     }
@@ -57,6 +66,8 @@ class ExpenseUpdaterTest {
         expenseRepository = expenseRepository,
         categoryRepository = categoryRepository,
         categoryCreator = categoryCreator,
+        tagResolver = tagResolver,
+        tagRepository = tagRepository,
         transactionRunner = transactionRunner,
         clock = fixedClock
     )
@@ -69,6 +80,12 @@ class ExpenseUpdaterTest {
         .build()
     private val expense: Expense = account.expenses.first()
     private val expenseCategory = CategoryBuilder().id("cat-restaurant").type(CategoryType.EXPENSE).build()
+
+    @Before
+    fun stubNoTags() {
+        coEvery { tagResolver.resolve(emptyList()) } returns Outcome.Success(emptyList())
+        coEvery { tagRepository.deleteUnused() } returns Outcome.Success(Unit)
+    }
 
     @Test
     fun `given a valid edit with an existing expense category, when updating, then saves and returns it`() =
@@ -130,7 +147,8 @@ class ExpenseUpdaterTest {
                         "Salario",
                         "Ahorros",
                         isTransfer = false,
-                        accountType = AccountType.SAVINGS
+                        accountType = AccountType.SAVINGS,
+                        tags = emptyList()
                     )
                 )
             )
@@ -149,7 +167,8 @@ class ExpenseUpdaterTest {
                         "Transferencia",
                         "Ahorros",
                         isTransfer = true,
-                        accountType = AccountType.SAVINGS
+                        accountType = AccountType.SAVINGS,
+                        tags = emptyList()
                     )
                 )
             )
@@ -281,6 +300,150 @@ class ExpenseUpdaterTest {
             assertStorageFailure(result, "update failed")
         }
 
+    @Test
+    fun `given tag inputs, when updating, then saves the expense with the resolved tag ids and cleans unused tags`() =
+        runTest {
+            val tagInputs = listOf(TagInput.Existing("tag-carro"), TagInput.New("Gasolina"))
+            stubExpenseFound()
+            every { categoryRepository.findById("cat-restaurant") } returns flowOf(Outcome.Success(expenseCategory))
+            coEvery { tagResolver.resolve(tagInputs) } returns Outcome.Success(listOf("tag-carro", "tag-gasolina"))
+            coEvery { expenseRepository.update(any()) } returns Outcome.Success(Unit)
+            val result = update(categoryInput = CategoryInput.Existing("cat-restaurant"), tagInputs = tagInputs)
+            assertEquals(listOf("tag-carro", "tag-gasolina"), (result as Outcome.Success).value.tagIds)
+            coVerifyOrder {
+                expenseRepository.update(match { it.tagIds == listOf("tag-carro", "tag-gasolina") })
+                tagRepository.deleteUnused()
+            }
+        }
+
+    @Test
+    fun `given the cleanup runs, when updating, then it runs inside the transaction`() = runTest {
+        var isInsideTransaction = false
+        val cleanedInsideTransaction = mutableListOf<Boolean>()
+        val trackingTransactionRunner = object : TransactionRunner {
+            override suspend fun <T> run(block: suspend () -> Outcome<T>): Outcome<T> {
+                isInsideTransaction = true
+                return block().also { isInsideTransaction = false }
+            }
+        }
+        val trackingExpenseUpdater = ExpenseUpdater(
+            transactionFinder = transactionFinder,
+            accountFinder = accountFinder,
+            expenseRepository = expenseRepository,
+            categoryRepository = categoryRepository,
+            categoryCreator = categoryCreator,
+            tagResolver = tagResolver,
+            tagRepository = tagRepository,
+            transactionRunner = trackingTransactionRunner,
+            clock = fixedClock
+        )
+        stubExpenseFound()
+        every { categoryRepository.findById("cat-restaurant") } returns flowOf(Outcome.Success(expenseCategory))
+        coEvery { tagResolver.resolve(emptyList()) } coAnswers {
+            cleanedInsideTransaction.add(isInsideTransaction)
+            Outcome.Success(emptyList())
+        }
+        coEvery { expenseRepository.update(any()) } returns Outcome.Success(Unit)
+        coEvery { tagRepository.deleteUnused() } coAnswers {
+            cleanedInsideTransaction.add(isInsideTransaction)
+            Outcome.Success(Unit)
+        }
+        trackingExpenseUpdater.update(
+            expenseId = expense.id,
+            amount = "45000",
+            date = "2026-04-02",
+            categoryInput = CategoryInput.Existing("cat-restaurant"),
+            description = "",
+            tagInputs = emptyList()
+        )
+        assertEquals(listOf(true, true), cleanedInsideTransaction)
+    }
+
+    @Test
+    fun `given a tag name too long and a zero amount, when updating, then returns both errors at once`() =
+        runTest {
+            val tagInputs = listOf(TagInput.New("a".repeat(Tag.MAX_NAME_LENGTH + 1)))
+            stubExpenseFound()
+            every { categoryRepository.findById("cat-restaurant") } returns flowOf(Outcome.Success(expenseCategory))
+            coEvery { tagResolver.resolve(tagInputs) } returns
+                Outcome.Failure(TagResolutionError.InvalidName(TagNameError.TooLong()))
+            val result = update(
+                amount = "0",
+                categoryInput = CategoryInput.Existing("cat-restaurant"),
+                tagInputs = tagInputs
+            )
+            val error = invalidInput(result)
+            assertEquals("El monto debe ser mayor que cero.", error.amountError)
+            assertEquals("La etiqueta no puede superar 30 caracteres.", error.tagsError)
+            coVerify(exactly = 0) { expenseRepository.update(any()) }
+            coVerify(exactly = 0) { tagRepository.deleteUnused() }
+        }
+
+    @Test
+    fun `given a tag name too long and otherwise valid fields, when updating, then returns the tags error unsaved`() =
+        runTest {
+            val tagInputs = listOf(TagInput.New("a".repeat(Tag.MAX_NAME_LENGTH + 1)))
+            stubExpenseFound()
+            every { categoryRepository.findById("cat-restaurant") } returns flowOf(Outcome.Success(expenseCategory))
+            coEvery { tagResolver.resolve(tagInputs) } returns
+                Outcome.Failure(TagResolutionError.InvalidName(TagNameError.TooLong()))
+            val result = update(categoryInput = CategoryInput.Existing("cat-restaurant"), tagInputs = tagInputs)
+            val error = invalidInput(result)
+            assertEquals("La etiqueta no puede superar 30 caracteres.", error.tagsError)
+            assertEquals(null, error.amountError)
+            coVerify(exactly = 0) { expenseRepository.update(any()) }
+        }
+
+    @Test
+    fun `given six tags, when updating, then returns the tag limit error and saves nothing`() = runTest {
+        val tagInputs = (1..SIX_TAGS).map { TagInput.Existing("tag-$it") }
+        stubExpenseFound()
+        every { categoryRepository.findById("cat-restaurant") } returns flowOf(Outcome.Success(expenseCategory))
+        coEvery { tagResolver.resolve(tagInputs) } returns Outcome.Success((1..SIX_TAGS).map { "tag-$it" })
+        val result = update(categoryInput = CategoryInput.Existing("cat-restaurant"), tagInputs = tagInputs)
+        assertEquals("Máximo 5 etiquetas por gasto.", invalidInput(result).tagsError)
+        coVerify(exactly = 0) { expenseRepository.update(any()) }
+    }
+
+    @Test
+    fun `given tag resolution fails for a technical reason, when updating, then returns StorageFailure`() = runTest {
+        val tagInputs = listOf(TagInput.New("Carro"))
+        stubExpenseFound()
+        every { categoryRepository.findById("cat-restaurant") } returns flowOf(Outcome.Success(expenseCategory))
+        coEvery { tagResolver.resolve(tagInputs) } returns
+            Outcome.Failure(TagResolutionError.StorageFailure(internalMessage = "tag write error"))
+        val result = update(categoryInput = CategoryInput.Existing("cat-restaurant"), tagInputs = tagInputs)
+        assertStorageFailure(result, "tag write error")
+        coVerify(exactly = 0) { expenseRepository.update(any()) }
+    }
+
+    @Test
+    fun `given the unused tag cleanup fails, when updating, then returns StorageFailure`() = runTest {
+        stubExpenseFound()
+        every { categoryRepository.findById("cat-restaurant") } returns flowOf(Outcome.Success(expenseCategory))
+        coEvery { expenseRepository.update(any()) } returns Outcome.Success(Unit)
+        coEvery { tagRepository.deleteUnused() } returns Outcome.Failure(StorageError("cleanup failed"))
+        val result = update(categoryInput = CategoryInput.Existing("cat-restaurant"))
+        assertStorageFailure(result, "cleanup failed")
+    }
+
+    @Test
+    fun `given the expense update fails, when updating, then the unused tag cleanup does not run`() = runTest {
+        stubExpenseFound()
+        every { categoryRepository.findById("cat-restaurant") } returns flowOf(Outcome.Success(expenseCategory))
+        coEvery { expenseRepository.update(any()) } returns Outcome.Failure(StorageError("update failed"))
+        update(categoryInput = CategoryInput.Existing("cat-restaurant"))
+        coVerify(exactly = 0) { tagRepository.deleteUnused() }
+    }
+
+    @Test
+    fun `given the edit is invalid, when updating, then the unused tag cleanup does not run`() = runTest {
+        stubExpenseFound()
+        every { categoryRepository.findById("cat-restaurant") } returns flowOf(Outcome.Success(expenseCategory))
+        update(amount = "0", categoryInput = CategoryInput.Existing("cat-restaurant"))
+        coVerify(exactly = 0) { tagRepository.deleteUnused() }
+    }
+
     private fun stubExpenseFound() {
         every { transactionFinder.find(expense.id) } returns flowOf(Outcome.Success(detail()))
         every { accountFinder.find("acc-1", fullCriteria) } returns flowOf(Outcome.Success(account))
@@ -292,16 +455,22 @@ class ExpenseUpdaterTest {
             "Alimentación",
             "Ahorros",
             isTransfer = false,
-            accountType = AccountType.SAVINGS
+            accountType = AccountType.SAVINGS,
+            tags = emptyList()
         )
 
-    private suspend fun update(amount: String = "45000", categoryInput: CategoryInput): Outcome<Expense> =
+    private suspend fun update(
+        amount: String = "45000",
+        categoryInput: CategoryInput,
+        tagInputs: List<TagInput> = emptyList()
+    ): Outcome<Expense> =
         this.expenseUpdater.update(
             expenseId = this.expense.id,
             amount = amount,
             date = "2026-04-02",
             categoryInput = categoryInput,
-            description = "Restaurante"
+            description = "Restaurante",
+            tagInputs = tagInputs
         )
 
     private fun invalidInput(result: Outcome<Expense>): ExpenseUpdateError.InvalidInput {
@@ -317,5 +486,9 @@ class ExpenseUpdaterTest {
         assertTrue(error is ExpenseUpdateError.StorageFailure)
         assertEquals("No se pudo editar el gasto. Inténtalo de nuevo.", error.externalMessage)
         assertEquals(internalMessage, error.internalMessage)
+    }
+
+    private companion object {
+        const val SIX_TAGS = 6
     }
 }

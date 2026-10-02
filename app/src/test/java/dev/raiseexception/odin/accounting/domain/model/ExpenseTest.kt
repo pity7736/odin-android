@@ -39,6 +39,7 @@ class ExpenseTest {
             date = today.toString(),
             categoryId = "cat-1",
             description = "Mercado",
+            tagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -60,6 +61,7 @@ class ExpenseTest {
             date = today.toString(),
             categoryId = "cat-1",
             description = "",
+            tagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -76,6 +78,7 @@ class ExpenseTest {
             date = today.toString(),
             categoryId = "cat-1",
             description = "",
+            tagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -90,6 +93,7 @@ class ExpenseTest {
             date = "2099-01-01",
             categoryId = "cat-1",
             description = "",
+            tagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -106,6 +110,7 @@ class ExpenseTest {
             date = today.toString(),
             categoryId = "cat-1",
             description = "",
+            tagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -120,6 +125,7 @@ class ExpenseTest {
             date = "",
             categoryId = "cat-1",
             description = "",
+            tagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -134,6 +140,7 @@ class ExpenseTest {
             date = today.toString(),
             categoryId = "",
             description = "",
+            tagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -150,6 +157,7 @@ class ExpenseTest {
             date = today.toString(),
             categoryId = "cat-1",
             description = "",
+            tagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -176,6 +184,7 @@ class ExpenseTest {
             date = "2026-02-28",
             categoryId = "cat-1",
             description = "",
+            tagIds = emptyList(),
             clock = marchClock
         )
 
@@ -202,6 +211,7 @@ class ExpenseTest {
             date = "2026-03-01",
             categoryId = "cat-1",
             description = "",
+            tagIds = emptyList(),
             clock = marchClock
         )
 

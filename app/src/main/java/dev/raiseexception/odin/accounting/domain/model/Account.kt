@@ -79,6 +79,7 @@ class Account private constructor(
         date: String,
         categoryId: String,
         description: String,
+        tagIds: List<String>,
         clock: Clock = Clock.System
     ): Outcome<Expense> {
         val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
@@ -91,12 +92,15 @@ class Account private constructor(
         )
         val (parsedDate, dateError) = parseAndValidateDate(date, today)
         val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
-        if (anyError(amountError, dateError, categoryError)) {
+        val uniqueTagIds = tagIds.distinct()
+        val tagsError = Expense.validateTagCount(uniqueTagIds)
+        if (anyError(amountError, dateError, categoryError, tagsError)) {
             return Outcome.Failure(
                 ExpenseCreationError.InvalidInput(
                     amountError = amountError,
                     dateError = dateError,
-                    categoryError = categoryError
+                    categoryError = categoryError,
+                    tagsError = tagsError
                 )
             )
         }
@@ -107,7 +111,8 @@ class Account private constructor(
             date = parsedDate!!,
             categoryId = categoryId,
             description = description.trim(),
-            createdAt = clock.now()
+            createdAt = clock.now(),
+            tagIds = uniqueTagIds
         )
         this._expenses.add(expense)
         return Outcome.Success(expense)
@@ -119,6 +124,7 @@ class Account private constructor(
         date: String,
         categoryId: String,
         description: String,
+        tagIds: List<String>,
         clock: Clock = Clock.System
     ): Outcome<Expense> {
         val expenseIndex = this._expenses.indexOfFirst { it.id == expenseId }
@@ -138,12 +144,15 @@ class Account private constructor(
         val amountError = validateExpenseAmount(amount, parsedAmount, ceiling, this.funding.overSpendMessage)
         val (parsedDate, dateError) = parseAndValidateDate(date, today)
         val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
-        if (anyError(amountError, dateError, categoryError)) {
+        val uniqueTagIds = tagIds.distinct()
+        val tagsError = Expense.validateTagCount(uniqueTagIds)
+        if (anyError(amountError, dateError, categoryError, tagsError)) {
             return Outcome.Failure(
                 ExpenseUpdateError.InvalidInput(
                     amountError = amountError,
                     dateError = dateError,
-                    categoryError = categoryError
+                    categoryError = categoryError,
+                    tagsError = tagsError
                 )
             )
         }
@@ -154,7 +163,8 @@ class Account private constructor(
             date = parsedDate!!,
             categoryId = categoryId,
             description = description.trim(),
-            createdAt = original.createdAt
+            createdAt = original.createdAt,
+            tagIds = uniqueTagIds
         )
         this._expenses[expenseIndex] = edited
         return Outcome.Success(edited)

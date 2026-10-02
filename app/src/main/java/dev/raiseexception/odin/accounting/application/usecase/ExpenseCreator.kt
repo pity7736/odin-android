@@ -2,9 +2,11 @@ package dev.raiseexception.odin.accounting.application.usecase
 
 import dev.raiseexception.odin.accounting.domain.CategoryCreationError
 import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
+import dev.raiseexception.odin.accounting.domain.TagResolutionError
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.TagInput
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
@@ -14,11 +16,13 @@ import dev.raiseexception.odin.shared.domain.TransactionRunner
 import kotlinx.coroutines.flow.first
 import kotlinx.datetime.Clock
 
+@Suppress("LongParameterList")
 class ExpenseCreator(
     private val accountRepository: AccountRepository,
     private val expenseRepository: ExpenseRepository,
     private val categoryRepository: CategoryRepository,
     private val categoryCreator: CategoryCreator,
+    private val tagResolver: TagResolver,
     private val transactionRunner: TransactionRunner,
     private val clock: Clock = Clock.System
 ) {
@@ -28,7 +32,8 @@ class ExpenseCreator(
         amount: String,
         date: String,
         categoryInput: CategoryInput,
-        description: String
+        description: String,
+        tagInputs: List<TagInput>
     ): Outcome<Expense> {
         val account = when (
             val outcome = this.accountRepository.findById(
@@ -57,12 +62,17 @@ class ExpenseCreator(
                     (result as Outcome.Success).value
                 }
             }
+            val tagIds = when (val tagOutcome = this.resolveTags(tagInputs)) {
+                is Outcome.Success -> tagOutcome.value
+                is Outcome.Failure -> return@run tagOutcome
+            }
             val expense = when (
                 val creationOutcome = account.createExpense(
                     amount = amount,
                     date = date,
                     categoryId = categoryId,
                     description = description,
+                    tagIds = tagIds,
                     clock = this.clock
                 )
             ) {
@@ -80,6 +90,25 @@ class ExpenseCreator(
             }
         }
     }
+
+    private suspend fun resolveTags(tagInputs: List<TagInput>): Outcome<List<String>> =
+        when (val resolution = this.tagResolver.resolve(tagInputs)) {
+            is Outcome.Success -> resolution
+            is Outcome.Failure -> Outcome.Failure(
+                when (val error = resolution.error) {
+                    is TagResolutionError.InvalidName -> ExpenseCreationError.InvalidInput(
+                        amountError = null,
+                        dateError = null,
+                        categoryError = null,
+                        tagsError = error.externalMessage
+                    )
+                    else -> ExpenseCreationError.StorageFailure(
+                        internalMessage = error.internalMessage,
+                        externalMessage = error.externalMessage
+                    )
+                }
+            )
+        }
 
     private suspend fun resolveNewCategory(categoryName: String): Outcome<String> {
         val result = this.categoryCreator.create(categoryName, CategoryType.EXPENSE, "", null)

@@ -133,6 +133,7 @@ class AccountBuilder {
                 date = params.date,
                 categoryId = params.categoryId,
                 description = params.description,
+                tagIds = emptyList(),
                 clock = params.clock
             )
             (outcome as Outcome.Success).value

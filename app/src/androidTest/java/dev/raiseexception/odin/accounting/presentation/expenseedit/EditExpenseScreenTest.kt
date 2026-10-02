@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelected
@@ -21,10 +22,13 @@ import androidx.compose.ui.test.performTextInput
 import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
+import dev.raiseexception.odin.accounting.domain.model.Tag
+import dev.raiseexception.odin.shared.presentation.TagSelection
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -49,6 +53,9 @@ class EditExpenseScreenTest {
         "#2196F3",
         Instant.parse("2026-01-01T00:00:00Z"),
     )
+    private val createdAt = Instant.parse("2026-01-01T00:00:00Z")
+    private val nalaTag = Tag.restore("tag-nala", "Nala", "nala", createdAt)
+    private val comidaTag = Tag.restore("tag-comida", "Comida", "comida", createdAt)
     private val editing = EditExpenseUiState.Editing(
         amount = "30000.50",
         date = "2026-03-10",
@@ -199,6 +206,63 @@ class EditExpenseScreenTest {
         composeTestRule.onNodeWithTag("date_field").performClick()
         composeTestRule.onNode(hasText("10", substring = true) and isSelected() and hasClickAction())
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun given_editing_when_shown_then_the_etiquetas_field_is_after_the_category_field() {
+        setScreen(editing)
+        composeTestRule.onNodeWithText("Etiquetas").assertIsDisplayed()
+        val categoryBounds = composeTestRule.onNodeWithTag("category_field").getUnclippedBoundsInRoot()
+        val tagsBounds = composeTestRule.onNodeWithTag("tags_field").getUnclippedBoundsInRoot()
+        assertTrue(tagsBounds.top >= categoryBounds.bottom)
+    }
+
+    @Test
+    fun given_editing_with_comida_and_nala_when_shown_then_the_chips_show_them_in_order() {
+        setScreen(editing.copy(tagSelection = TagSelection.of(listOf(nalaTag, comidaTag))))
+        composeTestRule.onNodeWithTag("tag_chip_0").assertTextContains("Comida")
+        composeTestRule.onNodeWithTag("tag_chip_1").assertTextContains("Nala")
+    }
+
+    @Test
+    fun given_tags_in_use_when_the_etiquetas_field_is_focused_then_the_unselected_tags_are_suggested() {
+        setScreen(editing.copy(tags = listOf(nalaTag, comidaTag), tagSelection = TagSelection.of(listOf(nalaTag))))
+        composeTestRule.onNodeWithTag("tags_field").performClick()
+        composeTestRule.onNodeWithTag("tag_option_${comidaTag.id}").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("tag_option_${nalaTag.id}").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_chips_when_tapping_the_x_of_the_first_then_on_tag_removed_receives_its_index() {
+        var removedIndex = -1
+        composeTestRule.setContent {
+            EditExpenseScreen(
+                uiState = editing.copy(tagSelection = TagSelection.of(listOf(nalaTag, comidaTag))),
+                onSave = { _, _, _, _ -> },
+                navigationEvent = emptyFlow(),
+                onSaved = {},
+                onCancel = {},
+                onTagRemoved = { removedIndex = it },
+            )
+        }
+        composeTestRule.onNodeWithTag("tag_remove_0").performClick()
+        assertEquals(0, removedIndex)
+    }
+
+    @Test
+    fun given_a_tags_error_when_shown_then_it_appears_next_to_the_etiquetas_field() {
+        setScreen(editing.copy(tagSelection = TagSelection(error = "La etiqueta no puede superar 30 caracteres.")))
+        composeTestRule.onNodeWithTag("tags_field_error")
+            .assertTextContains("La etiqueta no puede superar 30 caracteres.")
+    }
+
+    @Test
+    fun given_five_tags_when_shown_then_the_etiquetas_input_is_disabled_without_an_error() {
+        val fiveTags = (1..5).map { Tag.restore("tag-$it", "Etiqueta $it", "etiqueta $it", createdAt) }
+        setScreen(editing.copy(tagSelection = TagSelection.of(fiveTags)))
+        composeTestRule.onNodeWithTag("tags_field").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("tags_field_error").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("tags_field_hint").assertTextContains("Máximo 5 etiquetas por gasto.")
     }
 
     private fun setScreen(

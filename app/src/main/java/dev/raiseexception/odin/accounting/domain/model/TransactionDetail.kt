@@ -6,4 +6,5 @@ data class TransactionDetail(
     val accountName: String,
     val isTransfer: Boolean,
     val accountType: AccountType,
+    val tags: List<Tag>,
 )

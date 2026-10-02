@@ -3,13 +3,16 @@ package dev.raiseexception.odin.accounting.application.usecase
 import dev.raiseexception.odin.accounting.domain.CategoryCreationError
 import dev.raiseexception.odin.accounting.domain.CategoryLookupError
 import dev.raiseexception.odin.accounting.domain.ExpenseUpdateError
+import dev.raiseexception.odin.accounting.domain.TagResolutionError
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.TagInput
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
 import dev.raiseexception.odin.accounting.domain.repository.ExpenseRepository
+import dev.raiseexception.odin.accounting.domain.repository.TagRepository
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.TransactionRunner
@@ -23,6 +26,8 @@ class ExpenseUpdater(
     private val expenseRepository: ExpenseRepository,
     private val categoryRepository: CategoryRepository,
     private val categoryCreator: CategoryCreator,
+    private val tagResolver: TagResolver,
+    private val tagRepository: TagRepository,
     private val transactionRunner: TransactionRunner,
     private val clock: Clock = Clock.System
 ) {
@@ -34,7 +39,8 @@ class ExpenseUpdater(
         amount: String,
         date: String,
         categoryInput: CategoryInput,
-        description: String
+        description: String,
+        tagInputs: List<TagInput>
     ): Outcome<Expense> {
         val original = when (val lookupOutcome = this.findEditableExpense(expenseId)) {
             is Outcome.Success -> lookupOutcome.value
@@ -45,16 +51,20 @@ class ExpenseUpdater(
             is Outcome.Failure -> return this.storageFailure(accountOutcome.error)
         }
         return this.transactionRunner.run {
-            val resolution = when (val resolutionOutcome = this.resolveCategory(categoryInput)) {
+            val resolutions = when (val resolutionOutcome = this.resolveInputs(categoryInput, tagInputs)) {
                 is Outcome.Success -> resolutionOutcome.value
                 is Outcome.Failure -> return@run resolutionOutcome
             }
-            val categoryId = if (resolution is CategoryResolution.Resolved) resolution.categoryId else ""
-            val editOutcome = account.editExpense(expenseId, amount, date, categoryId, description, this.clock)
-            when (editOutcome) {
-                is Outcome.Success -> this.persist(editOutcome.value)
-                is Outcome.Failure -> this.withResolutionError(editOutcome, resolution)
-            }
+            val editOutcome = account.editExpense(
+                expenseId,
+                amount,
+                date,
+                resolutions.categoryId,
+                description,
+                resolutions.tagIds,
+                this.clock
+            )
+            this.complete(editOutcome, resolutions)
         }
     }
 
@@ -81,6 +91,38 @@ class ExpenseUpdater(
         }
         return Outcome.Success(expense)
     }
+
+    private suspend fun resolveInputs(categoryInput: CategoryInput, tagInputs: List<TagInput>): Outcome<Resolutions> {
+        val categoryResolution = when (val categoryOutcome = this.resolveCategory(categoryInput)) {
+            is Outcome.Success -> categoryOutcome.value
+            is Outcome.Failure -> return categoryOutcome
+        }
+        return when (val tagOutcome = this.tagResolver.resolve(tagInputs)) {
+            is Outcome.Success -> Outcome.Success(
+                Resolutions(categoryResolution, TagResolution.Resolved(tagOutcome.value))
+            )
+            is Outcome.Failure -> when (val error = tagOutcome.error) {
+                is TagResolutionError.InvalidName -> Outcome.Success(
+                    Resolutions(categoryResolution, TagResolution.Rejected(error.externalMessage))
+                )
+                else -> this.storageFailure(error)
+            }
+        }
+    }
+
+    private suspend fun complete(editOutcome: Outcome<Expense>, resolutions: Resolutions): Outcome<Expense> =
+        when {
+            editOutcome is Outcome.Failure -> this.withResolutionError(editOutcome, resolutions)
+            resolutions.tagResolution is TagResolution.Rejected -> Outcome.Failure(
+                ExpenseUpdateError.InvalidInput(
+                    amountError = null,
+                    dateError = null,
+                    categoryError = null,
+                    tagsError = resolutions.tagResolution.tagsError
+                )
+            )
+            else -> this.persist((editOutcome as Outcome.Success).value)
+        }
 
     private suspend fun resolveCategory(categoryInput: CategoryInput): Outcome<CategoryResolution> =
         when (categoryInput) {
@@ -113,24 +155,35 @@ class ExpenseUpdater(
             }
         }
 
-    private fun withResolutionError(editFailure: Outcome.Failure, resolution: CategoryResolution): Outcome.Failure {
+    private fun withResolutionError(editFailure: Outcome.Failure, resolutions: Resolutions): Outcome.Failure {
         val domainError = editFailure.error as? ExpenseUpdateError.InvalidInput ?: return editFailure
-        val resolutionError = if (resolution is CategoryResolution.Rejected) resolution.categoryError else null
+        val categoryResolution = resolutions.categoryResolution
+        val tagResolution = resolutions.tagResolution
+        val resolutionError = if (categoryResolution is CategoryResolution.Rejected) {
+            categoryResolution.categoryError
+        } else {
+            null
+        }
+        val tagsResolutionError = if (tagResolution is TagResolution.Rejected) tagResolution.tagsError else null
         return Outcome.Failure(
             ExpenseUpdateError.InvalidInput(
                 amountError = domainError.amountError,
                 dateError = domainError.dateError,
                 categoryError = resolutionError ?: domainError.categoryError,
-                descriptionError = domainError.descriptionError
+                descriptionError = domainError.descriptionError,
+                tagsError = tagsResolutionError ?: domainError.tagsError
             )
         )
     }
 
-    private suspend fun persist(edited: Expense): Outcome<Expense> =
-        when (val updateOutcome = this.expenseRepository.update(edited)) {
+    private suspend fun persist(edited: Expense): Outcome<Expense> {
+        val updateOutcome = this.expenseRepository.update(edited)
+        if (updateOutcome is Outcome.Failure) return this.storageFailure(updateOutcome.error)
+        return when (val cleanupOutcome = this.tagRepository.deleteUnused()) {
             is Outcome.Success -> Outcome.Success(edited)
-            is Outcome.Failure -> this.storageFailure(updateOutcome.error)
+            is Outcome.Failure -> this.storageFailure(cleanupOutcome.error)
         }
+    }
 
     private fun storageFailure(error: DomainError): Outcome.Failure =
         Outcome.Failure(ExpenseUpdateError.StorageFailure(internalMessage = error.internalMessage))
@@ -138,5 +191,17 @@ class ExpenseUpdater(
     private sealed interface CategoryResolution {
         data class Resolved(val categoryId: String) : CategoryResolution
         data class Rejected(val categoryError: String?) : CategoryResolution
+    }
+
+    private data class Resolutions(val categoryResolution: CategoryResolution, val tagResolution: TagResolution) {
+        val categoryId: String
+            get() = (this.categoryResolution as? CategoryResolution.Resolved)?.categoryId ?: ""
+        val tagIds: List<String>
+            get() = (this.tagResolution as? TagResolution.Resolved)?.tagIds ?: emptyList()
+    }
+
+    private sealed interface TagResolution {
+        data class Resolved(val tagIds: List<String>) : TagResolution
+        data class Rejected(val tagsError: String) : TagResolution
     }
 }

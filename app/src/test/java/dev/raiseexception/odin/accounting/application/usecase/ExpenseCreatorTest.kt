@@ -2,10 +2,15 @@ package dev.raiseexception.odin.accounting.application.usecase
 
 import dev.raiseexception.odin.accounting.domain.CategoryCreationError
 import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
+import dev.raiseexception.odin.accounting.domain.TagNameError
+import dev.raiseexception.odin.accounting.domain.TagResolutionError
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.model.Tag
+import dev.raiseexception.odin.accounting.domain.model.TagInput
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.accounting.domain.repository.ExpenseRepository
@@ -26,6 +31,7 @@ import kotlinx.datetime.toLocalDateTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
 
@@ -35,6 +41,7 @@ class ExpenseCreatorTest {
     private val expenseRepository = mockk<ExpenseRepository>()
     private val categoryRepository = mockk<dev.raiseexception.odin.accounting.domain.repository.CategoryRepository>()
     private val categoryCreator = mockk<CategoryCreator>()
+    private val tagResolver = mockk<TagResolver>()
     private val transactionRunner = object : TransactionRunner {
         override suspend fun <T> run(block: suspend () -> Outcome<T>): Outcome<T> = block()
     }
@@ -49,6 +56,7 @@ class ExpenseCreatorTest {
         expenseRepository = expenseRepository,
         categoryRepository = categoryRepository,
         categoryCreator = categoryCreator,
+        tagResolver = tagResolver,
         transactionRunner = transactionRunner,
         clock = fixedClock
     )
@@ -64,6 +72,11 @@ class ExpenseCreatorTest {
         )
         .build()
 
+    @Before
+    fun stubNoTags() {
+        coEvery { tagResolver.resolve(emptyList()) } returns Outcome.Success(emptyList())
+    }
+
     @Test
     fun `given valid input with existing category, when creating expense, then expense is saved`() = runTest {
         every {
@@ -76,7 +89,8 @@ class ExpenseCreatorTest {
             amount = "500.00",
             date = today.toString(),
             categoryInput = CategoryInput.Existing(expenseCategory.id),
-            description = "Mercado"
+            description = "Mercado",
+            tagInputs = emptyList()
         )
         assertTrue(result is Outcome.Success)
         coVerify { expenseRepository.add(any()) }
@@ -96,7 +110,8 @@ class ExpenseCreatorTest {
                 amount = "500.00",
                 date = today.toString(),
                 categoryInput = CategoryInput.New("Transporte"),
-                description = ""
+                description = "",
+                tagInputs = emptyList()
             )
             assertTrue(result is Outcome.Success)
             coVerify { categoryCreator.create("Transporte", CategoryType.EXPENSE, "", null) }
@@ -114,7 +129,8 @@ class ExpenseCreatorTest {
             amount = "0",
             date = today.toString(),
             categoryInput = CategoryInput.Existing(expenseCategory.id),
-            description = ""
+            description = "",
+            tagInputs = emptyList()
         )
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error
@@ -133,7 +149,8 @@ class ExpenseCreatorTest {
             amount = "500.00",
             date = "2099-01-01",
             categoryInput = CategoryInput.Existing(expenseCategory.id),
-            description = ""
+            description = "",
+            tagInputs = emptyList()
         )
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error
@@ -152,7 +169,8 @@ class ExpenseCreatorTest {
             amount = "",
             date = "",
             categoryInput = CategoryInput.Existing(expenseCategory.id),
-            description = ""
+            description = "",
+            tagInputs = emptyList()
         )
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error
@@ -173,7 +191,8 @@ class ExpenseCreatorTest {
             amount = "500.00",
             date = today.toString(),
             categoryInput = CategoryInput.Existing("non-existent-id"),
-            description = ""
+            description = "",
+            tagInputs = emptyList()
         )
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is ExpenseCreationError.CategoryNotFound)
@@ -199,7 +218,8 @@ class ExpenseCreatorTest {
             amount = "200.00",
             date = today.toString(),
             categoryInput = CategoryInput.Existing(expenseCategory.id),
-            description = ""
+            description = "",
+            tagInputs = emptyList()
         )
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error
@@ -219,7 +239,8 @@ class ExpenseCreatorTest {
             amount = "500.00",
             date = today.toString(),
             categoryInput = CategoryInput.Existing(incomeCategory.id),
-            description = ""
+            description = "",
+            tagInputs = emptyList()
         )
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is ExpenseCreationError.CategoryWrongType)
@@ -243,7 +264,8 @@ class ExpenseCreatorTest {
             amount = "500.00",
             date = today.toString(),
             categoryInput = CategoryInput.New(""),
-            description = ""
+            description = "",
+            tagInputs = emptyList()
         )
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error
@@ -269,7 +291,8 @@ class ExpenseCreatorTest {
             amount = "500.00",
             date = today.toString(),
             categoryInput = CategoryInput.New("   "),
-            description = ""
+            description = "",
+            tagInputs = emptyList()
         )
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error
@@ -289,7 +312,8 @@ class ExpenseCreatorTest {
             amount = "200000",
             date = today.toString(),
             categoryInput = CategoryInput.Existing(expenseCategory.id),
-            description = ""
+            description = "",
+            tagInputs = emptyList()
         )
         assertTrue(result is Outcome.Success)
         coVerify { expenseRepository.add((result as Outcome.Success).value) }
@@ -307,7 +331,8 @@ class ExpenseCreatorTest {
                 amount = "2500001",
                 date = today.toString(),
                 categoryInput = CategoryInput.Existing(expenseCategory.id),
-                description = ""
+                description = "",
+                tagInputs = emptyList()
             )
             assertTrue(result is Outcome.Failure)
             val error = (result as Outcome.Failure).error
@@ -332,6 +357,7 @@ class ExpenseCreatorTest {
                 expenseRepository = expenseRepository,
                 categoryRepository = categoryRepository,
                 categoryCreator = categoryCreator,
+                tagResolver = tagResolver,
                 transactionRunner = recordingTransactionRunner,
                 clock = fixedClock
             )
@@ -345,7 +371,8 @@ class ExpenseCreatorTest {
                 amount = "2500001",
                 date = today.toString(),
                 categoryInput = CategoryInput.New("Viajes"),
-                description = ""
+                description = "",
+                tagInputs = emptyList()
             )
             coVerify { categoryCreator.create("Viajes", CategoryType.EXPENSE, "", null) }
             assertEquals(listOf(result), blockOutcomes)
@@ -356,4 +383,96 @@ class ExpenseCreatorTest {
             )
             coVerify(exactly = 0) { expenseRepository.add(any()) }
         }
+
+    @Test
+    fun `given tag inputs, when creating expense, then saves an expense carrying the resolved tag ids`() = runTest {
+        val tagInputs = listOf(TagInput.Existing("tag-nala"), TagInput.New("Comida"))
+        stubAccountAndCategory()
+        coEvery { tagResolver.resolve(tagInputs) } returns Outcome.Success(listOf("tag-nala", "tag-comida"))
+        coEvery { expenseRepository.add(any()) } returns Outcome.Success(Unit)
+        val result = createWithTags(tagInputs)
+        assertEquals(listOf("tag-nala", "tag-comida"), (result as Outcome.Success).value.tagIds)
+        coVerify { expenseRepository.add(match { it.tagIds == listOf("tag-nala", "tag-comida") }) }
+    }
+
+    @Test
+    fun `given a tag name too long, when creating expense, then returns the tags error and saves nothing`() =
+        runTest {
+            val tagInputs = listOf(TagInput.New("a".repeat(Tag.MAX_NAME_LENGTH + 1)))
+            stubAccountAndCategory()
+            coEvery { tagResolver.resolve(tagInputs) } returns
+                Outcome.Failure(TagResolutionError.InvalidName(TagNameError.TooLong()))
+            val result = createWithTags(tagInputs)
+            val error = (result as Outcome.Failure).error as ExpenseCreationError.InvalidInput
+            assertEquals("La etiqueta no puede superar 30 caracteres.", error.tagsError)
+            coVerify(exactly = 0) { expenseRepository.add(any()) }
+        }
+
+    @Test
+    fun `given tag resolution fails for a technical reason, when creating expense, then returns StorageFailure`() =
+        runTest {
+            val tagInputs = listOf(TagInput.New("Carro"))
+            stubAccountAndCategory()
+            coEvery { tagResolver.resolve(tagInputs) } returns
+                Outcome.Failure(TagResolutionError.StorageFailure(internalMessage = "tag write error"))
+            val result = createWithTags(tagInputs)
+            val error = (result as Outcome.Failure).error
+            assertTrue(error is ExpenseCreationError.StorageFailure)
+            assertEquals("tag write error", error.internalMessage)
+            coVerify(exactly = 0) { expenseRepository.add(any()) }
+        }
+
+    @Test
+    fun `given tag inputs, when creating expense, then the tags are resolved inside the transaction`() = runTest {
+        val tagInputs = listOf(TagInput.New("Carro"))
+        var isInsideTransaction = false
+        val trackingTransactionRunner = object : TransactionRunner {
+            override suspend fun <T> run(block: suspend () -> Outcome<T>): Outcome<T> {
+                isInsideTransaction = true
+                return block().also { isInsideTransaction = false }
+            }
+        }
+        val trackingExpenseCreator = ExpenseCreator(
+            accountRepository = accountRepository,
+            expenseRepository = expenseRepository,
+            categoryRepository = categoryRepository,
+            categoryCreator = categoryCreator,
+            tagResolver = tagResolver,
+            transactionRunner = trackingTransactionRunner,
+            clock = fixedClock
+        )
+        val resolvedInsideTransaction = mutableListOf<Boolean>()
+        stubAccountAndCategory()
+        coEvery { tagResolver.resolve(tagInputs) } coAnswers {
+            resolvedInsideTransaction.add(isInsideTransaction)
+            Outcome.Success(listOf("tag-carro"))
+        }
+        coEvery { expenseRepository.add(any()) } returns Outcome.Success(Unit)
+        trackingExpenseCreator.create(
+            accountId = "acc-1",
+            amount = "500.00",
+            date = today.toString(),
+            categoryInput = CategoryInput.Existing(expenseCategory.id),
+            description = "",
+            tagInputs = tagInputs
+        )
+        assertEquals(listOf(true), resolvedInsideTransaction)
+    }
+
+    private fun stubAccountAndCategory() {
+        every {
+            accountRepository.findById("acc-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
+        } returns flowOf(Outcome.Success(account))
+        every { categoryRepository.getAll() } returns flowOf(Outcome.Success(listOf(expenseCategory)))
+    }
+
+    private suspend fun createWithTags(tagInputs: List<TagInput>): Outcome<Expense> =
+        this.expenseCreator.create(
+            accountId = "acc-1",
+            amount = "500.00",
+            date = this.today.toString(),
+            categoryInput = CategoryInput.Existing(this.expenseCategory.id),
+            description = "",
+            tagInputs = tagInputs
+        )
 }

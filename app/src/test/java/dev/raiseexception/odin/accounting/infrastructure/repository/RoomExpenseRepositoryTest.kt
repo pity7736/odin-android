@@ -34,7 +34,7 @@ class RoomExpenseRepositoryTest {
         database = Room.inMemoryDatabaseBuilder(context, OdinDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = RoomExpenseRepository(database.transactionDao())
+        repository = RoomExpenseRepository(database.transactionDao(), database.expenseTagDao())
     }
 
     @After
@@ -62,13 +62,14 @@ class RoomExpenseRepositoryTest {
             date = LocalDate.parse("2026-08-01"),
             categoryId = "cat-1",
             description = "Mercado",
-            createdAt = Instant.parse("2026-08-01T10:00:00Z")
+            createdAt = Instant.parse("2026-08-01T10:00:00Z"),
+            tagIds = emptyList()
         )
         val result = repository.add(expense)
         assertTrue(result is Outcome.Success)
         val accountWithTransactions = database.accountDao().findByIdWithTransactions("acc-1").first()!!
         assertEquals(1, accountWithTransactions.transactions.size)
-        val stored = accountWithTransactions.transactions.first()
+        val stored = accountWithTransactions.transactions.first().transaction
         assertEquals("EXPENSE", stored.type)
         assertEquals("exp-1", stored.id)
         assertEquals("500.00", stored.amount)
@@ -88,7 +89,8 @@ class RoomExpenseRepositoryTest {
                 date = LocalDate.parse("2026-08-01"),
                 categoryId = "cat-1",
                 description = "Mercado",
-                createdAt = Instant.parse("2026-08-01T10:00:00Z")
+                createdAt = Instant.parse("2026-08-01T10:00:00Z"),
+                tagIds = emptyList()
             )
             repository.add(original)
             val edited = Expense.restore(
@@ -98,11 +100,13 @@ class RoomExpenseRepositoryTest {
                 date = LocalDate.parse("2026-08-03"),
                 categoryId = "cat-2",
                 description = "Cena",
-                createdAt = Instant.parse("2026-08-01T10:00:00Z")
+                createdAt = Instant.parse("2026-08-01T10:00:00Z"),
+                tagIds = emptyList()
             )
             val result = repository.update(edited)
             assertTrue(result is Outcome.Success)
-            val stored = database.accountDao().findByIdWithTransactions("acc-1").first()!!.transactions.single()
+            val accountWithTransactions = database.accountDao().findByIdWithTransactions("acc-1").first()!!
+            val stored = accountWithTransactions.transactions.single().transaction
             assertEquals("exp-1", stored.id)
             assertEquals("acc-1", stored.accountId)
             assertEquals("EXPENSE", stored.type)
@@ -121,4 +125,66 @@ class RoomExpenseRepositoryTest {
         color = "#FF0000",
         createdAt = "2026-01-01T00:00:00Z"
     )
+
+    @Test
+    fun `given an expense with tags, when added, then its tag links are stored`() = runTest {
+        seedAccountCategoryAndTags()
+        repository.add(expense(listOf("tag-nala", "tag-comida")))
+        assertEquals(setOf("tag-nala", "tag-comida"), storedTagIds())
+    }
+
+    @Test
+    fun `given an expense with no tags, when added, then no tag links are stored`() = runTest {
+        seedAccountCategoryAndTags()
+        repository.add(expense(emptyList()))
+        assertTrue(storedTagIds().isEmpty())
+    }
+
+    @Test
+    fun `given an untagged expense, when updated adding tags, then the links are stored`() = runTest {
+        seedAccountCategoryAndTags()
+        repository.add(expense(emptyList()))
+        repository.update(expense(listOf("tag-carro", "tag-gasolina")))
+        assertEquals(setOf("tag-carro", "tag-gasolina"), storedTagIds())
+    }
+
+    @Test
+    fun `given a tagged expense, when updated removing one tag, then only the other link remains`() = runTest {
+        seedAccountCategoryAndTags()
+        repository.add(expense(listOf("tag-nala", "tag-toby")))
+        repository.update(expense(listOf("tag-nala")))
+        assertEquals(setOf("tag-nala"), storedTagIds())
+    }
+
+    @Test
+    fun `given a tagged expense, when updated removing every tag, then no links remain`() = runTest {
+        seedAccountCategoryAndTags()
+        repository.add(expense(listOf("tag-comida")))
+        repository.update(expense(emptyList()))
+        assertTrue(storedTagIds().isEmpty())
+    }
+
+    private suspend fun seedAccountCategoryAndTags() {
+        database.accountDao().insert(AccountBuilder().id("acc-1").build().toEntity())
+        database.categoryDao().insert(expenseCategory("cat-1", "Perros"))
+        listOf("tag-nala", "tag-comida", "tag-toby", "tag-carro", "tag-gasolina").forEach { tagId ->
+            database.tagDao().insert(TagEntity(tagId, tagId, tagId, "2026-01-01T00:00:00Z"))
+        }
+    }
+
+    private fun expense(tagIds: List<String>): Expense = Expense.restore(
+        id = "exp-1",
+        accountId = "acc-1",
+        amount = Money.of(BigDecimal("500.00"), Currency.COP),
+        date = LocalDate.parse("2026-08-01"),
+        categoryId = "cat-1",
+        description = "",
+        createdAt = Instant.parse("2026-08-01T10:00:00Z"),
+        tagIds = tagIds
+    )
+
+    private suspend fun storedTagIds(): Set<String> {
+        val accountWithTransactions = database.accountDao().findByIdWithTransactions("acc-1").first()!!
+        return accountWithTransactions.transactions.single().tagIds.toSet()
+    }
 }

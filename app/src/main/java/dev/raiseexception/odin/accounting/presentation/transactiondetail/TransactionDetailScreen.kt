@@ -1,10 +1,12 @@
 package dev.raiseexception.odin.accounting.presentation.transactiondetail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +36,7 @@ import dev.raiseexception.odin.ui.theme.ExpenseBadge
 import dev.raiseexception.odin.ui.theme.ExpenseDark
 import dev.raiseexception.odin.ui.theme.IncomeBadge
 import dev.raiseexception.odin.ui.theme.IncomeGreen
+import dev.raiseexception.odin.ui.theme.Slate200
 import dev.raiseexception.odin.ui.theme.Slate400
 import dev.raiseexception.odin.ui.theme.Slate50
 import dev.raiseexception.odin.ui.theme.Slate600
@@ -200,6 +203,41 @@ private fun TransactionInfoSection(uiState: TransactionDetailUiState.Content, mo
                 value = uiState.description,
                 testTag = "description_text",
             )
+        }
+        if (uiState.tagNames.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(16.dp))
+            TagsField(tagNames = uiState.tagNames)
+        }
+    }
+}
+
+@Composable
+private fun TagsField(tagNames: List<String>) {
+    Column {
+        Text(
+            text = "ETIQUETAS",
+            style = MaterialTheme.typography.labelSmall,
+            color = Slate400,
+            letterSpacing = 0.5.sp,
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .padding(top = 8.dp)
+                .testTag("tags_chips"),
+        ) {
+            tagNames.forEachIndexed { index, tagName ->
+                Text(
+                    text = tagName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Slate600,
+                    modifier = Modifier
+                        .border(1.dp, Slate200, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .testTag("tag_detail_chip_$index"),
+                )
+            }
         }
     }
 }

@@ -1,6 +1,8 @@
 package dev.raiseexception.odin.accounting.presentation.expenseedit
 
 import dev.raiseexception.odin.accounting.domain.model.Category
+import dev.raiseexception.odin.accounting.domain.model.Tag
+import dev.raiseexception.odin.shared.presentation.TagSelection
 import kotlinx.datetime.LocalDate
 
 sealed interface EditExpenseUiState {
@@ -20,6 +22,8 @@ sealed interface EditExpenseUiState {
         val categoryError: String? = null,
         val descriptionError: String? = null,
         val isSaving: Boolean = false,
-        val saveError: String? = null
+        val saveError: String? = null,
+        val tags: List<Tag> = emptyList(),
+        val tagSelection: TagSelection = TagSelection()
     ) : EditExpenseUiState
 }

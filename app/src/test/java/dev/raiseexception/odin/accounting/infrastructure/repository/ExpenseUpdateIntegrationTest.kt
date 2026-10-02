@@ -9,6 +9,7 @@ import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseUpdater
+import dev.raiseexception.odin.accounting.application.usecase.TagResolver
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
 import dev.raiseexception.odin.accounting.application.usecase.TransferCreator
 import dev.raiseexception.odin.accounting.domain.ExpenseUpdateError
@@ -60,17 +61,20 @@ class ExpenseUpdateIntegrationTest {
         val accountRepository = RoomAccountRepository(database.accountDao())
         categoryRepository = RoomCategoryRepository(database.categoryDao())
         val transactionDao = database.transactionDao()
-        val expenseRepository = RoomExpenseRepository(transactionDao)
+        val expenseRepository = RoomExpenseRepository(transactionDao, database.expenseTagDao())
         val transactionRunner = RoomTransactionRunner(database)
+        val tagRepository = RoomTagRepository(database.tagDao())
+        val tagResolver = TagResolver(tagRepository)
         accountCreator = AccountCreator(accountRepository)
         accountFinder = AccountFinder(accountRepository)
         categoryCreator = CategoryCreator(categoryRepository)
-        transactionFinder = TransactionFinder(RoomTransactionRepository(transactionDao))
+        transactionFinder = TransactionFinder(RoomTransactionRepository(transactionDao, database.tagDao()))
         expenseCreator = ExpenseCreator(
             accountRepository = accountRepository,
             expenseRepository = expenseRepository,
             categoryRepository = categoryRepository,
             categoryCreator = categoryCreator,
+            tagResolver = tagResolver,
             transactionRunner = transactionRunner
         )
         transferCreator = TransferCreator(
@@ -87,6 +91,8 @@ class ExpenseUpdateIntegrationTest {
             expenseRepository = expenseRepository,
             categoryRepository = categoryRepository,
             categoryCreator = categoryCreator,
+            tagResolver = tagResolver,
+            tagRepository = tagRepository,
             transactionRunner = transactionRunner
         )
     }
@@ -105,7 +111,8 @@ class ExpenseUpdateIntegrationTest {
             amount = "90000",
             date = today,
             categoryInput = CategoryInput.Existing(expense.categoryId),
-            description = "Mercado"
+            description = "Mercado",
+            tagInputs = emptyList()
         )
         assertTrue("Update should succeed: $result", result is Outcome.Success)
         assertEquals(0, loadBalance(account).compareTo(BigDecimal("10000")))
@@ -121,7 +128,8 @@ class ExpenseUpdateIntegrationTest {
                 amount = "100001",
                 date = today,
                 categoryInput = CategoryInput.New("Viajes"),
-                description = "Mercado"
+                description = "Mercado",
+                tagInputs = emptyList()
             )
             val error = (result as Outcome.Failure).error
             assertTrue(error is ExpenseUpdateError.InvalidInput)
@@ -142,7 +150,8 @@ class ExpenseUpdateIntegrationTest {
                 amount = "10000",
                 date = today,
                 categoryInput = CategoryInput.New("Viajes"),
-                description = ""
+                description = "",
+                tagInputs = emptyList()
             )
             assertTrue((result as Outcome.Failure).error is ExpenseUpdateError.TransferNotEditable)
             assertEquals(0, loadBalance(savings).compareTo(BigDecimal("70000")))
@@ -162,7 +171,8 @@ class ExpenseUpdateIntegrationTest {
             amount = amount,
             date = this.today,
             categoryInput = CategoryInput.New("Alimentación"),
-            description = "Mercado"
+            description = "Mercado",
+            tagInputs = emptyList()
         ) as Outcome.Success
         ).value
 

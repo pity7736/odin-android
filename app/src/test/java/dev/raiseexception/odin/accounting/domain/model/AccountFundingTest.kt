@@ -195,7 +195,8 @@ class AccountFundingTest {
         date = LocalDate.parse("2026-03-10"),
         categoryId = "cat-1",
         description = "",
-        createdAt = Instant.parse("2026-03-10T12:00:00Z")
+        createdAt = Instant.parse("2026-03-10T12:00:00Z"),
+        tagIds = emptyList()
     )
 
     private fun income(amount: String): Income = Income.restore(

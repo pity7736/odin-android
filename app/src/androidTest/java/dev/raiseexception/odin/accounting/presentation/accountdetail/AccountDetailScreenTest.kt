@@ -234,7 +234,8 @@ class AccountDetailScreenTest {
         date = LocalDate.parse(date),
         categoryId = "category-2",
         description = description,
-        createdAt = Instant.parse("${date}T10:00:00Z")
+        createdAt = Instant.parse("${date}T10:00:00Z"),
+        tagIds = emptyList()
     )
 
     private fun setScreen(

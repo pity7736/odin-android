@@ -17,6 +17,8 @@ the full information about any income or expense I have recorded.
 - Selecting a transaction from any list opens its details.
 - All transaction information is displayed: amount, date, category name, account
   name, and description.
+- An expense's tags are also displayed, as described in
+  `specs/accounting/expense-tags/spec.md`.
 - Income and expense transactions are visually distinguished following the
   existing convention (color coding used elsewhere in the app).
 - The details name the kind of transaction: "Ingreso" for an income and "Gasto"
