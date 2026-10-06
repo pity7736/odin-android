@@ -137,6 +137,30 @@ class AccountFundingTest {
     }
 
     @Test
+    fun `given a card paid 400000 and no other expenses, when editing an expense to 400000, then no error`() {
+        val funding = this.millionCredit()
+
+        assertNull(funding.validateEditedExpenseAmount(BigDecimal("400000"), this.paymentOf400000(), emptyList()))
+    }
+
+    @Test
+    fun `given a card paid 400000 and no other expenses, when editing an expense to 399999, then debt error`() {
+        val funding = this.millionCredit()
+
+        assertEquals(
+            "La deuda no puede quedar negativa.",
+            funding.validateEditedExpenseAmount(BigDecimal("399999"), this.paymentOf400000(), emptyList())
+        )
+    }
+
+    @Test
+    fun `given a money account, when editing an expense to any amount, then no error`() {
+        val funding = AccountFunding.Funds(this.pesos("0.00"))
+
+        assertNull(funding.validateEditedExpenseAmount(BigDecimal("1"), listOf(this.income("400000")), emptyList()))
+    }
+
+    @Test
     fun `given a money account, when asking what can be spent, then balance and a saldo message`() {
         val funding = AccountFunding.Funds(this.pesos("1000000.00"))
         val expenses = listOf(this.expense("200000"))
@@ -182,6 +206,13 @@ class AccountFundingTest {
     private fun smallExpenses(): List<Expense> = listOf(this.expense("300"))
 
     private fun smallPayments(): List<Income> = listOf(this.income("150"))
+
+    private fun millionCredit(): AccountFunding.Credit = AccountFunding.Credit(
+        creditLimit = this.pesos("1000000.00"),
+        initialDebt = this.pesos("0.00")
+    )
+
+    private fun paymentOf400000(): List<Income> = listOf(this.income("400000"))
 
     private fun visaCredit(): AccountFunding.Credit = AccountFunding.Credit(
         creditLimit = this.pesos("3000000.00"),
