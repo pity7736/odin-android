@@ -7,8 +7,9 @@
 Editing a recorded expense. From an expense's transaction details, the user
 opens a pre-filled form and changes its amount, date, category and description;
 the account is shown read-only. Field rules are those of expense creation, except
-the amount ceiling, which is the account's balance computed without the edited
-expense. Transfer expenses and incomes are not editable. On success the user
+the amount limits: the ceiling is what can be spent computed without the edited
+expense, and on a credit card the amount must also keep the debt at zero or
+above. Transfer expenses and incomes are not editable. On success the user
 returns to the transaction details, which reflect the new values live.
 
 ## Design Decisions & Rationale
@@ -30,6 +31,21 @@ returns to the transaction details, which reflect the new values live.
   afterwards. Rejected: an `Expense.edit()` method (the expense cannot see its
   account's balance); checking the ceiling in the use case (it would split the
   balance rule from creation, which keeps it in the aggregate).
+
+- **The aggregate owns the amount's lower limit too, through the funding.**
+  After the ceiling passes, `editExpense` asks
+  `funding.validateEditedExpenseAmount` with the account's incomes and the other
+  expenses. A card rejects an amount that would leave its debt below zero with
+  "La deuda no puede quedar negativa."; a money account always passes, because
+  lowering an expense only raises its balance. A card's debt never goes below
+  zero because banks reject payments above the debt, so a balance in the user's
+  favor is a state that cannot exist. The check returns a message or nothing,
+  like `validateIncomingAmount` for payments. Creation does not apply it: a new
+  expense only raises a card's debt. Rejected: an `is Credit` branch inside
+  `editExpense` (it would scatter per-funding rules outside `AccountFunding`); a
+  minimum-amount plus message pair on the funding (a money account would carry a
+  message that is never shown); a minimum parameter on the shared
+  `validateExpenseAmount` (creation would pass a check that cannot fail).
 
 - **Transfer membership comes from the transfer link, read once through the
   transaction detail.** The transaction detail read joins the transfers table on
@@ -153,8 +169,8 @@ specs/accounting/expense/update/
    `Account.editExpense`, merges errors, persists through
    `ExpenseRepository.update` (which replaces the expense's tag links) and deletes
    tags left unused. A returned failure rolls the transaction back.
-6. **Domain (`Account.editExpense`):** validates against the ceiling and the
-   creation rules, returns the edited expense and replaces it in the aggregate.
+6. **Domain (`Account.editExpense`):** validates against the ceiling, the
+   funding's lower limit and the creation rules, returns the edited expense and replaces it in the aggregate.
 7. Success emits a one-shot event that pops back to the details, which re-emit
    from the live read; failure overlays field errors or the save error on
    `Editing`.
@@ -177,9 +193,10 @@ specs/accounting/expense/update/
   between opening the form and saving shows "Transacción no encontrada" as the
   save error rather than the not-found screen. Unreachable until expense deletion
   or multi-device sync exists.
-- **The ceiling checks the current balance only.** It does not check the balance
-  on each date between the edited date and today, so a backdated edit can leave
-  the account's history negative on some past dates. The same holds for expense
+- **The amount limits check current figures only.** They do not check each date
+  between the edited date and today, so a backdated edit can leave the account's
+  history negative, or a card's history with a debt below zero or above its
+  limit, on some past dates. The same holds for expense
   creation; tracked in `TASKS.md` as an app-wide concern.
 - **The account read happens outside the transaction.** The account and its
   movements are loaded before `TransactionRunner.run`, so a concurrent write
@@ -192,7 +209,7 @@ specs/accounting/expense/update/
   edit is encrypted like any other write. Only the signed-in user's own data is
   read and written. No amounts, descriptions, keys or passwords are logged.
 - **Reliability:** Failures are typed `Outcome`/`DomainError` values. The domain
-  enforces the ceiling and field rules; the use case enforces transfer
+  enforces both amount limits and the field rules; the use case enforces transfer
   immutability; the whole write path is atomic, so a rejected or failed edit
   changes nothing. The save path ignores a second invocation while one is in
   progress, and single-top navigation prevents stacked edit screens.
