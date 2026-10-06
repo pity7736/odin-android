@@ -13,6 +13,8 @@ sealed interface AccountFunding {
 
     fun validateIncomingAmount(amount: BigDecimal, incomes: List<Income>, expenses: List<Expense>): String?
 
+    fun validateEditedExpenseAmount(amount: BigDecimal, incomes: List<Income>, otherExpenses: List<Expense>): String?
+
     fun movementEffect(transaction: Transaction): BigDecimal
 
     data class Funds(val initialBalance: Money) : AccountFunding {
@@ -33,6 +35,12 @@ sealed interface AccountFunding {
             amount: BigDecimal,
             incomes: List<Income>,
             expenses: List<Expense>
+        ): String? = null
+
+        override fun validateEditedExpenseAmount(
+            amount: BigDecimal,
+            incomes: List<Income>,
+            otherExpenses: List<Expense>
         ): String? = null
 
         override fun movementEffect(transaction: Transaction): BigDecimal = if (transaction is Income) {
@@ -59,6 +67,16 @@ sealed interface AccountFunding {
             expenses: List<Expense>
         ): String? = if (amount > this.currentDebt(incomes, expenses).amount) {
             "El pago no puede superar la deuda actual."
+        } else {
+            null
+        }
+
+        override fun validateEditedExpenseAmount(
+            amount: BigDecimal,
+            incomes: List<Income>,
+            otherExpenses: List<Expense>
+        ): String? = if (this.currentDebt(incomes, otherExpenses).amount.add(amount).signum() < 0) {
+            "La deuda no puede quedar negativa."
         } else {
             null
         }

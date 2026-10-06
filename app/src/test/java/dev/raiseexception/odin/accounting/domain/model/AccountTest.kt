@@ -1127,6 +1127,99 @@ class AccountCreditCardExpenseTest {
         assertEquals(this.pesos("800000"), this.currentDebt(visaCard))
     }
 
+    @Test
+    fun `given a card with limit 1000000 and expense 500000, when editing it to 1000001, then fails with cupo error`() {
+        val card = this.millionCard(payments = emptyList())
+
+        val result = this.editAmount(card, "1000001")
+
+        val error = this.updateInvalidInput(result)
+        assertEquals("El monto supera el cupo disponible.", error.amountError)
+        assertEquals(this.pesos("500000"), card.expenses.first().amount)
+    }
+
+    @Test
+    fun `given a card with expense 500000 and payment 400000, when editing it to 400000, then debt 0`() {
+        val card = this.millionCard(payments = listOf(this.payment("400000")))
+
+        val result = this.editAmount(card, "400000")
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(this.pesos("400000"), card.expenses.first().amount)
+        assertEquals(this.pesos("0"), this.currentDebt(card))
+        assertEquals(this.pesos("1000000"), this.availableCredit(card))
+    }
+
+    @Test
+    fun `given a card with expense 500000 and payment 400000, when editing it to 399999, then fails with debt error`() {
+        val card = this.millionCard(payments = listOf(this.payment("400000")))
+
+        val result = this.editAmount(card, "399999")
+
+        val error = this.updateInvalidInput(result)
+        assertEquals("La deuda no puede quedar negativa.", error.amountError)
+        assertEquals(this.pesos("500000"), card.expenses.first().amount)
+        assertEquals(this.pesos("100000"), this.currentDebt(card))
+    }
+
+    @Test
+    fun `given a card expense 500000 paid 400000, when editing to 399999 with no category, then both errors`() {
+        val card = this.millionCard(payments = listOf(this.payment("400000")))
+
+        val result = card.editExpense(
+            expenseId = card.expenses.first().id,
+            amount = "399999",
+            date = "2026-03-10",
+            categoryId = "",
+            description = "",
+            tagIds = emptyList(),
+            clock = this.fixedClock
+        )
+
+        val error = this.updateInvalidInput(result)
+        assertEquals("La deuda no puede quedar negativa.", error.amountError)
+        assertEquals("La categoría es obligatoria.", error.categoryError)
+    }
+
+    private fun millionCard(payments: List<Income>): Account = AccountBuilder()
+        .id("card-1")
+        .name("Visa")
+        .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+        .creditCard(creditLimit = this.pesos("1000000"), initialDebt = this.pesos("0"))
+        .expenses(
+            listOf(
+                Expense.restore(
+                    id = "expense-500000",
+                    accountId = "card-1",
+                    amount = this.pesos("500000"),
+                    date = LocalDate.parse("2026-03-10"),
+                    categoryId = "cat-1",
+                    description = "",
+                    createdAt = this.expenseCreatedAt,
+                    tagIds = emptyList()
+                )
+            )
+        )
+        .incomes(payments)
+        .build()
+
+    private fun payment(amount: String): Income = Income.restore(
+        id = "payment-$amount",
+        accountId = "card-1",
+        amount = this.pesos(amount),
+        date = LocalDate.parse("2026-03-11"),
+        categoryId = "cat-payment",
+        description = "",
+        createdAt = Instant.parse("2026-03-11T12:00:00Z")
+    )
+
+    private fun updateInvalidInput(result: Outcome<Expense>): ExpenseUpdateError.InvalidInput {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is ExpenseUpdateError.InvalidInput)
+        return error as ExpenseUpdateError.InvalidInput
+    }
+
     private fun visaCard(initialDebt: String = "500000"): Account = AccountBuilder()
         .id("card-1")
         .name("Visa")

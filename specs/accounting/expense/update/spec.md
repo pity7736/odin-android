@@ -4,7 +4,8 @@
 After recording an expense, a user often needs to correct what they recorded —
 fix a mistyped amount, move it to the right day, reassign it to a better category,
 or reword its description. This feature lets a user open one of their recorded
-expenses and change its information, keeping the account's balance accurate.
+expenses and change its information, keeping the account's balance — or, for a
+credit card, its debt and available credit — accurate.
 
 ## User Stories
 
@@ -34,11 +35,7 @@ recorded, so that I can fix mistakes and keep track of where my money goes.
   the category suggestions and the ability to create a new expense category, the
   optional description that can be cleared, and the while-typing amount
   formatting (see `specs/shared/amount-formatting/spec.md`) — with one
-  difference: the amount's balance limit.
-- The amount must be greater than zero and no more than the account's current
-  balance plus the expense's original amount — that is, what the account's
-  balance would be if this expense had never been recorded. An edit may never
-  leave the account's balance below zero.
+  difference: the amount's limits, described below for each kind of account.
 - Once saved, the account's balance reflects the new amount, and every place that
   shows this expense or the account's balance shows the updated information.
 - Expenses that are one side of a transfer cannot be edited; their transaction
@@ -56,6 +53,25 @@ recorded, so that I can fix mistakes and keep track of where my money goes.
   stays on the edit with the values they entered, and sees a message that it
   could not be saved.
 - All user-facing messages are shown in Spanish.
+
+### Money accounts (savings and cash)
+- The amount must be greater than zero and no more than the account's current
+  balance plus the expense's original amount — that is, what the account's
+  balance would be if this expense had never been recorded. An edit may never
+  leave the account's balance below zero.
+
+### Credit cards
+- A card's debt always stays between zero and its credit limit. Banks do not
+  accept a payment larger than the debt, so a card never holds a balance in the
+  user's favor.
+- The amount must be no more than the card's available credit plus the
+  expense's original amount — that is, what the available credit would be if
+  this expense had never been recorded. When it is greater, the user sees the
+  message "El monto supera el cupo disponible." next to the amount.
+- The amount must be at least the expense's original amount minus the card's
+  current debt — lowering it further would leave the card's debt below zero.
+  When it is lower, the user sees the message "La deuda no puede quedar negativa." next to the amount.
+- Once saved, the card's debt and available credit reflect the new amount.
 
 ## Expected Behavior
 
@@ -99,6 +115,28 @@ recorded, so that I can fix mistakes and keep track of where my money goes.
 - When the user edits that expense to 10,000 and saves
 - Then the expense is saved with 10,000
 - And the account's balance is 90,000
+
+### Rejection — card expense amount exceeds the available credit
+- Given a credit card with a credit limit of 1,000,000 and an expense of
+  500,000, so its debt is 500,000 and its available credit is 500,000
+- When the user edits that expense to 1,000,001 and attempts to save
+- Then the user sees the message "El monto supera el cupo disponible." next to
+  the amount
+- And the expense is not changed
+
+### Decrease a card expense after a payment, keeping the debt at zero or above
+- Given a credit card with a credit limit of 1,000,000, an expense of 500,000,
+  and a payment of 400,000, so its debt is 100,000
+- When the user edits that expense to 400,000 and saves
+- Then the expense is saved with 400,000
+- And the card's debt is 0 and its available credit is 1,000,000
+
+### Rejection — card expense decreased below what was already paid
+- Given a credit card with a credit limit of 1,000,000, an expense of 500,000,
+  and a payment of 400,000, so its debt is 100,000
+- When the user edits that expense to 399,999 and attempts to save
+- Then the user sees the message "La deuda no puede quedar negativa." next to the amount
+- And the expense is not changed and the card's debt stays 100,000
 
 ### Create a new category while editing
 - Given the user is editing an expense
@@ -154,5 +192,8 @@ recorded, so that I can fix mistakes and keep track of where my money goes.
 - Editing incomes (its own feature).
 - Deleting an expense.
 - Checking that a backdated expense never leaves the account's history with a
-  negative balance (tracked in the task list).
+  negative balance, or a card's history with a debt below zero or above its
+  credit limit (tracked in the task list).
+- A credit card holding a balance in the user's favor.
+- Correcting a card payment (payments cannot be edited).
 - Editing an expense from anywhere other than its transaction details.

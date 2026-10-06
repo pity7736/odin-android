@@ -253,6 +253,65 @@ class ExpenseUpdaterTest {
         }
 
     @Test
+    fun `given a card expense 500000 and payment 400000, when updating to 399999, then debt error and nothing saved`() =
+        runTest {
+            val cardExpense = Expense.restore(
+                id = "card-expense",
+                accountId = "card-1",
+                amount = Money.of(BigDecimal("500000"), Currency.COP),
+                date = LocalDate.parse("2026-03-10"),
+                categoryId = "cat-food",
+                description = "",
+                createdAt = Instant.parse("2026-03-10T12:00:00Z"),
+                tagIds = emptyList()
+            )
+            val cardPayment = Income.restore(
+                id = "card-payment",
+                accountId = "card-1",
+                amount = Money.of(BigDecimal("400000"), Currency.COP),
+                date = LocalDate.parse("2026-03-11"),
+                categoryId = "cat-payment",
+                description = "",
+                createdAt = Instant.parse("2026-03-11T12:00:00Z")
+            )
+            val card = AccountBuilder()
+                .id("card-1")
+                .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+                .creditCard(
+                    creditLimit = Money.of(BigDecimal("1000000"), Currency.COP),
+                    initialDebt = Money.of(BigDecimal("0"), Currency.COP)
+                )
+                .expenses(listOf(cardExpense))
+                .incomes(listOf(cardPayment))
+                .build()
+            every { transactionFinder.find("card-expense") } returns flowOf(
+                Outcome.Success(
+                    TransactionDetail(
+                        cardExpense,
+                        "Alimentación",
+                        "Visa",
+                        isTransfer = false,
+                        accountType = AccountType.CREDIT_CARD,
+                        tags = emptyList()
+                    )
+                )
+            )
+            every { accountFinder.find("card-1", fullCriteria) } returns flowOf(Outcome.Success(card))
+            every { categoryRepository.findById("cat-restaurant") } returns flowOf(Outcome.Success(expenseCategory))
+            val result = expenseUpdater.update(
+                expenseId = "card-expense",
+                amount = "399999",
+                date = "2026-04-02",
+                categoryInput = CategoryInput.Existing("cat-restaurant"),
+                description = "",
+                tagInputs = emptyList()
+            )
+            val error = invalidInput(result)
+            assertEquals("La deuda no puede quedar negativa.", error.amountError)
+            coVerify(exactly = 0) { expenseRepository.update(any()) }
+        }
+
+    @Test
     fun `given the transaction lookup fails with a storage error, when updating, then returns StorageFailure`() =
         runTest {
             every { transactionFinder.find(expense.id) } returns flowOf(Outcome.Failure(StorageError("disk error")))
