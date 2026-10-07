@@ -22,9 +22,12 @@ change to `Transfer` or the use cases.
   then by recording time (`createdAt`), which is the order
   `AccountTransactionLister` uses. The figure after each movement is the previous
   figure plus `funding.movementEffect(movement)`, the function the list uses for
-  its running balance or running debt. Because both use the same order and the
-  same arithmetic, the list cannot show an invalid figure that the check
-  accepted. Rejected: checking each day's total at the end of the day. Movements
+  its running balance or running debt, and the one the account's current figure
+  (`AccountFunding.balance`) is built from, starting at the same
+  `openingFigure()` (see `specs/technical/account-funding/design.md`). Because
+  the check, the list and the current figure share the same arithmetic, and the
+  check and the list share the same order, the list cannot show an invalid
+  figure that the check accepted. Rejected: checking each day's total at the end of the day. Movements
   carry no time of day, and the list would still show a negative running figure
   on a row in the middle of the day.
 - **Each funding owns what an invalid figure is; `Account` owns the walk and the
