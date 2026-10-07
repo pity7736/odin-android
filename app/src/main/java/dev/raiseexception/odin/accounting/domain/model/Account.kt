@@ -8,6 +8,7 @@ import dev.raiseexception.odin.accounting.domain.ExpenseUpdateError
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.domain.formatSpanishDayAndMonth
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -50,7 +51,22 @@ class Account private constructor(
         val parsedAmount = parseAmount(amount)
         val amountError = validateAmount(amount, parsedAmount)
             ?: parsedAmount?.let { this.funding.validateIncomingAmount(it, this.incomes, this.expenses) }
-        val (parsedDate, dateError) = parseAndValidateDate(date, today)
+        val (parsedDate, dateValidationError) = parseAndValidateDate(date, today)
+        val candidate = if (amountError == null && parsedDate != null) {
+            Income(
+                id = UuidCreator.getTimeOrderedEpoch().toString(),
+                accountId = this.id,
+                amount = Money.of(parsedAmount!!, this.currency),
+                date = parsedDate,
+                categoryId = categoryId,
+                description = description.trim(),
+                createdAt = clock.now()
+            )
+        } else {
+            null
+        }
+        val dateError = dateValidationError
+            ?: candidate?.let { this.historyError(this._incomes + this._expenses, it, today) }
         val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
         if (anyError(amountError, dateError, categoryError)) {
             return Outcome.Failure(
@@ -61,17 +77,8 @@ class Account private constructor(
                 )
             )
         }
-        val income = Income(
-            id = UuidCreator.getTimeOrderedEpoch().toString(),
-            accountId = this.id,
-            amount = Money.of(parsedAmount!!, this.currency),
-            date = parsedDate!!,
-            categoryId = categoryId,
-            description = description.trim(),
-            createdAt = clock.now()
-        )
-        this._incomes.add(income)
-        return Outcome.Success(income)
+        this._incomes.add(candidate!!)
+        return Outcome.Success(candidate)
     }
 
     fun createExpense(
@@ -90,9 +97,25 @@ class Account private constructor(
             this.funding.spendable(this.incomes, this.expenses).amount,
             this.funding.overSpendMessage
         )
-        val (parsedDate, dateError) = parseAndValidateDate(date, today)
-        val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
+        val (parsedDate, dateValidationError) = parseAndValidateDate(date, today)
         val uniqueTagIds = tagIds.distinct()
+        val candidate = if (amountError == null && parsedDate != null) {
+            Expense(
+                id = UuidCreator.getTimeOrderedEpoch().toString(),
+                accountId = this.id,
+                amount = Money.of(parsedAmount!!, this.currency),
+                date = parsedDate,
+                categoryId = categoryId,
+                description = description.trim(),
+                createdAt = clock.now(),
+                tagIds = uniqueTagIds
+            )
+        } else {
+            null
+        }
+        val dateError = dateValidationError
+            ?: candidate?.let { this.historyError(this._incomes + this._expenses, it, today) }
+        val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
         val tagsError = Expense.validateTagCount(uniqueTagIds)
         if (anyError(amountError, dateError, categoryError, tagsError)) {
             return Outcome.Failure(
@@ -104,18 +127,8 @@ class Account private constructor(
                 )
             )
         }
-        val expense = Expense(
-            id = UuidCreator.getTimeOrderedEpoch().toString(),
-            accountId = this.id,
-            amount = Money.of(parsedAmount!!, this.currency),
-            date = parsedDate!!,
-            categoryId = categoryId,
-            description = description.trim(),
-            createdAt = clock.now(),
-            tagIds = uniqueTagIds
-        )
-        this._expenses.add(expense)
-        return Outcome.Success(expense)
+        this._expenses.add(candidate!!)
+        return Outcome.Success(candidate)
     }
 
     fun editExpense(
@@ -143,9 +156,25 @@ class Account private constructor(
         val parsedAmount = parseAmount(amount)
         val amountError = validateExpenseAmount(amount, parsedAmount, ceiling, this.funding.overSpendMessage)
             ?: parsedAmount?.let { this.funding.validateEditedExpenseAmount(it, this._incomes, otherExpenses) }
-        val (parsedDate, dateError) = parseAndValidateDate(date, today)
-        val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
+        val (parsedDate, dateValidationError) = parseAndValidateDate(date, today)
         val uniqueTagIds = tagIds.distinct()
+        val candidate = if (amountError == null && parsedDate != null) {
+            Expense(
+                id = original.id,
+                accountId = original.accountId,
+                amount = Money.of(parsedAmount!!, this.currency),
+                date = parsedDate,
+                categoryId = categoryId,
+                description = description.trim(),
+                createdAt = original.createdAt,
+                tagIds = uniqueTagIds
+            )
+        } else {
+            null
+        }
+        val dateError = dateValidationError
+            ?: candidate?.let { this.historyError(this._incomes + otherExpenses + it, null, today) }
+        val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
         val tagsError = Expense.validateTagCount(uniqueTagIds)
         if (anyError(amountError, dateError, categoryError, tagsError)) {
             return Outcome.Failure(
@@ -157,18 +186,8 @@ class Account private constructor(
                 )
             )
         }
-        val edited = Expense(
-            id = original.id,
-            accountId = original.accountId,
-            amount = Money.of(parsedAmount!!, this.currency),
-            date = parsedDate!!,
-            categoryId = categoryId,
-            description = description.trim(),
-            createdAt = original.createdAt,
-            tagIds = uniqueTagIds
-        )
-        this._expenses[expenseIndex] = edited
-        return Outcome.Success(edited)
+        this._expenses[expenseIndex] = candidate!!
+        return Outcome.Success(candidate)
     }
 
     @Suppress("LongParameterList")
@@ -252,6 +271,24 @@ class Account private constructor(
             return Pair(null, "La fecha no puede ser anterior a la fecha de creación de la cuenta.")
         }
         return Pair(parsed, null)
+    }
+
+    private fun historyError(existing: List<Transaction>, recorded: Transaction?, today: LocalDate): String? {
+        val sorted = existing.sortedWith(compareBy<Transaction> { it.date }.thenBy { it.createdAt })
+        val movements = recorded?.let { this.placeLastOnItsDay(sorted, it) } ?: sorted
+        val figures = movements.runningFold(this.funding.openingFigure()) { figure, movement ->
+            figure.add(this.funding.movementEffect(movement))
+        }
+        return movements.zip(figures.drop(1)).firstNotNullOfOrNull { (movement, figure) ->
+            this.funding.historyBreachMessage(figure)?.let { breach ->
+                "$breach el ${formatSpanishDayAndMonth(movement.date, today)}."
+            }
+        }
+    }
+
+    private fun placeLastOnItsDay(sorted: List<Transaction>, recorded: Transaction): List<Transaction> {
+        val position = sorted.indexOfLast { it.date <= recorded.date } + 1
+        return sorted.take(position) + recorded + sorted.drop(position)
     }
 
     private fun anyError(vararg errors: String?): Boolean = errors.any { it != null }

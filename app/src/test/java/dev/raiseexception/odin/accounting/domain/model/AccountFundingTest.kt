@@ -198,6 +198,62 @@ class AccountFundingTest {
         assertEquals(BigDecimal("300"), funding.movementEffect(this.expense("300")))
     }
 
+    @Test
+    fun `given a money account, when reading its opening figure, then returns the initial balance`() {
+        val funding = AccountFunding.Funds(this.pesos("50000.00"))
+
+        assertEquals(BigDecimal("50000.00"), funding.openingFigure())
+    }
+
+    @Test
+    fun `given a money account, when a figure is below zero, then the negative balance phrase`() {
+        val funding = AccountFunding.Funds(this.pesos("0.00"))
+
+        assertEquals("El saldo de la cuenta quedaría negativo", funding.historyBreachMessage(BigDecimal("-0.01")))
+    }
+
+    @Test
+    fun `given a money account, when a figure is zero, then no breach`() {
+        val funding = AccountFunding.Funds(this.pesos("0.00"))
+
+        assertNull(funding.historyBreachMessage(BigDecimal.ZERO))
+    }
+
+    @Test
+    fun `given a card, when reading its opening figure, then returns the initial debt`() {
+        val funding = this.smallCredit()
+
+        assertEquals(BigDecimal("100.00"), funding.openingFigure())
+    }
+
+    @Test
+    fun `given a card, when a debt is below zero, then the negative debt phrase`() {
+        val funding = this.smallCredit()
+
+        assertEquals("La deuda de la tarjeta quedaría negativa", funding.historyBreachMessage(BigDecimal("-0.01")))
+    }
+
+    @Test
+    fun `given a card, when a debt is zero, then no breach`() {
+        val funding = this.smallCredit()
+
+        assertNull(funding.historyBreachMessage(BigDecimal.ZERO))
+    }
+
+    @Test
+    fun `given a card, when a debt equals its limit, then no breach`() {
+        val funding = this.smallCredit()
+
+        assertNull(funding.historyBreachMessage(BigDecimal("1000.00")))
+    }
+
+    @Test
+    fun `given a card, when a debt is above its limit, then the over limit phrase`() {
+        val funding = this.smallCredit()
+
+        assertEquals("La deuda de la tarjeta superaría el cupo", funding.historyBreachMessage(BigDecimal("1000.01")))
+    }
+
     private fun smallCredit(): AccountFunding.Credit = AccountFunding.Credit(
         creditLimit = this.pesos("1000.00"),
         initialDebt = this.pesos("100.00")

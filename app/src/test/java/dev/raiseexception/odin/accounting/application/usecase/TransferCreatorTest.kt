@@ -4,6 +4,7 @@ import dev.raiseexception.odin.accounting.domain.TransferCreationError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.junit.Assert.assertEquals
@@ -406,6 +408,47 @@ class TransferCreatorTest {
             assertTrue(result is Outcome.Success)
             assertEquals(listOf("expense:true", "income:true", "transfer:true"), recordsSavedInsideTransaction)
         }
+
+    @Test
+    fun `given a card with only 100 spent by March 10, when paying 300 that day, then date error and saves nothing`() =
+        runTest {
+            val visaCard = AccountBuilder()
+                .id("dst-1")
+                .name("Visa")
+                .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+                .creditCard(
+                    creditLimit = Money.of(BigDecimal("3000.00"), Currency.COP),
+                    initialDebt = Money.of(BigDecimal("0.00"), Currency.COP)
+                )
+                .expenses(listOf(cardExpense("100.00", "2026-03-05"), cardExpense("400.00", "2026-03-20")))
+                .build()
+            stubAccounts(visaCard)
+
+            val result = transferCreator.create(
+                sourceAccountId = "src-1",
+                destinationAccountId = "dst-1",
+                amount = "300.00",
+                date = "2026-03-10"
+            )
+
+            assertTrue(result is Outcome.Failure)
+            val error = (result as Outcome.Failure).error as TransferCreationError.InvalidInput
+            assertEquals("La deuda de la tarjeta quedaría negativa el 10 de marzo.", error.dateError)
+            coVerify(exactly = 0) { expenseRepository.add(any()) }
+            coVerify(exactly = 0) { incomeRepository.add(any()) }
+            coVerify(exactly = 0) { transferRepository.add(any()) }
+        }
+
+    private fun cardExpense(amount: String, date: String): Expense = Expense.restore(
+        id = "expense-$date",
+        accountId = "dst-1",
+        amount = Money.of(BigDecimal(amount), Currency.COP),
+        date = LocalDate.parse(date),
+        categoryId = "cat-1",
+        description = "",
+        createdAt = Instant.parse("${date}T12:00:00Z"),
+        tagIds = emptyList()
+    )
 
     private fun cardWithSpending() = AccountBuilder()
         .id("dst-1")

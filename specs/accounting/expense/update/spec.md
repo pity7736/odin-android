@@ -38,6 +38,8 @@ recorded, so that I can fix mistakes and keep track of where my money goes.
   difference: the amount's limits, described below for each kind of account.
 - Once saved, the account's balance reflects the new amount, and every place that
   shows this expense or the account's balance shows the updated information.
+- An edited expense must keep the account's history valid on every date, as described in
+  `specs/shared/backdated-movements/spec.md`.
 - Expenses that are one side of a transfer cannot be edited; their transaction
   details offer no way to edit them.
 - Incomes cannot be edited through this feature; their transaction details offer
@@ -191,9 +193,6 @@ recorded, so that I can fix mistakes and keep track of where my money goes.
 - Editing the expense side of a transfer (its own feature).
 - Editing incomes (its own feature).
 - Deleting an expense.
-- Checking that a backdated expense never leaves the account's history with a
-  negative balance, or a card's history with a debt below zero or above its
-  credit limit (tracked in the task list).
 - A credit card holding a balance in the user's favor.
 - Correcting a card payment (payments cannot be edited).
 - Editing an expense from anywhere other than its transaction details.

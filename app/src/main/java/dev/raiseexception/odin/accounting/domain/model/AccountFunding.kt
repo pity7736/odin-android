@@ -17,6 +17,10 @@ sealed interface AccountFunding {
 
     fun movementEffect(transaction: Transaction): BigDecimal
 
+    fun openingFigure(): BigDecimal
+
+    fun historyBreachMessage(figure: BigDecimal): String?
+
     data class Funds(val initialBalance: Money) : AccountFunding {
         override val currency: Currency get() = this.initialBalance.currency
 
@@ -47,6 +51,14 @@ sealed interface AccountFunding {
             transaction.amount.amount
         } else {
             transaction.amount.amount.negate()
+        }
+
+        override fun openingFigure(): BigDecimal = this.initialBalance.amount
+
+        override fun historyBreachMessage(figure: BigDecimal): String? = if (figure.signum() < 0) {
+            "El saldo de la cuenta quedaría negativo"
+        } else {
+            null
         }
     }
 
@@ -85,6 +97,14 @@ sealed interface AccountFunding {
             transaction.amount.amount.negate()
         } else {
             transaction.amount.amount
+        }
+
+        override fun openingFigure(): BigDecimal = this.initialDebt.amount
+
+        override fun historyBreachMessage(figure: BigDecimal): String? = when {
+            figure.signum() < 0 -> "La deuda de la tarjeta quedaría negativa"
+            figure > this.creditLimit.amount -> "La deuda de la tarjeta superaría el cupo"
+            else -> null
         }
 
         fun availableCredit(incomes: List<Income>, expenses: List<Expense>): Money =

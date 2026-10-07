@@ -77,6 +77,9 @@ account I will pay from.
   debt by the same amount; the card's available credit goes up by that amount.
 - A payment cannot be larger than the card's current debt. The current debt
   counts every expense and payment recorded on the card, whatever its date.
+- A backdated transfer or payment must also keep the history of the accounts it
+  touches valid on every date, as described in
+  `specs/shared/backdated-movements/spec.md`.
 - A card with no debt is still offered as a destination; any payment to it is
   rejected because it exceeds the debt.
 - While the destination is a credit card, the action that saves the form reads
@@ -236,12 +239,14 @@ account I will pay from.
 - Then the payment is rejected with a message explaining that both accounts must
   use the same currency
 
-### Backdated payment is checked against the current debt
+### Rejected: backdated payment larger than the debt on its date
 
 - Given the credit card "Visa" has a current debt of $500,000, of which only
   $100,000 was spent on or before September 10
 - When the user records a payment of $300,000 dated September 10
-- Then the payment is saved, because it does not exceed the current debt
+- Then the payment is rejected with the message "La deuda de la tarjeta quedaría
+  negativa el 10 de septiembre." next to the date, as described in
+  `specs/shared/backdated-movements/spec.md`
 
 ### The saving action reads "Pagar" for a card
 
@@ -286,8 +291,6 @@ account I will pay from.
   installments.
 - Paying a card's full debt automatically or with a suggested amount; the user
   always enters the amount.
-- Checking a payment against the card's debt as of the payment date instead of
-  its current debt.
 - Quick-action shortcuts for transfers and transaction creation (separate
   feature; see `specs/home/shortcuts/spec.md`).
 - Creating the system Transfer category as part of user initialization in

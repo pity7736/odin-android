@@ -8,6 +8,7 @@ import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.Tag
 import dev.raiseexception.odin.accounting.domain.model.TagInput
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.junit.Assert.assertEquals
@@ -458,6 +460,47 @@ class ExpenseCreatorTest {
         )
         assertEquals(listOf(true), resolvedInsideTransaction)
     }
+
+    @Test
+    fun `given an expense breaking a past balance, when creating it, then returns the date error unsaved`() =
+        runTest {
+            val savingsAccount = AccountBuilder()
+                .id("acc-1")
+                .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+                .initialBalance(Money.of(BigDecimal("0"), Currency.COP))
+                .incomes(
+                    listOf(
+                        Income.restore(
+                            id = "income-1",
+                            accountId = "acc-1",
+                            amount = Money.of(BigDecimal("100000"), Currency.COP),
+                            date = LocalDate.parse("2026-03-10"),
+                            categoryId = "cat-income",
+                            description = "",
+                            createdAt = Instant.parse("2026-03-10T12:00:00Z")
+                        )
+                    )
+                )
+                .build()
+            every {
+                accountRepository.findById("acc-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
+            } returns flowOf(Outcome.Success(savingsAccount))
+            every { categoryRepository.getAll() } returns flowOf(Outcome.Success(listOf(expenseCategory)))
+
+            val result = expenseCreator.create(
+                accountId = "acc-1",
+                amount = "100000",
+                date = "2026-03-05",
+                categoryInput = CategoryInput.Existing(expenseCategory.id),
+                description = "",
+                tagInputs = emptyList()
+            )
+
+            assertTrue(result is Outcome.Failure)
+            val error = (result as Outcome.Failure).error as ExpenseCreationError.InvalidInput
+            assertEquals("El saldo de la cuenta quedaría negativo el 5 de marzo.", error.dateError)
+            coVerify(exactly = 0) { expenseRepository.add(any()) }
+        }
 
     private fun stubAccountAndCategory() {
         every {
