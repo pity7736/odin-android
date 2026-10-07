@@ -33,10 +33,12 @@ to the category is reflected immediately. Navigation uses the bottom bar
   Rejected: hardcoding `TimeZone.UTC`, which shows the wrong date for users in
   negative-offset time zones.
 
-- **Spanish month names live in `shared/presentation/DateFormatter.kt`.** Both
-  `CategoryDetailViewModel` and `AccountDetailScreen` need them; a shared
-  constant and `formatFullSpanishDate` function eliminate duplication. Rejected:
-  each call site maintaining its own copy.
+- **Spanish month names live in `shared/domain/SpanishDate.kt`.** The domain
+  needs them for its own date messages (see
+  `specs/shared/backdated-movements/design.md`), and `CategoryDetailViewModel`
+  and `AccountDetailScreen` need them too. `formatFullSpanishDate` stays in
+  `shared/presentation/DateFormatter.kt` and imports the month names from the
+  domain. Rejected: each call site maintaining its own copy.
 
 - **No navigation target sealed interface.** The screen is read-only with no
   outbound navigation beyond the bottom bar. A `CategoryDetailNavigationTarget`
@@ -70,7 +72,7 @@ app/src/main/java/dev/raiseexception/odin/accounting/
 
 app/src/main/java/dev/raiseexception/odin/shared/
 └── presentation/
-    └── DateFormatter.kt                   # SPANISH_MONTHS + formatFullSpanishDate
+    └── DateFormatter.kt                   # formatFullSpanishDate (month names from shared/domain/SpanishDate.kt)
 
 app/src/test/java/dev/raiseexception/odin/accounting/
 ├── application/usecase/
