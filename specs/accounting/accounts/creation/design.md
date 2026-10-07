@@ -31,7 +31,7 @@ list.
   is a **fully self-protecting aggregate** — its private constructor is reachable
   only through `create`, which rejects every invalid or incomplete input.
 - **`create` accepts raw/nullable input at its boundary.** Name/description/balance
-  arrive as `String` (blank = absent; balance also parsed here), and currency/type
+  arrive as `String` (blank = absent; balance also parsed here), and currency/kind
   arrive as **nullable enums** (`null` = not provided). Accepting absence at the
   validation boundary is legitimate *because the domain owns the "required" rule*.
   The one purity cost accepted: the domain factory tolerates `null` to mean "not
@@ -48,7 +48,7 @@ list.
   account-creation rule enforced inside `create`, not a `Money` rule.
 - **An account's money is a sealed `AccountFunding`, not a bare balance field.**
   `Account` holds `funding: AccountFunding`, and both `currency` and `balance`
-  derive from it. `Funds(initialBalance)` funds savings and cash;
+  derive from it. `Funds(initialBalance, kind)` funds savings and cash;
   `Credit(creditLimit, initialDebt)` funds a credit card. The sum type keeps the debt-bearing kind a sibling
   variant instead of bolting it onto a money-only shape. Rejected alternatives:
   nullable fields on `Account` (an optional credit limit), whose "valid only for
@@ -88,17 +88,24 @@ list.
   form, and `AccountCreator.create(command)` routes with a `when` to the matching
   factory. Routing lives in the application layer, not the dumb ViewModel, and
   honest per-kind signatures avoid a single grab-bag `create`.
-- **A credit card is `type = CREDIT_CARD` with `Credit` funding, consistent by
-  construction.** `createCreditCard` is the only way to build one, so the
-  discriminator and the funding can never disagree.
+- **A credit card is an account with `Credit` funding; its type follows.**
+  `Account.type` is derived from `funding` (`Credit` → `CREDIT_CARD`; `Funds` →
+  its `MoneyAccountKind`), so the type and the funding cannot disagree (see
+  `specs/technical/account-funding/design.md`). `createCreditCard` is the only
+  way to build `Credit`; `CreateAccountCommand.MoneyAccount` and `Account.create`
+  take `kind: MoneyAccountKind?` (`SAVINGS`/`CASH`), which has no card value. The
+  create form keeps its three-option `AccountType` picker and maps the choice to
+  a command with an exhaustive `when`: `CREDIT_CARD` → `CreditCard`,
+  `SAVINGS`/`CASH` → `MoneyAccount` with that kind, no choice → `MoneyAccount`
+  with no kind (reported as "El tipo de cuenta es obligatorio.").
   `AccountCreationError.InvalidInput` carries per-field
   `creditLimitError`/`debtError` alongside the money fields.
 - **The creation form is type-first with type-gated amount fields.** Order is
   name → type → currency → amount → description; the amount inputs (initial
   balance, or cupo + debt) are emitted only after a type is chosen, so a user
-  never fills an amount that then disappears. The edit form offers money types
-  only, so a money account cannot be turned into a credit card (which would break
-  the type/funding invariant).
+  never fills an amount that then disappears. The edit form offers money kinds
+  only (`MoneyAccountKind`), so a money account cannot be turned into a credit
+  card.
 - **Persistence keeps three honest amount columns; the schema is versioned.**
   `AccountEntity` has nullable `initialBalanceAmount` plus nullable
   `creditLimitAmount`/`debtAmount`, read and written by variant; `debtAmount`
@@ -158,7 +165,7 @@ list.
 app/src/main/java/dev/raiseexception/odin/
 ├── accounting/
 │   ├── domain/
-│   │   ├── model/            # Account (+ create/createCreditCard factories; createdAt via injected clock), AccountFunding (sealed: Funds | Credit), Money, Currency, AccountType (SAVINGS/CASH/CREDIT_CARD)
+│   │   ├── model/            # Account (+ create/createCreditCard factories; createdAt via injected clock), AccountFunding (sealed: Funds | Credit), MoneyAccountKind (SAVINGS/CASH, carried by Funds), Money, Currency, AccountType (SAVINGS/CASH/CREDIT_CARD, derived from funding)
 │   │   ├── AccountCreationError (sealed DomainError)
 │   │   └── repository/       # AccountRepository (port)
 │   ├── application/usecase/   # AccountCreator (routes CreateAccountCommand), CreateAccountCommand (MoneyAccount | CreditCard)
