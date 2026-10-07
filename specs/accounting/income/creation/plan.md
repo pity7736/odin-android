@@ -150,21 +150,21 @@ End with `./gradlew check` GREEN and `./gradlew compileDebugAndroidTestKotlin`
 compiling.
 
 ## Design decisions to hydrate into design.md
-- [ ] Income design — Design Decisions: `IncomeCreator` rejects a `Credit`-funded
+- [x] Income design — Design Decisions: `IncomeCreator` rejects a `Credit`-funded
       account with `CreditCardAccount`; the rule lives in the use case, not
       `Account.createIncome`, because a card payment's receiving leg goes through
       `createIncome` (rejected alternative: a check in `createIncome` plus a
       second, unchecked method for transfers).
-- [ ] Income design — the rejection is a full-screen error, not a field error:
+- [x] Income design — the rejection is a full-screen error, not a field error:
       cards never appear in the picker, and the form opened from an account has
       no picker (rejected alternative: an `accountError` next to the picker).
-- [ ] Income design — Data Flow step 6: the account-type check precedes category
+- [x] Income design — Data Flow step 6: the account-type check precedes category
       resolution.
-- [ ] Shortcuts design — account picker decision: the income picker lists only
+- [x] Shortcuts design — account picker decision: the income picker lists only
       money accounts (`isMoneyAccount`); the expense picker lists every account.
-- [ ] Shortcuts design — FAB visibility decision and Screen & States: the income
+- [x] Shortcuts design — FAB visibility decision and Screen & States: the income
       option follows `Content.canRecordIncome`, computed in `HomeSummaryLoader`
       as "at least one money account"; replace `showIncomeOption = true`.
-- [ ] Shortcuts design — Known Limitations: delete the "income picker lists
+- [x] Shortcuts design — Known Limitations: delete the "income picker lists
       credit cards" entry; it becomes the picker decision above.
-- [ ] `TASKS.md:45` — tick the task.
+- [x] `TASKS.md:45` — tick the task.

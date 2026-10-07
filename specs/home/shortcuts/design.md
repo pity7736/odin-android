@@ -18,7 +18,8 @@ transaction creation routes.
   content — it cannot live inside the `floatingActionButton` Scaffold slot.
   The caller decides which actions it offers through `showIncomeOption`,
   `showTransferOption` and `showPaymentOption`; the expense action is always
-  shown. Home passes income on, transfer from `canTransfer`, and payment off;
+  shown. Home passes income from `canRecordIncome`, transfer from `canTransfer`,
+  and payment off;
   account detail passes income and transfer on for a money account, and payment
   from `canPay` for a credit card (see `specs/accounting/accounts/detail/design.md`).
   Alternative rejected: self-managing state inside the FAB (loses the overlay);
@@ -27,19 +28,22 @@ transaction creation routes.
 - **Account picker is a standalone filterable autocomplete.** It follows the same
   pattern as `CategoryAutocomplete` (editable text field + dropdown with substring
   filtering) but without inline creation — users must select an existing account.
-  It lists every account, credit cards included, so an expense can be recorded on
-  a card from home (see `specs/accounting/expense/creation/design.md`). The
-  income form loads the same unfiltered list (see Known Limitations). The
-  transfer form has its own source and destination lists (see
+  The expense picker lists every account, credit cards included, so an expense
+  can be recorded on a card from home (see
+  `specs/accounting/expense/creation/design.md`). The income picker lists only
+  money accounts (`isMoneyAccount`), because a card never receives an income;
+  `IncomeCreator` also rejects a card at save (see
+  `specs/accounting/income/creation/design.md`). The transfer form has its own source and destination lists (see
   `specs/accounting/transfers/design.md`).
   Alternative rejected: extracting a generic autocomplete abstraction (premature —
   the account picker has different behavior from the category picker).
 
 - **FAB visibility is derived from the accounts home already loads.** The FAB
   appears only in `Content` state (hiding it when there are zero accounts, since
-  `Empty` state handles that case). The summary filters credit cards out, so a
-  user whose only accounts are credit cards sees the `Empty` state and no FAB.
-  The transfer option follows `Content.canTransfer`, which `HomeViewModel`
+  `Empty` state handles that case). The income option follows
+  `Content.canRecordIncome`, which `HomeSummaryLoader` computes as "at least one
+  money account", so a user whose only accounts are credit cards is offered
+  expense only. The transfer option follows `Content.canTransfer`, which `HomeViewModel`
   computes from the unfiltered list: at least one money account
   (`isMoneyAccount`) and at least two accounts in total, cards included, so one
   savings account and one card can transfer (a card payment). Deciding it in the
@@ -128,7 +132,8 @@ specs/home/shortcuts/
 4. `MainActivity` navigates to the creation route without an account ID.
 5. The creation ViewModel initializes with `accountId = null`:
    - For income/expense: loads categories AND all accounts via `AccountLister`.
-     The `UiState.Idle` carries the accounts list for the picker.
+     The `UiState.Idle` carries the accounts list for the picker; the income
+     form keeps only money accounts.
    - For transfer: loads all accounts without pre-filling source or destination.
 6. User selects an account from the picker (income/expense) or both dropdowns
    (transfer), fills the form, and saves.
@@ -149,8 +154,9 @@ specs/home/shortcuts/
 ### Home screen FAB
 
 The `ExpandableFab` appears in the `floatingActionButton` slot of the home
-screen's `Scaffold`, visible only in `Content` state. It shows income and expense
-actions always (`showIncomeOption = true`), the transfer action only when `canTransfer` is true, and never the payment action. When
+screen's `Scaffold`, visible only in `Content` state. It shows the expense
+action always, the income action only when `canRecordIncome` is true, the
+transfer action only when `canTransfer` is true, and never the payment action. When
 expanded, a dimmed overlay (`Slate900` at 60% opacity) covers the screen content;
 tapping the overlay collapses the FAB.
 
@@ -168,9 +174,6 @@ substring match on account name. Saving without selecting an account produces an
 - The account picker uses client-side substring filtering with no debounce. This
   is acceptable for the expected account count (single-digit to low double-digit)
   but would need optimization if the number of accounts grew significantly.
-- The income picker lists credit cards, and nothing rejects a card as an
-  income's account, so an income recorded on a card from home lowers its debt
-  like a payment (tracked in `TASKS.md`).
 
 ## Quality Pillars
 
