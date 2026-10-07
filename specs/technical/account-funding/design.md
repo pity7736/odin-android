@@ -25,8 +25,16 @@ savings or cash, and `Account.type` is derived from `funding`.
 - **Behavior dispatches by delegating to the variant, not by branching in
   `Account`.** Each variant owns its own rules and `Account` delegates, so
   `Account` never accumulates per-kind branches:
-  - `balance(incomes, expenses)` — `Funds`: initial balance + incomes − expenses;
-    `Credit`: its current debt.
+  - `balance(incomes, expenses)` — the account's main figure: the balance for
+    `Funds`, the current debt for `Credit`. It is the one rule not written per
+    variant: a single implementation on the interface folds every income and
+    expense from `openingFigure()`, adding `movementEffect(movement)` for each,
+    and no variant overrides it. The current figure, the movement list's running
+    figure and the history replay therefore share one definition of how a
+    movement changes the figure and cannot disagree. Rejected: per-variant
+    arithmetic beside `movementEffect`, which nothing kept in agreement; and a
+    top-level extension function to make overriding impossible, since a
+    variant's own same-named member would still silently shadow it.
   - `spendable(incomes, expenses)` and `overSpendMessage` — the expense ceiling
     and its message: the balance for `Funds`, the available credit for `Credit`.
   - `validateIncomingAmount(amount, incomes, expenses)` — the message for an
@@ -42,9 +50,7 @@ savings or cash, and `Account.type` is derived from `funding`.
     −amount for an expense; `Credit` −amount for a payment and +amount for a
     purchase. `AccountTransactionLister` walks it backwards from `balance` to
     give each movement its running balance or running debt (see
-    `specs/accounting/accounts/detail/design.md`). `balance` and `currentDebt`
-    fold incomes and expenses with their own arithmetic rather than through
-    `movementEffect` (tracked in `TASKS.md`).
+    `specs/accounting/accounts/detail/design.md`).
   - `openingFigure()` and `historyBreachMessage(figure)` — where an account's
     history starts (the initial balance for `Funds`, the initial debt for
     `Credit`) and the phrase for an invalid figure on any date: below zero for
@@ -54,8 +60,11 @@ savings or cash, and `Account.type` is derived from `funding`.
 
   Rejected: `when (funding)` spread across `Account`'s methods.
 - **A card's debt counts its payments.** `Credit.currentDebt(incomes, expenses)`
-  is `initialDebt + expenses − incomes`, and `availableCredit(incomes, expenses)`
-  is `creditLimit − current debt`. A card's incomes are its payments — the
+  is `initialDebt + expenses − incomes`; it is the card's `balance`, so the
+  figure comes from `openingFigure()` and `movementEffect` rather than its own
+  arithmetic. `currentDebt` stays as the name that says what a card's figure
+  means at the call sites. `availableCredit(incomes, expenses)` is
+  `creditLimit − current debt`. A card's incomes are its payments — the
   receiving leg of a transfer into the card (see
   `specs/accounting/transfers/design.md`) — so a payment lowers the debt and
   frees credit for the next expense.
@@ -131,6 +140,4 @@ them, pinning the on-disk format independently of the mapper's write side.
 
 ## Known Limitations
 
-- **Expense edits have no lower bound on a card's debt.** `editExpense` checks
-  the new amount against `spendable` only; lowering a card expense after a
-  payment can leave the debt below zero (tracked in `TASKS.md`).
+None.

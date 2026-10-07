@@ -223,9 +223,6 @@ specs/accounting/accounts/creation/
   `specs/accounting/expense/creation/design.md`) and payments (see
   `specs/accounting/transfers/design.md`), and is filtered out of the home
   summary. Editing a card and cash advances are out of scope.
-- **The home income picker lists credit cards.** It loads every account
-  unfiltered, and nothing rejects a card as an income's account, so an income
-  recorded on a card lowers its debt like a payment (tracked in `TASKS.md`).
 - **Out of scope** (per spec): deleting accounts, account types beyond savings,
   cash and credit card, and currencies beyond USD/EUR/COP.
 
