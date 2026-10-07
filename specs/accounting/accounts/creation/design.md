@@ -88,14 +88,12 @@ list.
   form, and `AccountCreator.create(command)` routes with a `when` to the matching
   factory. Routing lives in the application layer, not the dumb ViewModel, and
   honest per-kind signatures avoid a single grab-bag `create`.
-- **A credit card is an account with `Credit` funding; its type follows.**
-  `Account.type` is derived from `funding` (`Credit` → `CREDIT_CARD`; `Funds` →
-  its `MoneyAccountKind`), so the type and the funding cannot disagree (see
-  `specs/technical/account-funding/design.md`). `createCreditCard` is the only
-  way to build `Credit`; `CreateAccountCommand.MoneyAccount` and `Account.create`
-  take `kind: MoneyAccountKind?` (`SAVINGS`/`CASH`), which has no card value. The
-  create form keeps its three-option `AccountType` picker and maps the choice to
-  a command with an exhaustive `when`: `CREDIT_CARD` → `CreditCard`,
+- **The create form maps its type choice to a command.** How an account's type
+  relates to its funding is owned by `specs/technical/account-funding/design.md`.
+  `createCreditCard` is the only way to build a card; `CreateAccountCommand.MoneyAccount`
+  carries `kind: MoneyAccountKind?`. The form keeps its three-option
+  `AccountType` picker and maps the choice with an exhaustive `when`:
+  `CREDIT_CARD` → `CreditCard`,
   `SAVINGS`/`CASH` → `MoneyAccount` with that kind, no choice → `MoneyAccount`
   with no kind (reported as "El tipo de cuenta es obligatorio.").
   `AccountCreationError.InvalidInput` carries per-field

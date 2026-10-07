@@ -31,9 +31,8 @@ which reflect the new values.
   picker offers `MoneyAccountKind` entries (Ahorros, Efectivo), so an edit cannot
   turn a money account into a credit card.
 
-- **Editing a credit card is rejected in the domain.** `Account.edit` returns
-  `AccountUpdateError.CreditCardNotEditable` ("Las tarjetas de crédito no se
-  pueden editar.") for a card, before validating any field (see
+- **A credit card loaded into the form cannot be saved.** `Account.edit` rejects
+  a card with `CreditCardNotEditable` (the rule is owned by
   `specs/technical/account-funding/design.md`); `AccountUpdater` propagates it
   and persists nothing. The card detail screen offers no edit action. If a card
   is loaded into the form anyway, `Editing` has no kind and shows the card's
