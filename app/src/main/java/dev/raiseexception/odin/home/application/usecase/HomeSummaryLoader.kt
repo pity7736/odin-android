@@ -42,6 +42,7 @@ class HomeSummaryLoader(
             hasMoreEntries = entries.size > DISPLAYED_ACCOUNT_LIMIT,
             recentTransactions = this.recentTransactionLister.list(accounts),
             canTransfer = moneyAccountEntries.isNotEmpty() && entries.size >= MINIMUM_ACCOUNTS_FOR_TRANSFER,
+            canRecordIncome = moneyAccountEntries.isNotEmpty(),
         )
     }
 

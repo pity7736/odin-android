@@ -393,6 +393,24 @@ class HomeSummaryLoaderTest {
     }
 
     @Test
+    fun `given a money account, when loading the summary, then income can be recorded`() = runTest {
+        val summary = loadSummary(listOf(moneyAccount("savings")))
+        assertTrue(summary.canRecordIncome)
+    }
+
+    @Test
+    fun `given a money account and a credit card, when loading the summary, then income can be recorded`() = runTest {
+        val summary = loadSummary(listOf(moneyAccount("savings"), creditCard("visa")))
+        assertTrue(summary.canRecordIncome)
+    }
+
+    @Test
+    fun `given only credit cards, when loading the summary, then income cannot be recorded`() = runTest {
+        val summary = loadSummary(listOf(creditCard("visa"), creditCard("mastercard")))
+        assertFalse(summary.canRecordIncome)
+    }
+
+    @Test
     fun `given the accounts fail to load, when loaded, then the failure is returned`() = runTest {
         every { accountLister.list(fullAccountCriteria) } returns flowOf(Outcome.Failure(storageError))
         val outcome = homeSummaryLoader.load().first()

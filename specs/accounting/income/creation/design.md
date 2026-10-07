@@ -18,6 +18,10 @@ Records an income against an existing account. The user navigates from the accou
 
 - **`IncomeCreator` resolves `CategoryInput` and delegates to the Account aggregate** — resolves `CategoryInput` (validating `CategoryType.INCOME`), delegates to `Account.createIncome()`, saves via `IncomeRepository`, wraps in `TransactionRunner`. Alternative rejected: putting category resolution in the domain — category lookup is an application concern.
 
+- **`IncomeCreator` rejects a credit card account** — right after loading the account, a `Credit`-funded account fails with `IncomeCreationError.CreditCardAccount` ("Una tarjeta de crédito no puede recibir ingresos."), before any category is resolved or created. A card never takes a user-recorded income; the only money that enters a card is a payment. The rule lives in the use case, not in `Account.createIncome()`, because a card payment's receiving leg is built through `destinationAccount.createIncome(...)` in `Transfer.create`. Alternative rejected: a check in `createIncome()` plus a second, unchecked method for the transfer leg — two ways to add an income, with nothing guaranteeing only transfers use the unchecked one.
+
+- **The credit card rejection is a full-screen error, not a field error** — `CreditCardAccount` falls into `CreateIncomeViewModel.mapError`'s `else` branch and renders `CreateIncomeUiState.Error`. It is a safeguard: the home picker never lists cards and the account detail screen offers no income for a card, so the user cannot reach it through the UI. Alternative rejected: an `accountError` next to the account picker — the user could not fix it there, and the form opened from an account has no picker.
+
 - **Category resolution and the income save run in one transaction** — `IncomeCreator` resolves the category (existing or new) and saves the income inside `TransactionRunner.run {}`. A returned failure rolls back every write, so a rejected or failed save keeps neither the income nor a newly created category. See `specs/technical/transaction-atomicity/design.md`.
 
 - **`CategoryCreationError.DuplicateName` maps to a field error, not a full-screen error** — when creating a new income category inline and the name already exists, the error appears next to the category field as an `InvalidInput.categoryError`. Alternative rejected: a separate error state — inconsistent with the field-level validation pattern.
@@ -78,7 +82,7 @@ specs/accounting/income/creation/
 3. `CreateIncomeViewModel.init` loads income categories via `CategoryLister` and the account via `AccountFinder` in parallel, transitions to `Idle` with categories and `accountCreatedAt`
 4. User fills in amount, date (today pre-selected, picker constrained to `[accountCreatedAt, today]`), category, and optional description; taps "Guardar"
 5. `CreateIncomeViewModel.save()` delegates to `IncomeCreator.create()`
-6. `IncomeCreator` loads the account, resolves `CategoryInput` — for `Existing`, validates the category exists and is `CategoryType.INCOME`; for `New`, creates it via `CategoryCreator`
+6. `IncomeCreator` loads the account and rejects it with `CreditCardAccount` if it is a credit card, then resolves `CategoryInput` — for `Existing`, validates the category exists and is `CategoryType.INCOME`; for `New`, creates it via `CategoryCreator`
 7. `Account.createIncome()` validates all fields (amount positive, date in `[accountCreatedAt, today]`, category present), constructs the `Income`, adds it to the aggregate's internal list
 8. `IncomeCreator` saves via `IncomeRepository.add()`, wrapped in `TransactionRunner`
 9. On success, ViewModel emits `NavigationTarget.AccountDetail(accountId)` and the nav controller pops back

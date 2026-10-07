@@ -41,7 +41,8 @@ class HomeScreenTest {
         accounts = listOf(this.savingsEntry),
         hasMoreAccounts = false,
         recentTransactions = emptyList(),
-        canTransfer = false
+        canTransfer = false,
+        canRecordIncome = true
     )
 
     @Test
@@ -108,6 +109,21 @@ class HomeScreenTest {
         )
         this.composeTestRule.onNodeWithText("Visa").performClick()
         assertEquals("card-1", selectedAccountId)
+    }
+
+    @Test
+    fun given_income_cannot_be_recorded_when_the_shortcut_is_expanded_then_income_is_not_shown() {
+        this.setScreen(this.content.copy(accounts = listOf(this.visaEntry), canRecordIncome = false))
+        this.composeTestRule.onNodeWithTag("expandable_fab").performClick()
+        this.composeTestRule.onNodeWithTag("create_expense_fab").assertIsDisplayed()
+        this.composeTestRule.onNodeWithTag("create_income_fab").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_income_can_be_recorded_when_the_shortcut_is_expanded_then_income_is_shown() {
+        this.setScreen(this.content.copy(canRecordIncome = true))
+        this.composeTestRule.onNodeWithTag("expandable_fab").performClick()
+        this.composeTestRule.onNodeWithTag("create_income_fab").assertIsDisplayed()
     }
 
     @Test

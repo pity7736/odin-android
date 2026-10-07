@@ -9,4 +9,5 @@ data class HomeSummary(
     val hasMoreEntries: Boolean,
     val recentTransactions: List<RecentTransaction>,
     val canTransfer: Boolean,
+    val canRecordIncome: Boolean,
 )

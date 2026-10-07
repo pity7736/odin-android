@@ -24,6 +24,7 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -61,7 +62,8 @@ class HomeViewModelTest {
         entries = emptyList(),
         hasMoreEntries = false,
         recentTransactions = emptyList(),
-        canTransfer = false
+        canTransfer = false,
+        canRecordIncome = false
     )
 
     @Before
@@ -94,7 +96,8 @@ class HomeViewModelTest {
             entries = listOf(savingsEntry, visaEntry),
             hasMoreEntries = true,
             recentTransactions = recentTransactions,
-            canTransfer = true
+            canTransfer = true,
+            canRecordIncome = true
         )
         every { homeSummaryLoader.load() } returns flowOf(Outcome.Success(summary))
         val viewModel = buildViewModel()
@@ -108,7 +111,8 @@ class HomeViewModelTest {
                     accounts = listOf(savingsEntry, visaEntry),
                     hasMoreAccounts = true,
                     recentTransactions = recentTransactions,
-                    canTransfer = true
+                    canTransfer = true,
+                    canRecordIncome = true
                 ),
                 awaitItem()
             )
@@ -142,6 +146,27 @@ class HomeViewModelTest {
         assertEquals(listOf(pesos("800000.00")), content.debtTotals)
         assertEquals(listOf(visaEntry), content.accounts)
     }
+
+    @Test
+    fun `given a summary where income can be recorded, when loading, then content allows income`() = runTest {
+        val summary = summaryWith(savingsEntry).copy(canRecordIncome = true)
+        every { homeSummaryLoader.load() } returns flowOf(Outcome.Success(summary))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        val content = viewModel.uiState.value as HomeUiState.Content
+        assertTrue(content.canRecordIncome)
+    }
+
+    @Test
+    fun `given a summary where income cannot be recorded, when loading, then content does not allow income`() =
+        runTest {
+            val summary = summaryWith(visaEntry).copy(canRecordIncome = false)
+            every { homeSummaryLoader.load() } returns flowOf(Outcome.Success(summary))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            val content = viewModel.uiState.value as HomeUiState.Content
+            assertFalse(content.canRecordIncome)
+        }
 
     @Test
     fun `given the summary fails to load, when initialized, then emits Error`() = runTest {

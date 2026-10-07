@@ -13,6 +13,10 @@ As a user, I want to record an income amount against an account I am viewing, so
 - The user provides an amount, a date, and a category; an optional description can be added.
 - The date field opens a calendar picker. Today's date is pre-selected so the user can save immediately without changing it. The calendar only allows selecting dates from the account's creation date through today.
 - The account the income belongs to is the one the user is currently viewing — it is not chosen in the form.
+- A credit card never receives an income. The only money that enters a credit
+  card is a payment from another account. An income recorded against a credit
+  card is rejected with the message "Una tarjeta de crédito no puede recibir
+  ingresos."
 - The amount must be a positive value greater than zero.
 - As the user types the amount, it is formatted while typing as described by the shared amount-formatting behavior (see `specs/shared/amount-formatting/spec.md`). The value used for validation and storage is the raw amount the user entered, without the separators.
 - The date must be today or in the past, and no earlier than the day the account was created.
@@ -26,6 +30,13 @@ As a user, I want to record an income amount against an account I am viewing, so
 - Given the user is viewing an account's detail
 - When the user opens the record income form, enters a valid positive amount, selects a past or present date from the calendar picker (today is pre-selected), picks an income category, and optionally writes a description, then saves
 - Then the income is saved and the account's balance increases by the recorded amount
+
+### Rejection — income on a credit card
+- Given the user is recording an income against a credit card
+- When the user fills in valid data and saves
+- Then the income is not saved
+- And the message "Una tarjeta de crédito no puede recibir ingresos." is shown
+- And the card's debt does not change
 
 ### Rejection — zero or negative amount
 - Given the user is filling in the record income form

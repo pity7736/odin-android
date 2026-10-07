@@ -13,6 +13,7 @@ import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.presentation.isMoneyAccount
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -129,7 +130,7 @@ class CreateIncomeViewModel(
                     CreateIncomeUiState.Error(accountsOutcome.error.externalMessage)
                 else -> {
                     val categories = (categoriesOutcome as Outcome.Success).value
-                    val accounts = (accountsOutcome as Outcome.Success).value
+                    val accounts = (accountsOutcome as Outcome.Success).value.filter { isMoneyAccount(it) }
                     CreateIncomeUiState.Idle(
                         categories = categories,
                         accountCreatedAt = null,

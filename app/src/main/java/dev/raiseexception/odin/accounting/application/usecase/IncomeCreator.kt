@@ -2,6 +2,7 @@ package dev.raiseexception.odin.accounting.application.usecase
 
 import dev.raiseexception.odin.accounting.domain.CategoryCreationError
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
+import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Income
@@ -36,6 +37,14 @@ class IncomeCreator(
                 IncomeCreationError.StorageFailure(
                     internalMessage = outcome.error.internalMessage,
                     externalMessage = outcome.error.externalMessage
+                )
+            )
+        }
+        if (account.funding is AccountFunding.Credit) {
+            return Outcome.Failure(
+                IncomeCreationError.CreditCardAccount(
+                    internalMessage = "Account $accountId is a credit card and cannot receive an income",
+                    externalMessage = "Una tarjeta de crédito no puede recibir ingresos."
                 )
             )
         }
