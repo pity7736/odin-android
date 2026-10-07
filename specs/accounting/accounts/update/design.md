@@ -16,7 +16,8 @@ which reflect the new values.
 
 - **`Account.edit` is the single edit entry — a validating, immutable instance
   method.** It receives the raw form input (name/description as `String`, balance
-  as a `String`, currency/type as nullable enums), runs the *same* validation the
+  as a `String`, currency and `kind: MoneyAccountKind?` as nullable enums), runs
+  the *same* validation the
   `create` factory uses, and returns either a new `Account` or one aggregated
   `InvalidInput` carrying every offending field message at once. The returned
   `Account` preserves the original `id`, `createdAt`, and movements. It is a
@@ -26,7 +27,18 @@ which reflect the new values.
   and `copy` bypasses validation entirely — and (b) keep the aggregate immutable
   and always in a legal state (no half-updated intermediate). This mirrors
   `create`; the private constructor stays reachable only through validating
-  factories, so every `Account` that exists is valid by construction.
+  factories, so every `Account` that exists is valid by construction. The type
+  picker offers `MoneyAccountKind` entries (Ahorros, Efectivo), so an edit cannot
+  turn a money account into a credit card.
+
+- **A credit card loaded into the form cannot be saved.** `Account.edit` rejects
+  a card with `CreditCardNotEditable` (the rule is owned by
+  `specs/technical/account-funding/design.md`); `AccountUpdater` propagates it
+  and persists nothing. The card detail screen offers no edit action. If a card
+  is loaded into the form anyway, `Editing` has no kind and shows the card's
+  credit limit in the balance field; saving shows the rejection as the general
+  save-error. Rejected alternative: a dedicated "card not editable" state, which
+  adds screen state for a path no screen reaches.
 
 - **The "has movements" fact is derived from the loaded aggregate
   (`Account.hasTransactions()`), not a dedicated existence query.** The freeze
@@ -74,8 +86,8 @@ which reflect the new values.
   snapshot would be a staleness bug.
 
 - **A dedicated `AccountUpdateError` names the update path's failures.** It
-  carries `InvalidInput` (the aggregated per-field messages), `DuplicateName`, and
-  `StorageFailure`. It deliberately omits a crypto failure, because at-rest
+  carries `InvalidInput` (the aggregated per-field messages), `DuplicateName`,
+  `CreditCardNotEditable`, and `StorageFailure`. It deliberately omits a crypto failure, because at-rest
   encryption is a transparent, whole-database property (see
   `specs/technical/sqlcipher-encryption/design.md`) with no per-save crypto step.
   A distinct type — rather than reusing the creation error — keeps the two flows'
@@ -127,8 +139,8 @@ which reflect the new values.
 app/src/main/java/dev/raiseexception/odin/
 ├── accounting/
 │   ├── domain/
-│   │   ├── model/            # Account (+ edit: validating/immutable edit entry; hasTransactions), Money, Currency, AccountType
-│   │   ├── AccountUpdateError (sealed DomainError: InvalidInput, DuplicateName, StorageFailure)
+│   │   ├── model/            # Account (+ edit: validating/immutable edit entry, rejects cards; hasTransactions), MoneyAccountKind, Money, Currency, AccountType
+│   │   ├── AccountUpdateError (sealed DomainError: InvalidInput, DuplicateName, CreditCardNotEditable, StorageFailure)
 │   │   └── repository/       # AccountRepository (port; update)
 │   ├── application/usecase/   # AccountUpdater (freeze rule + uniqueness orchestration), AccountFinder (read)
 │   ├── infrastructure/
@@ -168,19 +180,22 @@ specs/accounting/accounts/update/
    `Account.edit`; on validation failure it propagates the `InvalidInput`. If the
    name changed, it checks uniqueness via the repository. It then persists through
    `AccountRepository.update`.
-6. **Domain (`Account.edit`):** validates all fields, and on success returns a new
-   `Account` preserving `id`, `createdAt`, and movements.
+6. **Domain (`Account.edit`):** rejects a credit card with
+   `CreditCardNotEditable`; otherwise validates all fields, and on success
+   returns a new `Account` with `Funds` of the chosen kind, preserving `id`,
+   `createdAt`, and movements.
 7. Result flows back as `Outcome`: success → a one-shot navigation event that pops
    back to the details (which reflect the change live); failure → the ViewModel
    overlays `InvalidInput` as per-field errors, `DuplicateName` as a name error,
-   and a storage failure as the general save-error message.
+   and a storage failure or `CreditCardNotEditable` as the general save-error
+   message.
 
 ## Screen & States / Backend Interaction
 
 - **Screen:** `EditAccountScreen`, reached from `AccountDetailScreen` via an edit
   affordance; route `ACCOUNT_EDIT` carrying the account id.
 - **UiState:** `Loading` / `NotFound` / `Editing`. `Editing` holds the pre-filled
-  name/balance/currency/type/description, `locked`, the formatted locked-balance
+  name/balance/currency/kind/description, `locked`, the formatted locked-balance
   display, per-field errors, an in-progress flag, and a general save-error.
   Navigation on save is a one-shot event, separate from state.
 - **Backend Interaction:** none. Standalone/on-device only.

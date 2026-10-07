@@ -29,7 +29,7 @@ class AccountCreator(
             name = command.name,
             initialBalance = command.balance,
             currency = command.currency,
-            type = command.type,
+            kind = command.kind,
             description = command.description
         )
         is CreateAccountCommand.CreditCard -> Account.createCreditCard(

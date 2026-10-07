@@ -12,10 +12,10 @@ import dev.raiseexception.odin.accounting.application.usecase.ExpenseUpdater
 import dev.raiseexception.odin.accounting.application.usecase.TagResolver
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
 import dev.raiseexception.odin.accounting.domain.model.Account
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.model.TagInput
 import dev.raiseexception.odin.accounting.domain.repository.TagRepository
 import dev.raiseexception.odin.persistence.OdinDatabase
@@ -177,7 +177,7 @@ class ExpenseTagsIntegrationTest {
         )
         return (
             this.accountCreator.create(
-                CreateAccountCommand.MoneyAccount("Ahorros", initialBalance, Currency.COP, AccountType.SAVINGS, "")
+                CreateAccountCommand.MoneyAccount("Ahorros", initialBalance, Currency.COP, MoneyAccountKind.SAVINGS, "")
             ) as Outcome.Success
             ).value
     }

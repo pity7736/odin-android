@@ -1,14 +1,14 @@
 package dev.raiseexception.odin.accounting.application.usecase
 
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 
 sealed interface CreateAccountCommand {
     data class MoneyAccount(
         val name: String,
         val balance: String,
         val currency: Currency?,
-        val type: AccountType?,
+        val kind: MoneyAccountKind?,
         val description: String
     ) : CreateAccountCommand
 

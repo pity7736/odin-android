@@ -7,6 +7,7 @@ import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -163,7 +164,7 @@ class HomeSummaryLoaderTest {
         val cashAccount = AccountBuilder()
             .id("cash")
             .name("Efectivo")
-            .type(AccountType.CASH)
+            .kind(MoneyAccountKind.CASH)
             .initialBalance(pesos("150000.00"))
             .build()
         val summary = loadSummary(listOf(cashAccount))

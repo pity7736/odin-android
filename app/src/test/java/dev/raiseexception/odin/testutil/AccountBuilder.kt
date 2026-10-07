@@ -2,11 +2,11 @@ package dev.raiseexception.odin.testutil
 
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountFunding
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.shared.domain.Outcome
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -19,7 +19,7 @@ class AccountBuilder {
     private var initialBalance = Money.of(BigDecimal("100000.00"), Currency.COP)
     private var creditLimit: Money? = null
     private var initialDebt: Money? = null
-    private var type = AccountType.SAVINGS
+    private var kind = MoneyAccountKind.SAVINGS
     private var description = ""
     private var createdAt = Instant.parse("2026-01-01T00:00:00Z")
     private var incomes: List<Income> = emptyList()
@@ -42,15 +42,14 @@ class AccountBuilder {
         return this
     }
 
-    fun type(type: AccountType): AccountBuilder {
-        this.type = type
+    fun kind(kind: MoneyAccountKind): AccountBuilder {
+        this.kind = kind
         return this
     }
 
     fun creditCard(creditLimit: Money, initialDebt: Money): AccountBuilder {
         this.creditLimit = creditLimit
         this.initialDebt = initialDebt
-        this.type = AccountType.CREDIT_CARD
         return this
     }
 
@@ -113,7 +112,6 @@ class AccountBuilder {
             id = this.id,
             name = this.name,
             funding = this.funding(),
-            type = this.type,
             description = this.description,
             createdAt = this.createdAt
         )
@@ -142,7 +140,6 @@ class AccountBuilder {
             id = this.id,
             name = this.name,
             funding = this.funding(),
-            type = this.type,
             description = this.description,
             createdAt = this.createdAt,
             incomes = this.incomes + createdIncomes,
@@ -156,7 +153,7 @@ class AccountBuilder {
         return if (limit != null && openingDebt != null) {
             AccountFunding.Credit(limit, openingDebt)
         } else {
-            AccountFunding.Funds(this.initialBalance)
+            AccountFunding.Funds(this.initialBalance, this.kind)
         }
     }
 

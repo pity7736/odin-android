@@ -8,13 +8,15 @@ An account's money is modeled by a sealed `AccountFunding` value carried on
 `Account`, rather than a bare `initialBalance: Money` field. `Funds` models a
 money-holding account (savings, cash); `Credit` models a debt-bearing one (a
 credit card). Each variant owns its money rules — balance, spending limit,
-incoming limit — and `Account` delegates to it.
+incoming limit — and `Account` delegates to it. `funding` is also the only
+stored source of an account's kind: `Funds` carries whether the account is
+savings or cash, and `Account.type` is derived from `funding`.
 
 ## Design Decisions & Rationale
 
 - **`Account.funding: AccountFunding` replaces a bare balance field.** `Account`
   holds one `funding` value; `currency` and `balance` derive from it.
-  `Funds(initialBalance)` funds savings and cash; `Credit(creditLimit,
+  `Funds(initialBalance, kind)` funds savings and cash; `Credit(creditLimit,
   initialDebt)` funds a credit card. Rejected alternatives: nullable fields on
   `Account` (an optional credit limit), whose "valid only for some types"
   partiality the sum type removes; and a separate entity per money-kind, which
@@ -57,12 +59,41 @@ incoming limit — and `Account` delegates to it.
   receiving leg of a transfer into the card (see
   `specs/accounting/transfers/design.md`) — so a payment lowers the debt and
   frees credit for the next expense.
+- **`funding` is the only stored source of an account's kind; `Account.type` is
+  derived.** `Funds` carries a `MoneyAccountKind` (`SAVINGS`, `CASH`); `Credit`
+  carries none, because a card is the only debt-bearing kind. `Account.type` is a
+  getter: `Funds` → `kind.toAccountType()`, `Credit` → `AccountType.CREDIT_CARD`.
+  An account whose type says "credit card" while its funding holds money cannot
+  be built. `AccountType` stays as the flat `SAVINGS`/`CASH`/`CREDIT_CARD` value
+  that labels, icons and the `accounts.type` column need. Rejected alternatives:
+  a stored `type` checked against `funding` in the constructor, which keeps two
+  sources and catches a mismatch only at runtime; and dropping `AccountType`,
+  which makes every label and icon branch on funding plus kind. The cost accepted:
+  `MoneyAccountKind` and `AccountType` overlap, so a new money kind is added to
+  both; `toAccountType()` is an exhaustive `when`, so the compiler flags the
+  missing case.
+- **Behavior branches on `funding`; `type` is read only for display and
+  storage.** Rules about money and behavior (validation, figures, which fields a
+  screen shows, transfer vs payment) match on `funding` with an exhaustive
+  `when`. `type` is read for labels, icons, the create form's picker and the
+  entity mapper. The two can never disagree, but one way to decide keeps a new
+  variant a compile-time question at every decision site.
 - **Creation is kind-specific; reconstruction is kind-agnostic.** `create` and
-  `edit` take raw, unvalidated money input, validate it, and wrap the result into
-  `Funds`; `createCreditCard` is the sibling that builds `Credit`. `restore` takes
-  an already-built `AccountFunding` and does no validation, so it is generic —
-  the entity mapper builds the right variant from the row and hands it to
-  `restore`.
+  `edit` take raw, unvalidated money input plus a `MoneyAccountKind?`, validate
+  it, and wrap the result into `Funds`; `createCreditCard` is the sibling that
+  builds `Credit`. The money-account paths take `MoneyAccountKind`, not
+  `AccountType`, so "credit card" cannot be passed to them. A missing kind
+  reports "El tipo de cuenta es obligatorio." in `typeError`. `restore` takes an
+  already-built `AccountFunding` and no type, and does no validation, so it is
+  generic — the entity mapper builds the right variant from the row and hands it
+  to `restore`.
+- **`Account.edit` rejects a credit card.** Its first check returns
+  `AccountUpdateError.CreditCardNotEditable` ("Las tarjetas de crédito no se
+  pueden editar.") for `Credit` funding, before any field validation. `edit`
+  only knows how to rebuild `Funds`; what a card edit may change (limit below the
+  current debt, initial debt once payments exist) is undecided, so `edit` refuses
+  rather than turning a card into a money account. No screen offers editing a
+  card today.
 - **Read sites narrow with an exhaustive `when`, with no convenience accessor.**
   Sites that need a variant's own figures (a money account's initial balance, a
   card's debt and limit) match on `funding` directly. An `Account.initialBalance`
@@ -75,19 +106,28 @@ incoming limit — and `Account` delegates to it.
 
 - `accounting/domain/model/AccountFunding.kt` — the sealed type (`Funds`,
   `Credit`) and its per-kind rules.
-- `accounting/domain/model/Account.kt` — holds `funding`; `currency`/`balance`
-  derive from it; `createExpense`/`editExpense` apply `spendable`;
+- `accounting/domain/model/MoneyAccountKind.kt` — `SAVINGS`, `CASH`, and
+  `toAccountType()`.
+- `accounting/domain/model/Account.kt` — holds `funding`; `currency`/`balance`/
+  `type` derive from it; `createExpense`/`editExpense` apply `spendable`;
   `createIncome` applies `validateIncomingAmount`; `create`/`edit` wrap into
-  `Funds`, `createCreditCard` into `Credit`; `restore` takes `funding`.
+  `Funds` with the given kind, `createCreditCard` into `Credit`; `edit` rejects
+  `Credit`; `restore` takes `funding` and no type.
+- `accounting/domain/AccountUpdateError.kt` — `CreditCardNotEditable`.
 - `accounting/infrastructure/repository/AccountEntity.kt` — the mapper builds
-  the variant on load and reads it on save.
+  the variant and its kind from the `type` column on load, and writes the derived
+  `type` on save.
 - `shared/presentation/AccountKind.kt` — `isMoneyAccount`.
 
 ## Schema
 
 The `accounts` table keeps its `initialBalanceAmount` column for `Funds`; the
 card columns hold `Credit`'s limit and initial debt (see
-`specs/accounting/accounts/creation/design.md`).
+`specs/accounting/accounts/creation/design.md`). The `type` column holds
+`SAVINGS`, `CASH` or `CREDIT_CARD`; it is read once on load, with an explicit
+`when`, to pick the variant and the money kind, and written from the derived
+`Account.type`. Repository tests insert raw rows with each stored value and load
+them, pinning the on-disk format independently of the mapper's write side.
 
 ## Known Limitations
 

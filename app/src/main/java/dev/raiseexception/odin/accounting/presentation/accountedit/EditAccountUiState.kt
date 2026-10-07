@@ -1,7 +1,7 @@
 package dev.raiseexception.odin.accounting.presentation.accountedit
 
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 
 sealed interface EditAccountUiState {
     data object Loading : EditAccountUiState
@@ -10,7 +10,7 @@ sealed interface EditAccountUiState {
         val name: String,
         val initialBalance: String,
         val currency: Currency?,
-        val type: AccountType?,
+        val kind: MoneyAccountKind?,
         val description: String,
         val locked: Boolean,
         val lockedBalanceDisplay: String? = null,

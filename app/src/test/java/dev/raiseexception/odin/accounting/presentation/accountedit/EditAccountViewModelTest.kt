@@ -5,9 +5,9 @@ import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.AccountUpdater
 import dev.raiseexception.odin.accounting.domain.AccountLookupError
 import dev.raiseexception.odin.accounting.domain.AccountUpdateError
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
@@ -61,7 +61,7 @@ class EditAccountViewModelTest {
                 .id(accountId)
                 .name("Ahorros")
                 .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
-                .type(AccountType.SAVINGS)
+                .kind(MoneyAccountKind.SAVINGS)
                 .description("Fondo")
                 .build()
             every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(existing))
@@ -72,7 +72,7 @@ class EditAccountViewModelTest {
                 val state = awaitItem() as EditAccountUiState.Editing
                 assertEquals("Ahorros", state.name)
                 assertEquals(Currency.COP, state.currency)
-                assertEquals(AccountType.SAVINGS, state.type)
+                assertEquals(MoneyAccountKind.SAVINGS, state.kind)
                 assertEquals("Fondo", state.description)
                 assertFalse(state.locked)
                 assertNull(state.lockedBalanceDisplay)
@@ -96,6 +96,42 @@ class EditAccountViewModelTest {
             val state = awaitItem() as EditAccountUiState.Editing
             assertTrue(state.locked)
             assertEquals("$1.000,00", state.lockedBalanceDisplay)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given a money account, when loaded, then editing state carries its kind`() = runTest {
+        val existing = AccountBuilder().id(accountId).name("Efectivo").kind(MoneyAccountKind.CASH).build()
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(existing))
+        val viewModel = buildViewModel()
+        viewModel.uiState.test {
+            assertEquals(EditAccountUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = awaitItem() as EditAccountUiState.Editing
+            assertEquals(MoneyAccountKind.CASH, state.kind)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given a credit card, when loaded, then editing state has no kind and shows the credit limit`() = runTest {
+        val card = AccountBuilder()
+            .id(accountId)
+            .name("Visa")
+            .creditCard(
+                creditLimit = Money.of(BigDecimal("3000000.00"), Currency.COP),
+                initialDebt = Money.of(BigDecimal("500000.00"), Currency.COP)
+            )
+            .build()
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(card))
+        val viewModel = buildViewModel()
+        viewModel.uiState.test {
+            assertEquals(EditAccountUiState.Loading, awaitItem())
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = awaitItem() as EditAccountUiState.Editing
+            assertNull(state.kind)
+            assertEquals("3000000.00", state.initialBalance)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -126,7 +162,7 @@ class EditAccountViewModelTest {
         coEvery { accountUpdater.update(any(), any(), any(), any(), any(), any()) } returns Outcome.Success(existing)
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
-        viewModel.save("Corriente", "2000.00", Currency.COP, AccountType.CASH, "")
+        viewModel.save("Corriente", "2000.00", Currency.COP, MoneyAccountKind.CASH, "")
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(Unit, viewModel.navigationEvent.first())
     }
@@ -169,7 +205,7 @@ class EditAccountViewModelTest {
         )
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
-        viewModel.save("Corriente", "2000.00", Currency.COP, AccountType.CASH, "")
+        viewModel.save("Corriente", "2000.00", Currency.COP, MoneyAccountKind.CASH, "")
         testDispatcher.scheduler.advanceUntilIdle()
         val state = viewModel.uiState.value as EditAccountUiState.Editing
         assertEquals("Ya tienes una cuenta con ese nombre.", state.nameError)
@@ -188,7 +224,7 @@ class EditAccountViewModelTest {
             )
             val viewModel = buildViewModel()
             testDispatcher.scheduler.advanceUntilIdle()
-            viewModel.save("Corriente", "2000.00", Currency.COP, AccountType.CASH, "")
+            viewModel.save("Corriente", "2000.00", Currency.COP, MoneyAccountKind.CASH, "")
             testDispatcher.scheduler.advanceUntilIdle()
             val state = viewModel.uiState.value as EditAccountUiState.Editing
             assertEquals("No se pudo guardar la cuenta. Inténtalo de nuevo.", state.saveError)
@@ -197,14 +233,34 @@ class EditAccountViewModelTest {
         }
 
     @Test
+    fun `given a credit card, when save, then saveError is the card not editable message`() = runTest {
+        val card = AccountBuilder()
+            .id(accountId)
+            .name("Visa")
+            .creditCard(Money.of(BigDecimal("3000000.00"), Currency.COP), Money.of(BigDecimal("0"), Currency.COP))
+            .build()
+        every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(card))
+        coEvery { accountUpdater.update(any(), any(), any(), any(), any(), any()) } returns Outcome.Failure(
+            AccountUpdateError.CreditCardNotEditable()
+        )
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.save("Visa", "3000000.00", Currency.COP, null, "")
+        testDispatcher.scheduler.advanceUntilIdle()
+        val state = viewModel.uiState.value as EditAccountUiState.Editing
+        assertEquals("Las tarjetas de crédito no se pueden editar.", state.saveError)
+        assertFalse(state.isSaving)
+    }
+
+    @Test
     fun `given a save in progress, when save is called again, then it is ignored`() = runTest {
         val existing = AccountBuilder().id(accountId).name("Ahorros").build()
         every { accountFinder.find(accountId, criteria) } returns flowOf(Outcome.Success(existing))
         coEvery { accountUpdater.update(any(), any(), any(), any(), any(), any()) } returns Outcome.Success(existing)
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
-        viewModel.save("Corriente", "2000.00", Currency.COP, AccountType.CASH, "")
-        viewModel.save("Corriente", "2000.00", Currency.COP, AccountType.CASH, "")
+        viewModel.save("Corriente", "2000.00", Currency.COP, MoneyAccountKind.CASH, "")
+        viewModel.save("Corriente", "2000.00", Currency.COP, MoneyAccountKind.CASH, "")
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify(exactly = 1) { accountUpdater.update(any(), any(), any(), any(), any(), any()) }
     }

@@ -12,11 +12,11 @@ import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.application.usecase.TagResolver
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountFunding
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.persistence.OdinDatabase
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -93,13 +93,13 @@ class BalanceIntegrationTest {
                     "Ahorros",
                     "1000000",
                     Currency.COP,
-                    AccountType.SAVINGS,
+                    MoneyAccountKind.SAVINGS,
                     ""
                 )
             ) as Outcome.Success
             ).value
         accountCreator.create(
-            CreateAccountCommand.MoneyAccount("Efectivo", "50000", Currency.COP, AccountType.CASH, "")
+            CreateAccountCommand.MoneyAccount("Efectivo", "50000", Currency.COP, MoneyAccountKind.CASH, "")
         )
         categoryCreator.create("Alimentación", CategoryType.EXPENSE, "", null)
         categoryCreator.create("Transporte", CategoryType.EXPENSE, "", null)
@@ -139,7 +139,7 @@ class BalanceIntegrationTest {
                     "Ahorros",
                     "1000000",
                     Currency.COP,
-                    AccountType.SAVINGS,
+                    MoneyAccountKind.SAVINGS,
                     ""
                 )
             ) as Outcome.Success
@@ -170,7 +170,7 @@ class BalanceIntegrationTest {
                     "Ahorros",
                     "1000000",
                     Currency.COP,
-                    AccountType.SAVINGS,
+                    MoneyAccountKind.SAVINGS,
                     ""
                 )
             ) as Outcome.Success

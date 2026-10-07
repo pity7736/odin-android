@@ -21,7 +21,7 @@ sealed interface AccountFunding {
 
     fun historyBreachMessage(figure: BigDecimal): String?
 
-    data class Funds(val initialBalance: Money) : AccountFunding {
+    data class Funds(val initialBalance: Money, val kind: MoneyAccountKind) : AccountFunding {
         override val currency: Currency get() = this.initialBalance.currency
 
         override val overSpendMessage: String get() = "El monto supera el saldo disponible."

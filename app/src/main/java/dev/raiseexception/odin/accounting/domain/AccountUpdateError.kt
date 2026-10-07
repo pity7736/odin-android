@@ -18,6 +18,11 @@ sealed class AccountUpdateError(
         externalMessage = "Revisa los datos de la cuenta"
     )
 
+    class CreditCardNotEditable : AccountUpdateError(
+        internalMessage = "Credit card accounts cannot be edited",
+        externalMessage = "Las tarjetas de crédito no se pueden editar."
+    )
+
     class DuplicateName(
         internalMessage: String,
         externalMessage: String

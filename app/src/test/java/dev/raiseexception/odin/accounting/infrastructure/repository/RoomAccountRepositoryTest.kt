@@ -8,6 +8,7 @@ import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.persistence.OdinDatabase
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -51,7 +52,7 @@ class RoomAccountRepositoryTest {
             .id("acc-1")
             .name("Ahorros")
             .initialBalance(Money.of(BigDecimal("1500.00"), Currency.COP))
-            .type(AccountType.SAVINGS)
+            .kind(MoneyAccountKind.SAVINGS)
             .description("Fondo de emergencia")
             .createdAt(Instant.parse("2026-08-01T10:00:00Z"))
             .build()
@@ -99,7 +100,7 @@ class RoomAccountRepositoryTest {
             .id("acc-1")
             .name("Ahorros")
             .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
-            .type(AccountType.SAVINGS)
+            .kind(MoneyAccountKind.SAVINGS)
             .description("Fondo")
             .createdAt(Instant.parse("2026-08-01T10:00:00Z"))
             .build()
@@ -108,7 +109,7 @@ class RoomAccountRepositoryTest {
             name = "Corriente",
             initialBalance = "2000.00",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = "Gastos diarios"
         )
         val edited = (editOutcome as Outcome.Success).value
@@ -125,6 +126,78 @@ class RoomAccountRepositoryTest {
         assertEquals(AccountType.CASH, stored.type)
         assertEquals("Gastos diarios", stored.description)
         assertEquals(Instant.parse("2026-08-01T10:00:00Z"), stored.createdAt)
+    }
+
+    @Test
+    fun `given a stored SAVINGS row, when findById, then funding is Funds with SAVINGS kind`() = runTest {
+        database.accountDao().insert(
+            AccountEntity(
+                id = "acc-1",
+                name = "Ahorros",
+                initialBalanceAmount = "1500.00",
+                currency = "COP",
+                type = "SAVINGS",
+                description = "",
+                createdAt = "2026-08-01T10:00:00Z",
+                creditLimitAmount = null,
+                debtAmount = null
+            )
+        )
+
+        val account = (repository.findById("acc-1").first() as Outcome.Success).value
+
+        val funds = account.funding as AccountFunding.Funds
+        assertEquals(MoneyAccountKind.SAVINGS, funds.kind)
+        assertEquals(Money.of(BigDecimal("1500.00"), Currency.COP), funds.initialBalance)
+        assertEquals(AccountType.SAVINGS, account.type)
+    }
+
+    @Test
+    fun `given a stored CASH row, when findById, then funding is Funds with CASH kind`() = runTest {
+        database.accountDao().insert(
+            AccountEntity(
+                id = "acc-2",
+                name = "Efectivo",
+                initialBalanceAmount = "20000.00",
+                currency = "USD",
+                type = "CASH",
+                description = "",
+                createdAt = "2026-08-01T10:00:00Z",
+                creditLimitAmount = null,
+                debtAmount = null
+            )
+        )
+
+        val account = (repository.findById("acc-2").first() as Outcome.Success).value
+
+        val funds = account.funding as AccountFunding.Funds
+        assertEquals(MoneyAccountKind.CASH, funds.kind)
+        assertEquals(Money.of(BigDecimal("20000.00"), Currency.USD), funds.initialBalance)
+        assertEquals(AccountType.CASH, account.type)
+    }
+
+    @Test
+    fun `given a stored CREDIT_CARD row, when findById, then funding is Credit with its limit and debt`() = runTest {
+        database.accountDao().insert(
+            AccountEntity(
+                id = "card-1",
+                name = "Visa",
+                initialBalanceAmount = null,
+                currency = "COP",
+                type = "CREDIT_CARD",
+                description = "",
+                createdAt = "2026-08-01T10:00:00Z",
+                creditLimitAmount = "3000000.00",
+                debtAmount = "500000.00"
+            )
+        )
+
+        val account = (repository.findById("card-1").first() as Outcome.Success).value
+
+        val credit = account.funding as AccountFunding.Credit
+        assertEquals(Money.of(BigDecimal("3000000.00"), Currency.COP), credit.creditLimit)
+        assertEquals(Money.of(BigDecimal("500000.00"), Currency.COP), credit.initialDebt)
+        assertEquals(AccountType.CREDIT_CARD, account.type)
     }
 
     @Test

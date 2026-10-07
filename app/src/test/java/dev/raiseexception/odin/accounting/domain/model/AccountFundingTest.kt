@@ -11,14 +11,14 @@ class AccountFundingTest {
 
     @Test
     fun `given funds funding, when reading its currency, then returns the initial balance currency`() {
-        val funding = AccountFunding.Funds(Money.of(BigDecimal("1000.00"), Currency.COP))
+        val funding = AccountFunding.Funds(Money.of(BigDecimal("1000.00"), Currency.COP), MoneyAccountKind.SAVINGS)
 
         assertEquals(Currency.COP, funding.currency)
     }
 
     @Test
     fun `given funds funding, when computing its balance, then returns the initial balance`() {
-        val funding = AccountFunding.Funds(Money.of(BigDecimal("1000.00"), Currency.COP))
+        val funding = AccountFunding.Funds(Money.of(BigDecimal("1000.00"), Currency.COP), MoneyAccountKind.SAVINGS)
 
         assertEquals(Money.of(BigDecimal("1000.00"), Currency.COP), funding.balance(emptyList(), emptyList()))
     }
@@ -131,7 +131,7 @@ class AccountFundingTest {
 
     @Test
     fun `given a money account, when any amount comes in, then no error`() {
-        val funding = AccountFunding.Funds(this.pesos("0.00"))
+        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS)
 
         assertNull(funding.validateIncomingAmount(BigDecimal("999999999"), emptyList(), emptyList()))
     }
@@ -155,14 +155,14 @@ class AccountFundingTest {
 
     @Test
     fun `given a money account, when editing an expense to any amount, then no error`() {
-        val funding = AccountFunding.Funds(this.pesos("0.00"))
+        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS)
 
         assertNull(funding.validateEditedExpenseAmount(BigDecimal("1"), listOf(this.income("400000")), emptyList()))
     }
 
     @Test
     fun `given a money account, when asking what can be spent, then balance and a saldo message`() {
-        val funding = AccountFunding.Funds(this.pesos("1000000.00"))
+        val funding = AccountFunding.Funds(this.pesos("1000000.00"), MoneyAccountKind.SAVINGS)
         val expenses = listOf(this.expense("200000"))
         val incomes = listOf(this.income("50000"))
 
@@ -172,14 +172,14 @@ class AccountFundingTest {
 
     @Test
     fun `given a money account, when measuring the effect of an income, then it adds the amount`() {
-        val funding = AccountFunding.Funds(this.pesos("1000.00"))
+        val funding = AccountFunding.Funds(this.pesos("1000.00"), MoneyAccountKind.SAVINGS)
 
         assertEquals(BigDecimal("150"), funding.movementEffect(this.income("150")))
     }
 
     @Test
     fun `given a money account, when measuring the effect of an expense, then it subtracts the amount`() {
-        val funding = AccountFunding.Funds(this.pesos("1000.00"))
+        val funding = AccountFunding.Funds(this.pesos("1000.00"), MoneyAccountKind.SAVINGS)
 
         assertEquals(BigDecimal("-300"), funding.movementEffect(this.expense("300")))
     }
@@ -200,21 +200,21 @@ class AccountFundingTest {
 
     @Test
     fun `given a money account, when reading its opening figure, then returns the initial balance`() {
-        val funding = AccountFunding.Funds(this.pesos("50000.00"))
+        val funding = AccountFunding.Funds(this.pesos("50000.00"), MoneyAccountKind.SAVINGS)
 
         assertEquals(BigDecimal("50000.00"), funding.openingFigure())
     }
 
     @Test
     fun `given a money account, when a figure is below zero, then the negative balance phrase`() {
-        val funding = AccountFunding.Funds(this.pesos("0.00"))
+        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS)
 
         assertEquals("El saldo de la cuenta quedaría negativo", funding.historyBreachMessage(BigDecimal("-0.01")))
     }
 
     @Test
     fun `given a money account, when a figure is zero, then no breach`() {
-        val funding = AccountFunding.Funds(this.pesos("0.00"))
+        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS)
 
         assertNull(funding.historyBreachMessage(BigDecimal.ZERO))
     }

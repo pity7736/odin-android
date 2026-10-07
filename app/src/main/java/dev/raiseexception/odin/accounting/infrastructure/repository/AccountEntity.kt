@@ -11,6 +11,7 @@ import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import kotlinx.datetime.Instant
 import java.math.BigDecimal
 
@@ -38,7 +39,6 @@ internal fun AccountEntity.toDomain(incomes: List<Income>, expenses: List<Expens
         id = id,
         name = name,
         funding = toFunding(),
-        type = AccountType.valueOf(type),
         description = description,
         createdAt = Instant.parse(createdAt),
         incomes = incomes,
@@ -50,9 +50,12 @@ private fun AccountEntity.toFunding(): AccountFunding = when (AccountType.valueO
         creditLimit = Money.of(BigDecimal(creditLimitAmount!!), Currency.valueOf(currency)),
         initialDebt = Money.of(BigDecimal(debtAmount!!), Currency.valueOf(currency))
     )
-    AccountType.SAVINGS, AccountType.CASH ->
-        AccountFunding.Funds(Money.of(BigDecimal(initialBalanceAmount!!), Currency.valueOf(currency)))
+    AccountType.SAVINGS -> toFunds(MoneyAccountKind.SAVINGS)
+    AccountType.CASH -> toFunds(MoneyAccountKind.CASH)
 }
+
+private fun AccountEntity.toFunds(kind: MoneyAccountKind): AccountFunding =
+    AccountFunding.Funds(Money.of(BigDecimal(initialBalanceAmount!!), Currency.valueOf(currency)), kind)
 
 internal fun Account.toEntity(): AccountEntity = when (val accountFunding = funding) {
     is AccountFunding.Funds -> AccountEntity(

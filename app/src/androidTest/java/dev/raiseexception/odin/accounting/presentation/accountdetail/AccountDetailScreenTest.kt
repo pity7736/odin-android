@@ -8,11 +8,11 @@ import androidx.compose.ui.test.performClick
 import dev.raiseexception.odin.accounting.application.usecase.AccountTransaction
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountFunding
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.datetime.Instant
@@ -174,8 +174,7 @@ class AccountDetailScreenTest {
         val savingsAccount = Account.restore(
             id = "savings-1",
             name = "Ahorros",
-            funding = AccountFunding.Funds(pesos("1000000.00")),
-            type = AccountType.SAVINGS,
+            funding = AccountFunding.Funds(pesos("1000000.00"), MoneyAccountKind.SAVINGS),
             description = "",
             createdAt = Instant.parse("2026-09-01T10:00:00Z")
         )

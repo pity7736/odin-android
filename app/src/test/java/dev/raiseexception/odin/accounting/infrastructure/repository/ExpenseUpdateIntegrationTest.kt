@@ -14,11 +14,11 @@ import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
 import dev.raiseexception.odin.accounting.application.usecase.TransferCreator
 import dev.raiseexception.odin.accounting.domain.ExpenseUpdateError
 import dev.raiseexception.odin.accounting.domain.model.Account
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.persistence.OdinDatabase
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -161,7 +161,7 @@ class ExpenseUpdateIntegrationTest {
 
     private suspend fun createAccount(name: String, initialBalance: String): Account = (
         this.accountCreator.create(
-            CreateAccountCommand.MoneyAccount(name, initialBalance, Currency.COP, AccountType.SAVINGS, "")
+            CreateAccountCommand.MoneyAccount(name, initialBalance, Currency.COP, MoneyAccountKind.SAVINGS, "")
         ) as Outcome.Success
         ).value
 

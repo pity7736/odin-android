@@ -9,9 +9,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountFunding
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.datetime.Instant
 import org.junit.Assert.assertEquals
@@ -28,8 +28,7 @@ class AccountsListScreenTest {
     private val savingsAccount = Account.restore(
         id = "acc-1",
         name = "Ahorros",
-        funding = AccountFunding.Funds(pesos("150000.00")),
-        type = AccountType.SAVINGS,
+        funding = AccountFunding.Funds(pesos("150000.00"), MoneyAccountKind.SAVINGS),
         description = "",
         createdAt = Instant.parse("2026-01-01T00:00:00Z")
     )

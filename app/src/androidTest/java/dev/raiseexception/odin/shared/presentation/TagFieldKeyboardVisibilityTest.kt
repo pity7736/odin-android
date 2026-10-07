@@ -21,8 +21,8 @@ import androidx.compose.ui.test.performTextInput
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import dev.raiseexception.odin.accounting.domain.model.Account
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.model.Tag
 import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExpenseScreen
 import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExpenseUiState
@@ -60,7 +60,7 @@ class TagFieldKeyboardVisibilityTest {
     }
 
     private fun setForm(existingTags: List<Tag>) {
-        val savingsAccount = (Account.create("Ahorros", "100000", Currency.COP, AccountType.SAVINGS, "") as Outcome.Success)
+        val savingsAccount = (Account.create("Ahorros", "100000", Currency.COP, MoneyAccountKind.SAVINGS, "") as Outcome.Success)
             .value
         composeTestRule.runOnUiThread { composeTestRule.activity.enableEdgeToEdge() }
         composeTestRule.setContent {

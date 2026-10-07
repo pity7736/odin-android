@@ -4,8 +4,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import kotlinx.coroutines.flow.emptyFlow
 import org.junit.Rule
 import org.junit.Test
@@ -22,7 +22,7 @@ class EditAccountScreenTest {
         name = "Ahorros",
         initialBalance = "1000.00",
         currency = Currency.COP,
-        type = AccountType.SAVINGS,
+        kind = MoneyAccountKind.SAVINGS,
         description = "Fondo",
         locked = locked,
         lockedBalanceDisplay = if (locked) "$1.000,00" else null,

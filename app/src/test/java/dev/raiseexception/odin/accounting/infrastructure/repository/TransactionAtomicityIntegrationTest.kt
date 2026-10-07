@@ -14,11 +14,11 @@ import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
 import dev.raiseexception.odin.accounting.domain.TransferCreationError
 import dev.raiseexception.odin.accounting.domain.model.Account
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Income
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.IncomeRepository
 import dev.raiseexception.odin.persistence.OdinDatabase
@@ -203,7 +203,7 @@ class TransactionAtomicityIntegrationTest {
     private suspend fun createAccount(name: String, initialBalance: String): Account =
         (
             accountCreator.create(
-                CreateAccountCommand.MoneyAccount(name, initialBalance, Currency.COP, AccountType.SAVINGS, "")
+                CreateAccountCommand.MoneyAccount(name, initialBalance, Currency.COP, MoneyAccountKind.SAVINGS, "")
             ) as Outcome.Success
             ).value
 
