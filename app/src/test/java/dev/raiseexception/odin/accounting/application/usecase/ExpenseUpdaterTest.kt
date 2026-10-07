@@ -312,6 +312,61 @@ class ExpenseUpdaterTest {
         }
 
     @Test
+    fun `given a card expense covered by a payment, when moving it after it, then date error and nothing saved`() =
+        runTest {
+            val cardExpense = cardExpense("card-expense", "500000", "2026-03-05")
+            val card = AccountBuilder()
+                .id("card-1")
+                .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+                .creditCard(
+                    creditLimit = Money.of(BigDecimal("1000000"), Currency.COP),
+                    initialDebt = Money.of(BigDecimal("0"), Currency.COP)
+                )
+                .expenses(listOf(cardExpense, cardExpense("later-expense", "200000", "2026-03-20")))
+                .incomes(
+                    listOf(
+                        Income.restore(
+                            id = "card-payment",
+                            accountId = "card-1",
+                            amount = Money.of(BigDecimal("500000"), Currency.COP),
+                            date = LocalDate.parse("2026-03-08"),
+                            categoryId = "cat-payment",
+                            description = "",
+                            createdAt = Instant.parse("2026-03-08T12:00:00Z")
+                        )
+                    )
+                )
+                .build()
+            every { transactionFinder.find("card-expense") } returns flowOf(
+                Outcome.Success(
+                    TransactionDetail(
+                        cardExpense,
+                        "Alimentación",
+                        "Visa",
+                        isTransfer = false,
+                        accountType = AccountType.CREDIT_CARD,
+                        tags = emptyList()
+                    )
+                )
+            )
+            every { accountFinder.find("card-1", fullCriteria) } returns flowOf(Outcome.Success(card))
+            every { categoryRepository.findById("cat-restaurant") } returns flowOf(Outcome.Success(expenseCategory))
+
+            val result = expenseUpdater.update(
+                expenseId = "card-expense",
+                amount = "500000",
+                date = "2026-03-10",
+                categoryInput = CategoryInput.Existing("cat-restaurant"),
+                description = "",
+                tagInputs = emptyList()
+            )
+
+            val error = invalidInput(result)
+            assertEquals("La deuda de la tarjeta quedaría negativa el 8 de marzo.", error.dateError)
+            coVerify(exactly = 0) { expenseRepository.update(any()) }
+        }
+
+    @Test
     fun `given the transaction lookup fails with a storage error, when updating, then returns StorageFailure`() =
         runTest {
             every { transactionFinder.find(expense.id) } returns flowOf(Outcome.Failure(StorageError("disk error")))
@@ -531,6 +586,17 @@ class ExpenseUpdaterTest {
             description = "Restaurante",
             tagInputs = tagInputs
         )
+
+    private fun cardExpense(id: String, amount: String, date: String): Expense = Expense.restore(
+        id = id,
+        accountId = "card-1",
+        amount = Money.of(BigDecimal(amount), Currency.COP),
+        date = LocalDate.parse(date),
+        categoryId = "cat-food",
+        description = "",
+        createdAt = Instant.parse("${date}T12:00:00Z"),
+        tagIds = emptyList()
+    )
 
     private fun invalidInput(result: Outcome<Expense>): ExpenseUpdateError.InvalidInput {
         assertTrue(result is Outcome.Failure)

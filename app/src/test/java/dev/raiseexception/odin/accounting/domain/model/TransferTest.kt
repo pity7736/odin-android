@@ -8,6 +8,7 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.math.BigDecimal
@@ -311,7 +312,7 @@ class TransferTest {
     }
 
     @Test
-    fun `given a card debt of 500 with only 100 spent by September 10, when paying 300 that day, then succeeds`() {
+    fun `given a debt of 500 with 100 spent by September 10, when paying 300 that day, then fails with a date error`() {
         val visaCard = AccountBuilder()
             .id("card-1")
             .name("Visa")
@@ -331,8 +332,133 @@ class TransferTest {
             clock = laterClock
         )
 
-        assertTrue(result is Outcome.Success)
+        val error = this.invalidInput(result)
+        assertEquals("La deuda de la tarjeta quedaría negativa el 10 de septiembre.", error.dateError)
+        assertNull(error.amountError)
+        assertTrue(visaCard.incomes.isEmpty())
     }
+
+    @Test
+    fun `given Ahorros at 0 with 200000 coming on March 10, when transferring it on March 5, then a date error`() {
+        val savingsAccount = this.marchAccount(
+            id = "src-1",
+            name = "Ahorros",
+            initialBalance = "0",
+            incomes = listOf(this.marchIncome("src-1", "200000", "2026-03-10"))
+        )
+        val checkingAccount = this.marchAccount(id = "dst-1", name = "Corriente", initialBalance = "0")
+
+        val result = this.transfer(
+            source = savingsAccount,
+            destination = checkingAccount,
+            amount = "200000",
+            date = "2026-03-05"
+        )
+
+        val error = this.invalidInput(result)
+        assertEquals("El saldo de la cuenta quedaría negativo el 5 de marzo.", error.dateError)
+        assertNull(error.amountError)
+        assertTrue(savingsAccount.expenses.isEmpty())
+        assertTrue(checkingAccount.incomes.isEmpty())
+    }
+
+    @Test
+    fun `given a payment breaking Ahorros on March 8 and Visa on March 5, when paying, then the source error`() {
+        val savingsAccount = this.marchAccount(
+            id = "src-1",
+            name = "Ahorros",
+            initialBalance = "300000",
+            incomes = listOf(this.marchIncome("src-1", "300000", "2026-03-15")),
+            expenses = listOf(this.marchExpense("src-1", "250000", "2026-03-08"))
+        )
+        val visaCard = this.marchCard(
+            expenses = listOf(
+                this.marchExpense("card-1", "100000", "2026-03-03"),
+                this.marchExpense("card-1", "400000", "2026-03-20")
+            )
+        )
+
+        val result = this.transfer(
+            source = savingsAccount,
+            destination = visaCard,
+            amount = "200000",
+            date = "2026-03-05"
+        )
+
+        val error = this.invalidInput(result)
+        assertEquals("El saldo de la cuenta quedaría negativo el 8 de marzo.", error.dateError)
+        assertNull(error.amountError)
+        assertEquals(1, savingsAccount.expenses.size)
+        assertTrue(visaCard.incomes.isEmpty())
+    }
+
+    @Test
+    fun `given Ahorros breaking on March 5 and a payment above the debt, when paying, then the source error`() {
+        val savingsAccount = this.marchAccount(
+            id = "src-1",
+            name = "Ahorros",
+            initialBalance = "0",
+            incomes = listOf(this.marchIncome("src-1", "300000", "2026-03-10"))
+        )
+        val visaCard = this.marchCard(expenses = listOf(this.marchExpense("card-1", "100000", "2026-03-03")))
+
+        val result = this.transfer(
+            source = savingsAccount,
+            destination = visaCard,
+            amount = "200000",
+            date = "2026-03-05"
+        )
+
+        val error = this.invalidInput(result)
+        assertEquals("El saldo de la cuenta quedaría negativo el 5 de marzo.", error.dateError)
+        assertNull(error.amountError)
+        assertTrue(savingsAccount.expenses.isEmpty())
+        assertTrue(visaCard.incomes.isEmpty())
+    }
+
+    private fun marchAccount(
+        id: String,
+        name: String,
+        initialBalance: String,
+        incomes: List<Income> = emptyList(),
+        expenses: List<Expense> = emptyList()
+    ): Account = AccountBuilder()
+        .id(id)
+        .name(name)
+        .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+        .initialBalance(this.pesos(initialBalance))
+        .incomes(incomes)
+        .expenses(expenses)
+        .build()
+
+    private fun marchCard(expenses: List<Expense>): Account = AccountBuilder()
+        .id("card-1")
+        .name("Visa")
+        .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+        .creditCard(this.pesos("1000000"), this.pesos("0"))
+        .expenses(expenses)
+        .build()
+
+    private fun marchIncome(accountId: String, amount: String, date: String): Income = Income.restore(
+        id = "income-$accountId-$date",
+        accountId = accountId,
+        amount = this.pesos(amount),
+        date = LocalDate.parse(date),
+        categoryId = "cat-income",
+        description = "",
+        createdAt = Instant.parse("${date}T12:00:00Z")
+    )
+
+    private fun marchExpense(accountId: String, amount: String, date: String): Expense = Expense.restore(
+        id = "expense-$accountId-$date",
+        accountId = accountId,
+        amount = this.pesos(amount),
+        date = LocalDate.parse(date),
+        categoryId = "cat-1",
+        description = "",
+        createdAt = Instant.parse("${date}T12:00:00Z"),
+        tagIds = emptyList()
+    )
 
     private fun visaCard(initialDebt: String): Account = AccountBuilder()
         .id("card-1")

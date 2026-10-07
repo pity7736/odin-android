@@ -23,6 +23,11 @@ returns to the transaction details, which reflect the new values live.
   incomes and every expense except the one being edited — for a money account,
   the current balance plus the expense's original amount. The over-limit message
   is `funding.overSpendMessage` (see `specs/accounting/expense/creation/design.md`).
+
+- **An edit must keep the account's whole history valid.** After the amount
+  checks, `Account.editExpense` replays the history with the edited expense in
+  place of the original, keeping its original recording position. See
+  `specs/shared/backdated-movements/design.md`.
   `editExpense` reuses the same private validation helpers as `createExpense`
   (`validateExpenseAmount` takes the ceiling and the message as parameters;
   creation passes the ceiling over all expenses), returns
@@ -193,11 +198,6 @@ specs/accounting/expense/update/
   between opening the form and saving shows "Transacción no encontrada" as the
   save error rather than the not-found screen. Unreachable until expense deletion
   or multi-device sync exists.
-- **The amount limits check current figures only.** They do not check each date
-  between the edited date and today, so a backdated edit can leave the account's
-  history negative, or a card's history with a debt below zero or above its
-  limit, on some past dates. The same holds for expense
-  creation; tracked in `TASKS.md` as an app-wide concern.
 - **The account read happens outside the transaction.** The account and its
   movements are loaded before `TransactionRunner.run`, so a concurrent write
   could make the ceiling stale. Acceptable for the single-user, single-device

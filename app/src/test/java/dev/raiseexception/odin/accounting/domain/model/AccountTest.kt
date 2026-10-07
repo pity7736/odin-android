@@ -1601,3 +1601,396 @@ class AccountExpenseTagsTest {
         const val SIX_TAGS = 6
     }
 }
+
+class AccountBackdatedMovementsTest {
+
+    private val fixedInstant = Instant.parse("2026-08-29T12:00:00Z")
+    private val fixedClock = object : Clock {
+        override fun now(): Instant = fixedInstant
+    }
+    private val septemberInstant = Instant.parse("2026-09-30T12:00:00Z")
+    private val septemberClock = object : Clock {
+        override fun now(): Instant = septemberInstant
+    }
+
+    @Test
+    fun `given 50000 and an income of 100000 on March 10, when spending 50000 on March 5, then it is saved`() {
+        val savingsAccount = this.savingsAccount(
+            initialBalance = "50000",
+            incomes = listOf(this.income("100000", "2026-03-10"))
+        )
+
+        val result = this.createExpense(savingsAccount, "50000", "2026-03-05")
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(1, savingsAccount.expenses.size)
+        assertEquals(this.pesos("100000"), savingsAccount.balance)
+    }
+
+    @Test
+    fun `given 0 and an income of 100000 on March 10, when spending 100000 on March 5, then a date error`() {
+        val savingsAccount = this.savingsAccount(
+            initialBalance = "0",
+            incomes = listOf(this.income("100000", "2026-03-10"))
+        )
+
+        val result = this.createExpense(savingsAccount, "100000", "2026-03-05")
+
+        val error = this.creationInvalidInput(result)
+        assertEquals("El saldo de la cuenta quedaría negativo el 5 de marzo.", error.dateError)
+        assertNull(error.amountError)
+        assertTrue(savingsAccount.expenses.isEmpty())
+    }
+
+    @Test
+    fun `given a history that breaks on March 7, when spending 40000 on March 4, then the message names March 7`() {
+        val savingsAccount = this.savingsAccount(
+            initialBalance = "0",
+            incomes = listOf(this.income("50000", "2026-03-03"), this.income("100000", "2026-03-10")),
+            expenses = listOf(this.expense("30000", "2026-03-07"))
+        )
+
+        val result = this.createExpense(savingsAccount, "40000", "2026-03-04")
+
+        val error = this.creationInvalidInput(result)
+        assertEquals("El saldo de la cuenta quedaría negativo el 7 de marzo.", error.dateError)
+        assertEquals(listOf("expense-30000"), savingsAccount.expenses.map { it.id })
+    }
+
+    @Test
+    fun `given an account created in 2025, when spending on December 5 2025, then the message includes the year`() {
+        val savingsAccount = this.savingsAccount(
+            initialBalance = "0",
+            createdAt = "2025-11-01T12:00:00Z",
+            incomes = listOf(this.income("100000", "2026-01-10"))
+        )
+
+        val result = this.createExpense(savingsAccount, "100000", "2025-12-05")
+
+        val error = this.creationInvalidInput(result)
+        assertEquals("El saldo de la cuenta quedaría negativo el 5 de diciembre de 2025.", error.dateError)
+        assertTrue(savingsAccount.expenses.isEmpty())
+    }
+
+    @Test
+    fun `given a balance of 50000 today, when spending 80000 on March 5, then only the amount error is shown`() {
+        val savingsAccount = this.savingsAccount(
+            initialBalance = "0",
+            incomes = listOf(this.income("50000", "2026-03-10"))
+        )
+
+        val result = this.createExpense(savingsAccount, "80000", "2026-03-05")
+
+        val error = this.creationInvalidInput(result)
+        assertEquals("El monto supera el saldo disponible.", error.amountError)
+        assertNull(error.dateError)
+        assertTrue(savingsAccount.expenses.isEmpty())
+    }
+
+    @Test
+    fun `given an income of 100000 on March 10, when spending 100000 on March 10, then it is saved after the income`() {
+        val savingsAccount = this.savingsAccount(
+            initialBalance = "0",
+            incomes = listOf(this.income("100000", "2026-03-10"))
+        )
+
+        val result = this.createExpense(savingsAccount, "100000", "2026-03-10")
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(this.pesos("0"), savingsAccount.balance)
+    }
+
+    @Test
+    fun `given an expense recorded before an income on March 10, when editing it to 80000, then a date error`() {
+        val original = this.expense("50000", "2026-03-10", "2026-03-10T10:00:00Z")
+        val savingsAccount = this.savingsAccount(
+            initialBalance = "50000",
+            incomes = listOf(this.income("100000", "2026-03-10", "2026-03-10T11:00:00Z")),
+            expenses = listOf(original)
+        )
+
+        val result = this.editExpense(savingsAccount, "80000", "2026-03-10")
+
+        val error = this.updateInvalidInput(result)
+        assertEquals("El saldo de la cuenta quedaría negativo el 10 de marzo.", error.dateError)
+        assertNull(error.amountError)
+        assertEquals(listOf(original), savingsAccount.expenses)
+    }
+
+    @Test
+    fun `given an expense recorded before a March 15 income, when moving it there as 40000, then a date error`() {
+        val original = this.expense("30000", "2026-03-20", "2026-03-20T12:00:00Z")
+        val savingsAccount = this.savingsAccount(
+            initialBalance = "30000",
+            incomes = listOf(this.income("100000", "2026-03-15", "2026-03-21T12:00:00Z")),
+            expenses = listOf(original)
+        )
+
+        val result = this.editExpense(savingsAccount, "40000", "2026-03-15")
+
+        val error = this.updateInvalidInput(result)
+        assertEquals("El saldo de la cuenta quedaría negativo el 15 de marzo.", error.dateError)
+        assertEquals(listOf(original), savingsAccount.expenses)
+    }
+
+    @Test
+    fun `given a card at 800000 on March 5, when spending 300000 on March 7, then an over limit date error`() {
+        val visaCard = this.millionCard(
+            expenses = listOf(this.expense("800000", "2026-03-05")),
+            payments = listOf(this.income("500000", "2026-03-10"))
+        )
+
+        val result = this.createExpense(visaCard, "300000", "2026-03-07")
+
+        val error = this.creationInvalidInput(result)
+        assertEquals("La deuda de la tarjeta superaría el cupo el 7 de marzo.", error.dateError)
+        assertNull(error.amountError)
+        assertEquals(1, visaCard.expenses.size)
+    }
+
+    @Test
+    fun `given a card expense of 500000 paid 400000 on March 8, when lowering it to 200000, then a date error`() {
+        val original = this.expense("500000", "2026-03-05")
+        val visaCard = this.millionCard(
+            expenses = listOf(original, this.expense("300000", "2026-03-20")),
+            payments = listOf(this.income("400000", "2026-03-08"))
+        )
+
+        val result = this.editExpense(visaCard, "200000", "2026-03-05")
+
+        val error = this.updateInvalidInput(result)
+        assertEquals("La deuda de la tarjeta quedaría negativa el 8 de marzo.", error.dateError)
+        assertNull(error.amountError)
+        assertEquals(original, visaCard.expenses.first())
+    }
+
+    @Test
+    fun `given a card expense of 500000 paid on March 8, when moving it to March 10, then a negative debt error`() {
+        val original = this.expense("500000", "2026-03-05")
+        val visaCard = this.millionCard(
+            expenses = listOf(original, this.expense("200000", "2026-03-20")),
+            payments = listOf(this.income("500000", "2026-03-08"))
+        )
+
+        val result = this.editExpense(visaCard, "500000", "2026-03-10")
+
+        val error = this.updateInvalidInput(result)
+        assertEquals("La deuda de la tarjeta quedaría negativa el 8 de marzo.", error.dateError)
+        assertEquals(original, visaCard.expenses.first())
+    }
+
+    @Test
+    fun `given a card debt of 500000 with 100000 spent by September 10, when paying 300000 then, then a date error`() {
+        val visaCard = this.millionCard(
+            createdAt = "2026-09-01T12:00:00Z",
+            expenses = listOf(this.expense("100000", "2026-09-05"), this.expense("400000", "2026-09-20"))
+        )
+
+        val result = visaCard.createIncome(
+            amount = "300000",
+            date = "2026-09-10",
+            categoryId = "cat-payment",
+            description = "",
+            clock = this.septemberClock
+        )
+
+        val error = this.incomeInvalidInput(result)
+        assertEquals("La deuda de la tarjeta quedaría negativa el 10 de septiembre.", error.dateError)
+        assertNull(error.amountError)
+        assertTrue(visaCard.incomes.isEmpty())
+    }
+
+    @Test
+    fun `given a card created with a debt of 200000, when paying 200000 before its later expense, then it is saved`() {
+        val visaCard = this.millionCard(
+            initialDebt = "200000",
+            expenses = listOf(this.expense("300000", "2026-03-20"))
+        )
+
+        val result = visaCard.createIncome(
+            amount = "200000",
+            date = "2026-03-05",
+            categoryId = "cat-payment",
+            description = "",
+            clock = this.fixedClock
+        )
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(this.pesos("300000"), visaCard.balance)
+    }
+
+    @Test
+    fun `given a balance of 50000 on the creation day, when spending 60000 that day, then a creation day date error`() {
+        val savingsAccount = this.savingsAccount(
+            initialBalance = "50000",
+            incomes = listOf(this.income("100000", "2026-03-10"))
+        )
+
+        val result = this.createExpense(savingsAccount, "60000", "2026-03-01")
+
+        val error = this.creationInvalidInput(result)
+        assertEquals("El saldo de la cuenta quedaría negativo el 1 de marzo.", error.dateError)
+        assertTrue(savingsAccount.expenses.isEmpty())
+    }
+
+    @Test
+    fun `given an account created on March 1, when spending on February 28, then only the creation date error`() {
+        val savingsAccount = this.savingsAccount(
+            initialBalance = "0",
+            incomes = listOf(this.income("100000", "2026-03-10"))
+        )
+
+        val result = this.createExpense(savingsAccount, "100000", "2026-02-28")
+
+        val error = this.creationInvalidInput(result)
+        assertEquals("La fecha no puede ser anterior a la fecha de creación de la cuenta.", error.dateError)
+        assertTrue(savingsAccount.expenses.isEmpty())
+    }
+
+    @Test
+    fun `given a history breaking expense, when it also lacks a category and has six tags, then reports every error`() {
+        val savingsAccount = this.savingsAccount(
+            initialBalance = "0",
+            incomes = listOf(this.income("100000", "2026-03-10"))
+        )
+
+        val result = savingsAccount.createExpense(
+            amount = "100000",
+            date = "2026-03-05",
+            categoryId = "",
+            description = "",
+            tagIds = (1..6).map { "tag-$it" },
+            clock = this.fixedClock
+        )
+
+        val error = this.creationInvalidInput(result)
+        assertEquals("El saldo de la cuenta quedaría negativo el 5 de marzo.", error.dateError)
+        assertEquals("La categoría es obligatoria.", error.categoryError)
+        assertEquals("Máximo 5 etiquetas por gasto.", error.tagsError)
+    }
+
+    @Test
+    fun `given a card expense of 300 recorded at the same instant, when paying 300 that day, then it is saved`() {
+        val visaCard = this.millionCard(
+            expenses = listOf(this.expense("300", "2026-08-29", "2026-08-29T12:00:00Z"))
+        )
+
+        val result = visaCard.createIncome(
+            amount = "300",
+            date = "2026-08-29",
+            categoryId = "cat-payment",
+            description = "",
+            clock = this.fixedClock
+        )
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(this.pesos("0"), visaCard.balance)
+    }
+
+    @Test
+    fun `given an income on March 10 recorded later than now, when spending it all that day, then it is saved last`() {
+        val savingsAccount = this.savingsAccount(
+            initialBalance = "0",
+            incomes = listOf(this.income("100000", "2026-03-10", "2026-08-30T12:00:00Z"))
+        )
+
+        val result = this.createExpense(savingsAccount, "100000", "2026-03-10")
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(this.pesos("0"), savingsAccount.balance)
+    }
+
+    private fun savingsAccount(
+        initialBalance: String,
+        createdAt: String = "2026-03-01T12:00:00Z",
+        incomes: List<Income> = emptyList(),
+        expenses: List<Expense> = emptyList()
+    ): Account = AccountBuilder()
+        .id("acc-1")
+        .createdAt(Instant.parse(createdAt))
+        .initialBalance(this.pesos(initialBalance))
+        .incomes(incomes)
+        .expenses(expenses)
+        .build()
+
+    private fun millionCard(
+        initialDebt: String = "0",
+        createdAt: String = "2026-03-01T12:00:00Z",
+        expenses: List<Expense> = emptyList(),
+        payments: List<Income> = emptyList()
+    ): Account = AccountBuilder()
+        .id("card-1")
+        .name("Visa")
+        .createdAt(Instant.parse(createdAt))
+        .creditCard(creditLimit = this.pesos("1000000"), initialDebt = this.pesos(initialDebt))
+        .expenses(expenses)
+        .incomes(payments)
+        .build()
+
+    private fun income(amount: String, date: String, createdAt: String = "${date}T12:00:00Z"): Income =
+        Income.restore(
+            id = "income-$amount-$date",
+            accountId = "acc-1",
+            amount = this.pesos(amount),
+            date = LocalDate.parse(date),
+            categoryId = "cat-income",
+            description = "",
+            createdAt = Instant.parse(createdAt)
+        )
+
+    private fun expense(amount: String, date: String, createdAt: String = "${date}T12:00:00Z"): Expense =
+        Expense.restore(
+            id = "expense-$amount",
+            accountId = "acc-1",
+            amount = this.pesos(amount),
+            date = LocalDate.parse(date),
+            categoryId = "cat-1",
+            description = "",
+            createdAt = Instant.parse(createdAt),
+            tagIds = emptyList()
+        )
+
+    private fun createExpense(account: Account, amount: String, date: String): Outcome<Expense> =
+        account.createExpense(
+            amount = amount,
+            date = date,
+            categoryId = "cat-1",
+            description = "",
+            tagIds = emptyList(),
+            clock = this.fixedClock
+        )
+
+    private fun editExpense(account: Account, amount: String, date: String): Outcome<Expense> =
+        account.editExpense(
+            expenseId = account.expenses.first().id,
+            amount = amount,
+            date = date,
+            categoryId = "cat-1",
+            description = "",
+            tagIds = emptyList(),
+            clock = this.fixedClock
+        )
+
+    private fun creationInvalidInput(result: Outcome<Expense>): ExpenseCreationError.InvalidInput {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is ExpenseCreationError.InvalidInput)
+        return error as ExpenseCreationError.InvalidInput
+    }
+
+    private fun updateInvalidInput(result: Outcome<Expense>): ExpenseUpdateError.InvalidInput {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is ExpenseUpdateError.InvalidInput)
+        return error as ExpenseUpdateError.InvalidInput
+    }
+
+    private fun incomeInvalidInput(result: Outcome<Income>): IncomeCreationError.InvalidInput {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is IncomeCreationError.InvalidInput)
+        return error as IncomeCreationError.InvalidInput
+    }
+
+    private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)
+}

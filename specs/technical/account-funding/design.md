@@ -43,6 +43,12 @@ incoming limit — and `Account` delegates to it.
     `specs/accounting/accounts/detail/design.md`). `balance` and `currentDebt`
     fold incomes and expenses with their own arithmetic rather than through
     `movementEffect` (tracked in `TASKS.md`).
+  - `openingFigure()` and `historyBreachMessage(figure)` — where an account's
+    history starts (the initial balance for `Funds`, the initial debt for
+    `Credit`) and the phrase for an invalid figure on any date: below zero for
+    `Funds`; below zero or above the limit for `Credit`. `Account` replays the
+    history with `movementEffect` (see
+    `specs/shared/backdated-movements/design.md`).
 
   Rejected: `when (funding)` spread across `Account`'s methods.
 - **A card's debt counts its payments.** `Credit.currentDebt(incomes, expenses)`
