@@ -126,7 +126,7 @@ fun HomeScreen(
                 ExpandableFab(
                     expanded = fabExpanded,
                     onToggle = { fabExpanded = !fabExpanded },
-                    showIncomeOption = true,
+                    showIncomeOption = uiState.canRecordIncome,
                     showTransferOption = uiState.canTransfer,
                     showPaymentOption = false,
                     onIncomeSelected = {

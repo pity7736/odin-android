@@ -27,6 +27,11 @@ sealed class IncomeCreationError(
         externalMessage: String
     ) : IncomeCreationError(internalMessage, externalMessage)
 
+    class CreditCardAccount(
+        internalMessage: String,
+        externalMessage: String
+    ) : IncomeCreationError(internalMessage, externalMessage)
+
     class StorageFailure(
         internalMessage: String,
         externalMessage: String

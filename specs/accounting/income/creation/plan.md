@@ -1,162 +1,170 @@
-# Work Order: Date Validation — reject dates before account creation
+# Work Order: Record Income — deny income on credit cards
 
 **Feature designs:**
-- `specs/accounting/expense/creation/design.md`
-- `specs/accounting/transfers/design.md`
-- Income creation has no `design.md` yet — will be created at the hydrate gate.
+- `specs/accounting/income/creation/design.md` (the living source of truth)
+- `specs/home/shortcuts/design.md`
 
 **Corresponds to Specs:**
 - `specs/accounting/income/creation/spec.md`
-- `specs/accounting/expense/creation/spec.md`
-- `specs/accounting/transfers/spec.md`
+- `specs/home/shortcuts/spec.md`
 
-> Work order for: **fix date validation to reject dates before the account's
-> creation date across income, expense, and transfer creation**. Disposable —
-> overwritten by the next change (git keeps the history). The living designs are
-> in their respective design.md files; hydrate them before this change merges,
-> then freeze this file.
+> Work order for: **deny income on credit cards**. Disposable — overwritten by
+> the next change (git keeps the history). The living designs are in the two
+> design.md files; hydrate both before this change merges, then freeze this file.
 
 ## Change
 
-Income, expense, and transfer creation accept dates earlier than the account's
-creation date. `Account.parseAndValidateDate()` validates format and rejects
-future dates but never compares against the account's `createdAt`. Since
-`Transfer.create()` delegates to `Account.createExpense()` and
-`Account.createIncome()`, the same gap affects transfers.
+From the home shortcut, an income can be recorded on a credit card. The home
+income form's account picker loads every account through
+`accountLister.list()` with no filter, and `IncomeCreator.create` never checks
+the account's funding, so the income is saved and lowers the card's debt. A card
+never takes a user-recorded income; the only money that enters a card is a
+payment (a transfer into the card).
 
-At the presentation layer, the date picker constrains only the upper bound
-(today) and allows selecting any past date regardless of when the account was
-created. The income and expense ViewModels do not load the account object, so
-the screen has no access to the creation date.
+This change:
+1. Rejects an income whose account is a credit card in `IncomeCreator`, with the
+   external message "Una tarjeta de crédito no puede recibir ingresos."
+2. Lists only money accounts in the home income form's account picker.
+3. Hides the home income shortcut when the user has no money account.
 
-**Root cause:** `Account.parseAndValidateDate()` does not check
-`parsed < createdAt`. The date picker has no minimum date constraint.
+The check lives in `IncomeCreator`, not `Account.createIncome`, because
+`Transfer.create` builds a card payment's receiving leg through
+`destinationAccount.createIncome(...)`; blocking cards there would break card
+payments.
 
-**Fix:** Add the `createdAt` comparison to `parseAndValidateDate()`. Pass the
-account's creation date to the presentation layer (income and expense ViewModels
-need to load it; transfer already has it). Constrain the date picker's
-selectable range to `[accountCreatedAt, today]`.
-
-**Error message:** "La fecha no puede ser anterior a la fecha de creación de la cuenta."
+The account detail screen already hides income for a card; it is not touched.
 
 **Spec scenarios satisfied:**
-- Income: "Rejection — date before account creation", "Boundary — date equal to account creation"
-- Expense: "Rejection — date before account creation", "Boundary — date equal to account creation"
-- Transfer: "Rejected: date before account creation"
+- Income: "Rejection — income on a credit card"
+- Home shortcuts: "Creating a transaction from the home view", "Credit cards are
+  not offered for an income", "Only one money account exists", "Only credit
+  cards exist"
 
 ## Architecture & Files (this change)
 
 ```
-app/src/main/java/dev/raiseexception/odin/accounting/
-├── domain/
-│   └── model/
-│       └── Account.kt                                          # MODIFY — parseAndValidateDate adds createdAt check
-├── presentation/
-│   ├── incomecreation/
-│   │   ├── CreateIncomeViewModel.kt                            # MODIFY — load account, expose createdAt
-│   │   ├── CreateIncomeUiState.kt                              # MODIFY — add accountCreatedAt: LocalDate
-│   │   └── CreateIncomeScreen.kt                               # MODIFY — DatePickerField min date
-│   ├── expensecreation/
-│   │   ├── CreateExpenseViewModel.kt                           # MODIFY — load account, expose createdAt
-│   │   ├── CreateExpenseUiState.kt                             # MODIFY — add accountCreatedAt: LocalDate
-│   │   └── CreateExpenseScreen.kt                              # MODIFY — DatePickerField min date
-│   └── transfercreation/
-│       └── CreateTransferScreen.kt                             # MODIFY — DatePickerField min date from source account
-
 app/src/main/java/dev/raiseexception/odin/
-└── di/
-    └── DevDataSeeder.kt                                            # MODIFY — backdate accounts via Account.restore() + repository.add()
+├── accounting/
+│   ├── domain/
+│   │   └── IncomeCreationError.kt                 # MODIFY — add CreditCardAccount
+│   ├── application/usecase/
+│   │   └── IncomeCreator.kt                       # MODIFY — reject a Credit-funded account
+│   └── presentation/incomecreation/
+│       └── CreateIncomeViewModel.kt               # MODIFY — picker keeps only money accounts
+└── home/
+    ├── application/usecase/
+    │   ├── HomeSummary.kt                         # MODIFY — add canRecordIncome
+    │   └── HomeSummaryLoader.kt                   # MODIFY — compute canRecordIncome
+    └── presentation/home/
+        ├── HomeUiState.kt                         # MODIFY — Content.canRecordIncome
+        ├── HomeViewModel.kt                       # MODIFY — map canRecordIncome
+        └── HomeScreen.kt                          # MODIFY — showIncomeOption = canRecordIncome
 
-app/src/test/java/dev/raiseexception/odin/accounting/
-├── domain/model/AccountTest.kt                                 # MODIFY — reproduction tests for date < createdAt
-└── presentation/
-    ├── incomecreation/CreateIncomeViewModelTest.kt              # MODIFY — date before createdAt scenario
-    └── expensecreation/CreateExpenseViewModelTest.kt            # MODIFY — date before createdAt scenario
+app/src/test/java/dev/raiseexception/odin/
+├── accounting/application/usecase/IncomeCreatorTest.kt                    # MODIFY
+├── accounting/presentation/incomecreation/CreateIncomeViewModelTest.kt    # MODIFY
+├── home/application/usecase/HomeSummaryLoaderTest.kt                      # MODIFY
+└── home/presentation/home/HomeViewModelTest.kt                            # MODIFY
+
+app/src/androidTest/java/dev/raiseexception/odin/
+└── home/presentation/home/HomeScreenTest.kt                               # MODIFY (compile only)
 ```
 
 ## Key Types & Signatures
 
 ```kotlin
-// Account.parseAndValidateDate — modified signature (private)
-// Adds comparison: if parsed < createdAt (as LocalDate), return error
-// createdAt is already available as this.createdAt: Instant on the Account instance
+// IncomeCreationError
+class CreditCardAccount(
+    internalMessage: String,
+    externalMessage: String
+) : IncomeCreationError(internalMessage, externalMessage)
 
-// CreateIncomeUiState — modified states
-sealed interface CreateIncomeUiState {
-    data class Idle(
-        val categories: List<Category>,
-        val accountCreatedAt: LocalDate          // NEW
-    ) : CreateIncomeUiState
-    data class ValidationError(
-        val categories: List<Category>,
-        val accountCreatedAt: LocalDate,         // NEW
-        val amountError: String? = null,
-        val dateError: String? = null,
-        val categoryError: String? = null,
-        val descriptionError: String? = null
-    ) : CreateIncomeUiState
-    // Loading, Saving, Error — unchanged
-}
+// IncomeCreator.create — after the account loads, before transactionRunner.run
+if (account.funding is AccountFunding.Credit) return Outcome.Failure(
+    IncomeCreationError.CreditCardAccount(
+        internalMessage = "Account $accountId is a credit card and cannot receive an income",
+        externalMessage = "Una tarjeta de crédito no puede recibir ingresos."
+    )
+)
 
-// CreateExpenseUiState — same shape change as above
+// HomeSummary / HomeUiState.Content
+val canRecordIncome: Boolean
 
-// CreateIncomeViewModel — modified init
-// Loads account via AccountRepository.findById(accountId) to get createdAt
-// Converts createdAt: Instant to LocalDate and includes it in Idle/ValidationError
+// HomeSummaryLoader.summarize
+canRecordIncome = moneyAccountEntries.isNotEmpty()
 
-// CreateExpenseViewModel — same modification
-
-// DatePickerField in all three screens — modified SelectableDates
-// isSelectableDate checks: utcTimeMillis in [accountCreatedAtMillis, todayMillis]
+// CreateIncomeViewModel.loadWithoutAccount
+accounts = accounts.filter { isMoneyAccount(it) }
 ```
+
+`CreateIncomeViewModel.mapError` is unchanged: `CreditCardAccount` falls into the
+existing `else` branch and renders `CreateIncomeUiState.Error(externalMessage)`.
 
 ## Implementation Phases (TDD)
 
-### Phase 1: Domain — failing reproduction tests
+### Phase 1: Application — reject income on a card
+**Red:** in `IncomeCreatorTest`:
+- `given a credit card account when creating an income then fails with CreditCardAccount`
+  — asserts the error type and the external message
+  "Una tarjeta de crédito no puede recibir ingresos."
+- `given a credit card account when creating an income then no income is saved`
+  — `coVerify(exactly = 0) { incomeRepository.add(any()) }`
+- `given a credit card account when creating an income with a new category then the category is not created`
+  — `coVerify(exactly = 0)` on `categoryCreator.create(...)`
 
-**Red (JVM `src/test`):**
-- `AccountTest`:
-  - `given an account created on march 1 when creating income with february 28 then returns date error` — asserts `IncomeCreationError.InvalidInput(dateError = "La fecha no puede ser anterior a la fecha de creación de la cuenta.")`
-  - `given an account created on march 1 when creating income with march 1 then succeeds` — asserts `Outcome.Success` (boundary inclusive)
-  - `given an account created on march 1 when creating expense with february 28 then returns date error` — asserts `ExpenseCreationError.InvalidInput(dateError = ...)`
-  - `given an account created on march 1 when creating expense with march 1 then succeeds` — asserts `Outcome.Success`
+**Green:** add `IncomeCreationError.CreditCardAccount`; add the funding check in
+`IncomeCreator.create` right after the account loads, before
+`transactionRunner.run`.
 
-All four tests MUST FAIL before the fix is written.
+### Phase 2: Application — home summary decides the income option
+**Red:** in `HomeSummaryLoaderTest`:
+- `given a money account when loading the summary then income can be recorded`
+- `given a money account and a credit card when loading the summary then income can be recorded`
+- `given only credit cards when loading the summary then income cannot be recorded`
 
-**Green:**
-- `Account.parseAndValidateDate()`: convert `this.createdAt` (an `Instant`) to `LocalDate` using the system default timezone (consistent with how `clock.now()` is used for the today check). After the future-date check, add: if `parsed < accountCreationDate`, return the error message. No other method changes.
+**Green:** add `canRecordIncome` to `HomeSummary`; compute it in
+`HomeSummaryLoader.summarize` as `moneyAccountEntries.isNotEmpty()`.
 
-### Phase 2: Presentation — ViewModel and UI state changes
-
-**Red (JVM `src/test`):**
+### Phase 3: Presentation — view models
+**Red:**
+- `HomeViewModelTest`:
+  - `given a summary where income can be recorded when loading then content allows income`
+  - `given a summary where income cannot be recorded when loading then content does not allow income`
 - `CreateIncomeViewModelTest`:
-  - `given account when initialized then idle state includes account created at` — asserts `Idle.accountCreatedAt` matches the account's creation date
-  - `given date before account creation when saving then shows date error` — asserts `ValidationError.dateError` is set (this is an end-to-end check through the use case; the domain test in Phase 1 covers the exact error)
-- `CreateExpenseViewModelTest`:
-  - `given account when initialized then idle state includes account created at`
-  - `given date before account creation when saving then shows date error`
+  - `given a savings account and a credit card when opening from home then only the savings account is offered`
+  - `given income creation fails with CreditCardAccount when saving then shows the error message`
+    — asserts `CreateIncomeUiState.Error("Una tarjeta de crédito no puede recibir ingresos.")`
 
-**Green:**
-- `CreateIncomeViewModel`: inject `AccountRepository` (or `AccountFinder`). In `init`, load the account to get `createdAt`, convert to `LocalDate`, and include in `Idle` and `ValidationError` states.
-- `CreateIncomeUiState`: add `accountCreatedAt: LocalDate` to `Idle` and `ValidationError`.
-- Same changes for `CreateExpenseViewModel` and `CreateExpenseUiState`.
+**Green:** add `canRecordIncome` to `HomeUiState.Content` and map it in
+`HomeViewModel`; filter `isMoneyAccount` in `CreateIncomeViewModel.loadWithoutAccount`.
 
-### Phase 3: Presentation — date picker constraint
+### Phase 4: Presentation — home screen
+**Red:** in `HomeScreenTest` (instrumented, compile only — do not run):
+- `given income cannot be recorded when the shortcut is expanded then income is not shown`
+- `given income can be recorded when the shortcut is expanded then income is shown`
+Update existing `HomeUiState.Content(...)` constructions with `canRecordIncome`.
 
-**Green (no new tests — UI constraint mirrors the domain validation; domain tests in Phase 1 cover correctness):**
-- `CreateIncomeScreen`: compute `accountCreatedAtMillis` from the `accountCreatedAt` in the UI state. Update `SelectableDates.isSelectableDate` to check `utcTimeMillis in accountCreatedAtMillis..todayMillis`.
-- `CreateExpenseScreen`: same change.
-- `CreateTransferScreen`: the source account's `createdAt` is already available in the UI state's `accounts` list. Compute `minDateMillis` from the selected source account's `createdAt`. When the source account changes, the min date updates. Update `SelectableDates` accordingly. For transfers, both accounts' creation dates matter — use the later of the two (the most restrictive) as the minimum.
+**Green:** `HomeScreen` passes `showIncomeOption = uiState.canRecordIncome`.
 
-### Phase 4: Dev seeder — backdate account creation
-
-**Green (no tests — dev-only seeder):**
-- `DevDataSeeder`: replace `AccountCreator.create()` calls with `Account.restore()` + `AccountRepository.add()`, setting `createdAt` to two weeks ago. This ensures seeded transactions (yesterday, last week) fall within the valid date range. The seeder already uses this bypass pattern for the Transfer category.
+End with `./gradlew check` GREEN and `./gradlew compileDebugAndroidTestKotlin`
+compiling.
 
 ## Design decisions to hydrate into design.md
-
-- [ ] `Account.parseAndValidateDate()` rejects dates before the account's `createdAt` (inclusive boundary — creation date itself is valid). Error message: "La fecha no puede ser anterior a la fecha de creación de la cuenta."
-- [ ] `createdAt` is converted from `Instant` to `LocalDate` using the system default timezone, consistent with the existing `today` derivation from `clock.now()`
-- [ ] Income and expense ViewModels load the account to expose `accountCreatedAt: LocalDate` in the UI state (`Idle` and `ValidationError`)
-- [ ] Date picker constrains selectable dates to `[accountCreatedAt, today]` across all three creation screens
-- [ ] Transfer date picker uses the later of the two accounts' creation dates as the minimum date
+- [ ] Income design — Design Decisions: `IncomeCreator` rejects a `Credit`-funded
+      account with `CreditCardAccount`; the rule lives in the use case, not
+      `Account.createIncome`, because a card payment's receiving leg goes through
+      `createIncome` (rejected alternative: a check in `createIncome` plus a
+      second, unchecked method for transfers).
+- [ ] Income design — the rejection is a full-screen error, not a field error:
+      cards never appear in the picker, and the form opened from an account has
+      no picker (rejected alternative: an `accountError` next to the picker).
+- [ ] Income design — Data Flow step 6: the account-type check precedes category
+      resolution.
+- [ ] Shortcuts design — account picker decision: the income picker lists only
+      money accounts (`isMoneyAccount`); the expense picker lists every account.
+- [ ] Shortcuts design — FAB visibility decision and Screen & States: the income
+      option follows `Content.canRecordIncome`, computed in `HomeSummaryLoader`
+      as "at least one money account"; replace `showIncomeOption = true`.
+- [ ] Shortcuts design — Known Limitations: delete the "income picker lists
+      credit cards" entry; it becomes the picker decision above.
+- [ ] `TASKS.md:45` — tick the task.

@@ -87,6 +87,7 @@ class HomeViewModel(
                 hasMoreAccounts = summary.hasMoreEntries,
                 recentTransactions = summary.recentTransactions,
                 canTransfer = summary.canTransfer,
+                canRecordIncome = summary.canRecordIncome,
             )
         }
 }

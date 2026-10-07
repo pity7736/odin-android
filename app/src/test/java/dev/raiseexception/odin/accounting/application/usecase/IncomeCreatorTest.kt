@@ -4,6 +4,8 @@ import dev.raiseexception.odin.accounting.domain.CategoryCreationError
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
+import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.accounting.domain.repository.IncomeRepository
@@ -25,6 +27,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.math.BigDecimal
 
 class IncomeCreatorTest {
 
@@ -52,6 +55,13 @@ class IncomeCreatorTest {
 
     private val account = AccountBuilder().id("acc-1").build()
     private val incomeCategory = CategoryBuilder().type(CategoryType.INCOME).build()
+    private val creditCardAccount = AccountBuilder()
+        .id("card-1")
+        .creditCard(
+            creditLimit = Money.of(BigDecimal("5000000.00"), Currency.COP),
+            initialDebt = Money.of(BigDecimal("200000.00"), Currency.COP)
+        )
+        .build()
 
     @Test
     fun `given valid input with existing category, when creating income, then income is saved`() = runTest {
@@ -219,4 +229,55 @@ class IncomeCreatorTest {
         assertTrue(error is IncomeCreationError.InvalidInput)
         assertEquals("El nombre es obligatorio.", (error as IncomeCreationError.InvalidInput).categoryError)
     }
+
+    @Test
+    fun `given a credit card account, when creating an income, then fails with CreditCardAccount`() = runTest {
+        every { accountRepository.findById("card-1", AccountCriteria()) } returns
+            flowOf(Outcome.Success(creditCardAccount))
+        val result = incomeCreator.create(
+            accountId = "card-1",
+            amount = "500.00",
+            date = today.toString(),
+            categoryInput = CategoryInput.Existing(incomeCategory.id),
+            description = ""
+        )
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is IncomeCreationError.CreditCardAccount)
+        assertEquals("Una tarjeta de crédito no puede recibir ingresos.", error.externalMessage)
+    }
+
+    @Test
+    fun `given a credit card account, when creating an income, then no income is saved`() = runTest {
+        every { accountRepository.findById("card-1", AccountCriteria()) } returns
+            flowOf(Outcome.Success(creditCardAccount))
+        every { categoryRepository.getAll() } returns flowOf(Outcome.Success(listOf(incomeCategory)))
+        coEvery { incomeRepository.add(any()) } returns Outcome.Success(Unit)
+        incomeCreator.create(
+            accountId = "card-1",
+            amount = "500.00",
+            date = today.toString(),
+            categoryInput = CategoryInput.Existing(incomeCategory.id),
+            description = ""
+        )
+        coVerify(exactly = 0) { incomeRepository.add(any()) }
+    }
+
+    @Test
+    fun `given a credit card account, when creating an income with a new category, then the category is not created`() =
+        runTest {
+            every { accountRepository.findById("card-1", AccountCriteria()) } returns
+                flowOf(Outcome.Success(creditCardAccount))
+            coEvery { categoryCreator.create("Freelance", CategoryType.INCOME, "", null) } returns
+                Outcome.Success(incomeCategory)
+            coEvery { incomeRepository.add(any()) } returns Outcome.Success(Unit)
+            incomeCreator.create(
+                accountId = "card-1",
+                amount = "500.00",
+                date = today.toString(),
+                categoryInput = CategoryInput.New("Freelance"),
+                description = ""
+            )
+            coVerify(exactly = 0) { categoryCreator.create(any(), any(), any(), any()) }
+        }
 }

@@ -8,6 +8,8 @@ import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
+import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
 import dev.raiseexception.odin.testutil.CategoryBuilder
@@ -31,6 +33,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.math.BigDecimal
 
 @Suppress("MagicNumber")
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -192,6 +195,31 @@ class CreateIncomeViewModelTest {
     }
 
     @Test
+    fun `given income creation fails with CreditCardAccount, when saving, then shows the error message`() = runTest {
+        every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(
+            Outcome.Success(listOf(incomeCategory))
+        )
+        coEvery {
+            incomeCreator.create(any(), any(), any(), any(), any())
+        } returns Outcome.Failure(
+            IncomeCreationError.CreditCardAccount(
+                internalMessage = "Account acc-1 is a credit card and cannot receive an income",
+                externalMessage = "Una tarjeta de crédito no puede recibir ingresos."
+            )
+        )
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(incomeCategory.id), "")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.uiState.test {
+            assertEquals(CreateIncomeUiState.Error("Una tarjeta de crédito no puede recibir ingresos."), awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `given future date, when saving, then shows date error`() = runTest {
         every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(
             Outcome.Success(listOf(incomeCategory))
@@ -299,6 +327,39 @@ class CreateIncomeViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test
+    fun `given a savings account and a credit card when opening from home then only the savings account is offered`() =
+        runTest {
+            val visaCard = AccountBuilder()
+                .id("card-1")
+                .creditCard(
+                    creditLimit = Money.of(BigDecimal("5000000.00"), Currency.COP),
+                    initialDebt = Money.of(BigDecimal("200000.00"), Currency.COP)
+                )
+                .build()
+            every { categoryLister.list(CategoryType.INCOME, "") } returns flowOf(
+                Outcome.Success(listOf(incomeCategory))
+            )
+            every { accountLister.list() } returns flowOf(
+                Outcome.Success(listOf(account, visaCard))
+            )
+            val viewModel = CreateIncomeViewModel(
+                accountId = null,
+                incomeCreator = incomeCreator,
+                categoryLister = categoryLister,
+                accountFinder = accountFinder,
+                accountLister = accountLister,
+                ioDispatcher = testDispatcher
+            )
+            viewModel.uiState.test {
+                assertEquals(CreateIncomeUiState.Loading, awaitItem())
+                testDispatcher.scheduler.advanceUntilIdle()
+                val state = awaitItem() as CreateIncomeUiState.Idle
+                assertEquals(listOf(accountId), state.accounts.map { it.id })
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 
     @Test
     fun `given no account id, when account selected, then updates selected account`() = runTest {

@@ -29,6 +29,9 @@ home view, so that the transaction is recorded in the right account.
   account (savings or cash) and at least one other account, money account or
   credit card. A credit card is never the source of a transfer (see
   `specs/accounting/transfers/spec.md`).
+- The income option is only available when the user has at least one money
+  account (savings or cash). A credit card never receives an income (see
+  `specs/accounting/income/creation/spec.md`).
 - When creating a transaction from the home view, the user must select which
   account the transaction belongs to before saving.
 - The account selection works as a filterable list, following the same pattern as
@@ -42,7 +45,8 @@ home view, so that the transaction is recorded in the right account.
 
 - Given the user is on the home view and has at least one account
 - When the user opens the quick-access entry point
-- Then the available options are income and expense
+- Then expense is available
+- And if the user has a money account, income is also available
 - And if the user has a money account and at least one other account, transfer
   is also available
 
@@ -58,8 +62,16 @@ home view, so that the transaction is recorded in the right account.
 - Given the user is on the income or expense creation form opened from the home
   view
 - When the user interacts with the account selection field
-- Then a filterable list of all the user's accounts is shown
+- Then a filterable list of the user's accounts is shown
 - And the user must select one before saving
+
+### Credit cards are not offered for an income
+
+- Given the user has a savings account and a credit card
+- When the user opens the income creation form from the home view and interacts
+  with the account selection field
+- Then only the savings account is listed
+- And the credit card is not listed
 
 ### Transfer from home view
 
@@ -74,9 +86,9 @@ home view, so that the transaction is recorded in the right account.
 - Given the user has no accounts
 - Then the quick-access entry point is not visible on the home view
 
-### Only one account exists
+### Only one money account exists
 
-- Given the user has exactly one account
+- Given the user has exactly one money account
 - When the user opens the quick-access entry point
 - Then only income and expense options are available
 - And transfer is not shown
@@ -91,7 +103,8 @@ home view, so that the transaction is recorded in the right account.
 
 - Given the user has two credit cards and no money account
 - When the user opens the quick-access entry point
-- Then transfer is not shown
+- Then only expense is available
+- And income and transfer are not shown
 
 ### Creating a transaction from within an account (unchanged)
 
