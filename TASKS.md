@@ -45,7 +45,6 @@ Tasks are listed in priority order.
 - [x] An income can be recorded on a credit card from the home shortcut. The home income form's account picker lists every account, cards included, and nothing rejects a card as the income's account, so the income is saved and silently lowers the card's debt. A card never takes a user-recorded income; the only money that enters a card is a payment from another account
 - [x] Whether an account is a credit card is stored twice: in `Account.type` (`AccountType.CREDIT_CARD`) and in `Account.funding` (`AccountFunding.Credit`). Nothing in the domain keeps them in agreement — `Account.edit` builds a `Funds` with whatever `type` it receives, so an account with type `CREDIT_CARD` and `Funds` funding is representable, and only the edit form's type filter prevents it. Code that asks "is this account a card?" can read either one
 - [x] How a movement changes an account's main figure is defined twice in `AccountFunding`. `movementEffect(transaction)` states it per funding (for `Funds` an income raises the balance; for `Credit` a payment lowers the debt), while `Funds.balance()` and `Credit.currentDebt()` each fold incomes and expenses with their own hand-written arithmetic. Nothing ties the two together, so they can drift: a change to one leaves the running figure in the movement list disagreeing with the account's current figure
-- [ ] The user's data has no protection against loss. All data lives only in the device's encrypted database, so losing or resetting the phone, or an update that breaks the database, loses every record with no way to get it back
 - [ ] Basic reporting (e.g. expenses by category)
 
 ## v0.2.0 — Closed testing
@@ -65,6 +64,7 @@ continuous days before a production release.
 
 ### During the test
 
+- [ ] The user's data has no protection against loss. All data lives only in the device's encrypted database, so losing or resetting the phone, or an update that breaks the database, loses every record with no way to get it back
 - [ ] Test coverage is not enforced. The Kover rule in `app/build.gradle.kts` uses `minBound(0)`, so `./gradlew koverVerify` and `./gradlew check` pass at any coverage level, while `CLAUDE.md` requires 100% coverage for business logic (domain, application) and ViewModels. A drop in coverage goes unnoticed by the gate
 - [ ] Update incomes
 - [ ] Update categories
