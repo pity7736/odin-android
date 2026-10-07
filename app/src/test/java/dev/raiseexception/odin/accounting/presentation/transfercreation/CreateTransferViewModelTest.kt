@@ -5,11 +5,11 @@ import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.application.usecase.TransferCreator
 import dev.raiseexception.odin.accounting.domain.TransferCreationError
 import dev.raiseexception.odin.accounting.domain.model.Account
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.model.Transfer
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.StorageError
@@ -50,7 +50,7 @@ class CreateTransferViewModelTest {
     private val cashAccount = AccountBuilder()
         .id("dst-1")
         .name("Efectivo")
-        .type(AccountType.CASH)
+        .kind(MoneyAccountKind.CASH)
         .initialBalance(Money.of(BigDecimal("500.00"), Currency.COP))
         .build()
     private val creditCard = AccountBuilder()

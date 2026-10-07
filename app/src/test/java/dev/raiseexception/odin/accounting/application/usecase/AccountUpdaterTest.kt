@@ -6,6 +6,7 @@ import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -40,7 +41,7 @@ class AccountUpdaterTest {
                 name = "Ahorros",
                 initialBalance = "2000.00",
                 currency = Currency.COP,
-                type = AccountType.CASH,
+                kind = MoneyAccountKind.CASH,
                 description = "Nueva descripción"
             )
 
@@ -48,6 +49,49 @@ class AccountUpdaterTest {
             coVerify(exactly = 0) { accountRepository.existsByName(any()) }
             coVerify { accountRepository.update(any()) }
         }
+
+    @Test
+    fun `given a new kind, when update, then the persisted account carries it`() = runTest {
+        val existing = AccountBuilder().id("acc-1").name("Ahorros").kind(MoneyAccountKind.SAVINGS).build()
+        coEvery { accountRepository.findById("acc-1", criteria) } returns flowOf(Outcome.Success(existing))
+        val savedAccount = slot<dev.raiseexception.odin.accounting.domain.model.Account>()
+        coEvery { accountRepository.update(capture(savedAccount)) } returns Outcome.Success(Unit)
+
+        updater.update(
+            id = "acc-1",
+            name = "Ahorros",
+            initialBalance = "2000.00",
+            currency = Currency.COP,
+            kind = MoneyAccountKind.CASH,
+            description = ""
+        )
+
+        assertEquals(MoneyAccountKind.CASH, (savedAccount.captured.funding as AccountFunding.Funds).kind)
+        assertEquals(AccountType.CASH, savedAccount.captured.type)
+    }
+
+    @Test
+    fun `given a credit card, when update, then returns CreditCardNotEditable and nothing is persisted`() = runTest {
+        val card = AccountBuilder()
+            .id("card-1")
+            .name("Visa")
+            .creditCard(Money.of(BigDecimal("1000000"), Currency.COP), Money.of(BigDecimal("0"), Currency.COP))
+            .build()
+        coEvery { accountRepository.findById("card-1", criteria) } returns flowOf(Outcome.Success(card))
+
+        val result = updater.update(
+            id = "card-1",
+            name = "Visa",
+            initialBalance = "1000000",
+            currency = Currency.COP,
+            kind = MoneyAccountKind.SAVINGS,
+            description = ""
+        )
+
+        assertTrue(result is Outcome.Failure)
+        assertTrue((result as Outcome.Failure).error is AccountUpdateError.CreditCardNotEditable)
+        coVerify(exactly = 0) { accountRepository.update(any()) }
+    }
 
     @Test
     fun `given a changed name that is unique, when update, then saves`() = runTest {
@@ -61,7 +105,7 @@ class AccountUpdaterTest {
             name = "Corriente",
             initialBalance = "2000.00",
             currency = Currency.COP,
-            type = AccountType.SAVINGS,
+            kind = MoneyAccountKind.SAVINGS,
             description = ""
         )
 
@@ -80,7 +124,7 @@ class AccountUpdaterTest {
             name = "Corriente",
             initialBalance = "2000.00",
             currency = Currency.COP,
-            type = AccountType.SAVINGS,
+            kind = MoneyAccountKind.SAVINGS,
             description = ""
         )
 
@@ -100,7 +144,7 @@ class AccountUpdaterTest {
             name = "ahorros",
             initialBalance = "2000.00",
             currency = Currency.COP,
-            type = AccountType.SAVINGS,
+            kind = MoneyAccountKind.SAVINGS,
             description = ""
         )
 
@@ -125,7 +169,7 @@ class AccountUpdaterTest {
             name = "Ahorros",
             initialBalance = "9999.00",
             currency = Currency.USD,
-            type = AccountType.SAVINGS,
+            kind = MoneyAccountKind.SAVINGS,
             description = ""
         )
 
@@ -151,7 +195,7 @@ class AccountUpdaterTest {
             name = "Ahorros",
             initialBalance = "2000.00",
             currency = Currency.USD,
-            type = AccountType.SAVINGS,
+            kind = MoneyAccountKind.SAVINGS,
             description = ""
         )
 
@@ -171,7 +215,7 @@ class AccountUpdaterTest {
             name = "",
             initialBalance = "2000.00",
             currency = Currency.COP,
-            type = AccountType.SAVINGS,
+            kind = MoneyAccountKind.SAVINGS,
             description = ""
         )
 
@@ -196,7 +240,7 @@ class AccountUpdaterTest {
             name = "Ahorros",
             initialBalance = "2000.00",
             currency = Currency.COP,
-            type = AccountType.SAVINGS,
+            kind = MoneyAccountKind.SAVINGS,
             description = ""
         )
 
@@ -221,7 +265,7 @@ class AccountUpdaterTest {
             name = "Ahorros",
             initialBalance = "2000.00",
             currency = Currency.COP,
-            type = AccountType.SAVINGS,
+            kind = MoneyAccountKind.SAVINGS,
             description = ""
         )
 

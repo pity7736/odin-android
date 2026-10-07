@@ -34,7 +34,7 @@ class AccountCreateTest {
             name = "Ahorros",
             initialBalance = "1500.00",
             currency = Currency.COP,
-            type = AccountType.SAVINGS,
+            kind = MoneyAccountKind.SAVINGS,
             description = "Fondo de emergencia",
             clock = fakeClock
         )
@@ -57,7 +57,7 @@ class AccountCreateTest {
             name = "Efectivo",
             initialBalance = "0",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = ""
         )
 
@@ -72,7 +72,7 @@ class AccountCreateTest {
             name = "  Ahorros  ",
             initialBalance = "10.00",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = ""
         )
 
@@ -86,7 +86,7 @@ class AccountCreateTest {
             name = "   ",
             initialBalance = "10.00",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = ""
         )
 
@@ -99,7 +99,7 @@ class AccountCreateTest {
             name = "a".repeat(MAX_NAME_LENGTH + 1),
             initialBalance = "10.00",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = ""
         )
 
@@ -112,7 +112,7 @@ class AccountCreateTest {
             name = "Ahorros",
             initialBalance = "",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = ""
         )
 
@@ -125,7 +125,7 @@ class AccountCreateTest {
             name = "Ahorros",
             initialBalance = "abc",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = ""
         )
 
@@ -138,7 +138,7 @@ class AccountCreateTest {
             name = "Ahorros",
             initialBalance = "-1.00",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = ""
         )
 
@@ -151,7 +151,7 @@ class AccountCreateTest {
             name = "Ahorros",
             initialBalance = "10.255",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = ""
         )
 
@@ -164,7 +164,7 @@ class AccountCreateTest {
             name = "Ahorros",
             initialBalance = "10.00",
             currency = null,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = ""
         )
 
@@ -172,12 +172,42 @@ class AccountCreateTest {
     }
 
     @Test
-    fun `given no type, when creating an account, then returns type required error`() {
+    fun `given savings kind, when create, then funding is Funds with SAVINGS kind and type is SAVINGS`() {
+        val result = Account.create(
+            name = "Ahorros",
+            initialBalance = "10.00",
+            currency = Currency.COP,
+            kind = MoneyAccountKind.SAVINGS,
+            description = ""
+        )
+
+        val account = (result as Outcome.Success).value
+        assertEquals(MoneyAccountKind.SAVINGS, (account.funding as AccountFunding.Funds).kind)
+        assertEquals(AccountType.SAVINGS, account.type)
+    }
+
+    @Test
+    fun `given cash kind, when create, then funding is Funds with CASH kind and type is CASH`() {
+        val result = Account.create(
+            name = "Efectivo",
+            initialBalance = "10.00",
+            currency = Currency.COP,
+            kind = MoneyAccountKind.CASH,
+            description = ""
+        )
+
+        val account = (result as Outcome.Success).value
+        assertEquals(MoneyAccountKind.CASH, (account.funding as AccountFunding.Funds).kind)
+        assertEquals(AccountType.CASH, account.type)
+    }
+
+    @Test
+    fun `given no kind, when creating an account, then returns type required error`() {
         val result = Account.create(
             name = "Ahorros",
             initialBalance = "10.00",
             currency = Currency.USD,
-            type = null,
+            kind = null,
             description = ""
         )
 
@@ -190,7 +220,7 @@ class AccountCreateTest {
             name = "Ahorros",
             initialBalance = "10.00",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = "a".repeat(MAX_DESCRIPTION_LENGTH + 1)
         )
 
@@ -206,7 +236,7 @@ class AccountCreateTest {
             name = "Ahorros",
             initialBalance = "10.00",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = "    "
         )
 
@@ -220,7 +250,7 @@ class AccountCreateTest {
             name = "",
             initialBalance = "",
             currency = null,
-            type = null,
+            kind = null,
             description = ""
         )
 
@@ -309,7 +339,7 @@ class AccountEditTest {
             .id("acc-1")
             .name("Ahorros")
             .initialBalance(Money.of(BigDecimal("1000.00"), Currency.COP))
-            .type(AccountType.SAVINGS)
+            .kind(MoneyAccountKind.SAVINGS)
             .description("Fondo")
             .createdAt(Instant.parse("2026-01-01T00:00:00Z"))
             .withIncome(amount = "500.00", date = "2026-01-01")
@@ -319,7 +349,7 @@ class AccountEditTest {
             name = "Corriente",
             initialBalance = "2000.00",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = "Gastos diarios"
         )
 
@@ -341,7 +371,7 @@ class AccountEditTest {
             name = "   ",
             initialBalance = "10.00",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = ""
         )
 
@@ -354,7 +384,7 @@ class AccountEditTest {
             name = "a".repeat(MAX_NAME_LENGTH + 1),
             initialBalance = "10.00",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = ""
         )
 
@@ -367,7 +397,7 @@ class AccountEditTest {
             name = "Ahorros",
             initialBalance = "",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = ""
         )
 
@@ -380,7 +410,7 @@ class AccountEditTest {
             name = "Ahorros",
             initialBalance = "-1.00",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = ""
         )
 
@@ -393,7 +423,7 @@ class AccountEditTest {
             name = "Ahorros",
             initialBalance = "10.255",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = ""
         )
 
@@ -406,7 +436,7 @@ class AccountEditTest {
             name = "Ahorros",
             initialBalance = "10.00",
             currency = null,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = ""
         )
 
@@ -414,12 +444,65 @@ class AccountEditTest {
     }
 
     @Test
-    fun `given no type, when edit, then returns type required error`() {
+    fun `given a money account, when edit with another kind, then funding carries the new kind and type follows`() {
+        val original = AccountBuilder().kind(MoneyAccountKind.SAVINGS).build()
+
+        val result = original.edit(
+            name = "Ahorros",
+            initialBalance = "10.00",
+            currency = Currency.COP,
+            kind = MoneyAccountKind.CASH,
+            description = ""
+        )
+
+        val edited = (result as Outcome.Success).value
+        assertEquals(MoneyAccountKind.CASH, (edited.funding as AccountFunding.Funds).kind)
+        assertEquals(AccountType.CASH, edited.type)
+    }
+
+    @Test
+    fun `given a credit card, when edit, then returns CreditCardNotEditable`() {
+        val card = AccountBuilder()
+            .creditCard(Money.of(BigDecimal("1000000"), Currency.COP), Money.of(BigDecimal("0"), Currency.COP))
+            .build()
+
+        val result = card.edit(
+            name = "Visa",
+            initialBalance = "10.00",
+            currency = Currency.COP,
+            kind = MoneyAccountKind.SAVINGS,
+            description = ""
+        )
+
+        assertTrue(result is Outcome.Failure)
+        assertTrue((result as Outcome.Failure).error is AccountUpdateError.CreditCardNotEditable)
+    }
+
+    @Test
+    fun `given a credit card and invalid fields, when edit, then returns CreditCardNotEditable`() {
+        val card = AccountBuilder()
+            .creditCard(Money.of(BigDecimal("1000000"), Currency.COP), Money.of(BigDecimal("0"), Currency.COP))
+            .build()
+
+        val result = card.edit(
+            name = "",
+            initialBalance = "",
+            currency = null,
+            kind = null,
+            description = ""
+        )
+
+        assertTrue(result is Outcome.Failure)
+        assertTrue((result as Outcome.Failure).error is AccountUpdateError.CreditCardNotEditable)
+    }
+
+    @Test
+    fun `given no kind, when edit, then returns type required error`() {
         val result = AccountBuilder().build().edit(
             name = "Ahorros",
             initialBalance = "10.00",
             currency = Currency.USD,
-            type = null,
+            kind = null,
             description = ""
         )
 
@@ -432,7 +515,7 @@ class AccountEditTest {
             name = "Ahorros",
             initialBalance = "10.00",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = "a".repeat(MAX_DESCRIPTION_LENGTH + 1)
         )
 
@@ -448,7 +531,7 @@ class AccountEditTest {
             name = "",
             initialBalance = "",
             currency = null,
-            type = null,
+            kind = null,
             description = ""
         )
 
@@ -466,7 +549,7 @@ class AccountEditTest {
             name = "Ahorros",
             initialBalance = "10.00",
             currency = Currency.USD,
-            type = AccountType.CASH,
+            kind = MoneyAccountKind.CASH,
             description = "    "
         )
 
@@ -521,8 +604,7 @@ class AccountRestoreTest {
         val account = Account.restore(
             id = "test-id-123",
             name = "Cuenta de Ahorros",
-            funding = AccountFunding.Funds(initialBalance),
-            type = AccountType.SAVINGS,
+            funding = AccountFunding.Funds(initialBalance, MoneyAccountKind.SAVINGS),
             description = "Mi cuenta principal",
             createdAt = knownInstant
         )
@@ -534,9 +616,64 @@ class AccountRestoreTest {
         assertEquals("Mi cuenta principal", account.description)
         assertEquals(knownInstant, account.createdAt)
     }
+
+    @Test
+    fun `given a restored credit card, when reading type, then is CREDIT_CARD`() {
+        val account = Account.restore(
+            id = "card-1",
+            name = "Visa",
+            funding = AccountFunding.Credit(
+                Money.of(BigDecimal("1000000"), Currency.COP),
+                Money.of(BigDecimal("0"), Currency.COP)
+            ),
+            description = "",
+            createdAt = Instant.parse("2026-01-15T12:00:00Z")
+        )
+
+        assertEquals(AccountType.CREDIT_CARD, account.type)
+    }
+
+    @Test
+    fun `given a restored savings funding, when reading type, then is SAVINGS`() {
+        val account = Account.restore(
+            id = "acc-1",
+            name = "Ahorros",
+            funding = AccountFunding.Funds(Money.of(BigDecimal("10.00"), Currency.COP), MoneyAccountKind.SAVINGS),
+            description = "",
+            createdAt = Instant.parse("2026-01-15T12:00:00Z")
+        )
+
+        assertEquals(AccountType.SAVINGS, account.type)
+    }
+
+    @Test
+    fun `given a restored cash funding, when reading type, then is CASH`() {
+        val account = Account.restore(
+            id = "acc-1",
+            name = "Efectivo",
+            funding = AccountFunding.Funds(Money.of(BigDecimal("10.00"), Currency.COP), MoneyAccountKind.CASH),
+            description = "",
+            createdAt = Instant.parse("2026-01-15T12:00:00Z")
+        )
+
+        assertEquals(AccountType.CASH, account.type)
+    }
 }
 
 class AccountCreateCreditCardTest {
+
+    @Test
+    fun `given a credit card, when created, then type is CREDIT_CARD`() {
+        val result = Account.createCreditCard(
+            name = "Visa",
+            currency = Currency.COP,
+            description = "",
+            creditLimit = "1000000",
+            existingDebt = ""
+        )
+
+        assertEquals(AccountType.CREDIT_CARD, (result as Outcome.Success).value.type)
+    }
 
     @Test
     fun `given valid fields with a debt, when creating a credit card, then returns success storing limit and debt`() {

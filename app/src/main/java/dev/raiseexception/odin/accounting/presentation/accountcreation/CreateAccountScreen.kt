@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.shared.presentation.AmountField
 import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.ui.theme.ExpenseRed
@@ -332,21 +333,29 @@ private fun buildCommand(
     currency: Currency?,
     type: AccountType?,
     description: String,
-): CreateAccountCommand =
-    if (type == AccountType.CREDIT_CARD) {
-        CreateAccountCommand.CreditCard(
-            name = name,
-            creditLimit = amountInputToRaw(creditLimit),
-            existingDebt = amountInputToRaw(debt),
-            currency = currency,
-            description = description,
-        )
-    } else {
-        CreateAccountCommand.MoneyAccount(
-            name = name,
-            balance = amountInputToRaw(balance),
-            currency = currency,
-            type = type,
-            description = description,
-        )
-    }
+): CreateAccountCommand = when (type) {
+    AccountType.CREDIT_CARD -> CreateAccountCommand.CreditCard(
+        name = name,
+        creditLimit = amountInputToRaw(creditLimit),
+        existingDebt = amountInputToRaw(debt),
+        currency = currency,
+        description = description,
+    )
+    AccountType.SAVINGS -> moneyAccountCommand(name, balance, currency, MoneyAccountKind.SAVINGS, description)
+    AccountType.CASH -> moneyAccountCommand(name, balance, currency, MoneyAccountKind.CASH, description)
+    null -> moneyAccountCommand(name, balance, currency, null, description)
+}
+
+private fun moneyAccountCommand(
+    name: String,
+    balance: String,
+    currency: Currency?,
+    kind: MoneyAccountKind?,
+    description: String,
+): CreateAccountCommand = CreateAccountCommand.MoneyAccount(
+    name = name,
+    balance = amountInputToRaw(balance),
+    currency = currency,
+    kind = kind,
+    description = description,
+)

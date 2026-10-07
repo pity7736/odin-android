@@ -7,8 +7,8 @@ import dev.raiseexception.odin.accounting.application.usecase.AccountUpdater
 import dev.raiseexception.odin.accounting.domain.AccountUpdateError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountFunding
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -47,7 +47,7 @@ class EditAccountViewModel(
         rawName: String,
         rawBalance: String,
         currency: Currency?,
-        type: AccountType?,
+        kind: MoneyAccountKind?,
         rawDescription: String
     ) {
         val current = this.mutableUiState.value
@@ -63,7 +63,7 @@ class EditAccountViewModel(
         )
         this.viewModelScope.launch {
             val outcome = withContext(ioDispatcher) {
-                accountUpdater.update(accountId, rawName, rawBalance, currency, type, rawDescription)
+                accountUpdater.update(accountId, rawName, rawBalance, currency, kind, rawDescription)
             }
             when (outcome) {
                 is Outcome.Success -> navigationChannel.send(Unit)
@@ -85,15 +85,15 @@ class EditAccountViewModel(
 
     private fun buildEditing(account: Account): EditAccountUiState.Editing {
         val locked = account.hasTransactions()
-        val initialBalance = when (val funding = account.funding) {
-            is AccountFunding.Funds -> funding.initialBalance
-            is AccountFunding.Credit -> funding.creditLimit
+        val (kind, initialBalance) = when (val funding = account.funding) {
+            is AccountFunding.Funds -> Pair(funding.kind, funding.initialBalance)
+            is AccountFunding.Credit -> Pair(null, funding.creditLimit)
         }
         return EditAccountUiState.Editing(
             name = account.name,
             initialBalance = initialBalance.amount.toPlainString(),
             currency = account.currency,
-            type = account.type,
+            kind = kind,
             description = account.description,
             locked = locked,
             lockedBalanceDisplay = if (locked) formatMoney(initialBalance) else null
@@ -115,6 +115,8 @@ class EditAccountViewModel(
             )
             is AccountUpdateError.DuplicateName -> editing.copy(isSaving = false, nameError = error.externalMessage)
             is AccountUpdateError.StorageFailure -> editing.copy(isSaving = false, saveError = error.externalMessage)
+            is AccountUpdateError.CreditCardNotEditable ->
+                editing.copy(isSaving = false, saveError = error.externalMessage)
             else -> editing.copy(isSaving = false, saveError = error.externalMessage)
         }
 }

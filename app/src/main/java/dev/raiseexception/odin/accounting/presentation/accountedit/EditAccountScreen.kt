@@ -41,6 +41,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
+import dev.raiseexception.odin.accounting.domain.model.toAccountType
 import dev.raiseexception.odin.shared.presentation.AmountField
 import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.ui.theme.ExpenseRed
@@ -60,7 +62,7 @@ private const val LOCK_MESSAGE =
 @Composable
 fun EditAccountScreen(
     uiState: EditAccountUiState,
-    onSave: (String, String, Currency?, AccountType?, String) -> Unit,
+    onSave: (String, String, Currency?, MoneyAccountKind?, String) -> Unit,
     navigationEvent: Flow<Unit>,
     onSaved: () -> Unit,
     onCancel: () -> Unit = {},
@@ -79,7 +81,7 @@ fun EditAccountScreen(
 @Composable
 private fun EditAccountForm(
     editing: EditAccountUiState.Editing,
-    onSave: (String, String, Currency?, AccountType?, String) -> Unit,
+    onSave: (String, String, Currency?, MoneyAccountKind?, String) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -87,7 +89,7 @@ private fun EditAccountForm(
     var balance by rememberSaveable { mutableStateOf(editing.initialBalance.replace('.', ',')) }
     var description by rememberSaveable { mutableStateOf(editing.description) }
     var selectedCurrency by rememberSaveable { mutableStateOf(editing.currency) }
-    var selectedType by rememberSaveable { mutableStateOf(editing.type) }
+    var selectedKind by rememberSaveable { mutableStateOf(editing.kind) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -153,12 +155,12 @@ private fun EditAccountForm(
             errorMessage = editing.typeError,
             errorTestTag = "type_field_error",
         ) {
-            for (type in AccountType.entries.filter { it != AccountType.CREDIT_CARD }) {
+            for (kind in MoneyAccountKind.entries) {
                 FilterChipItem(
-                    label = typeLabel(type),
-                    selected = selectedType == type,
-                    onClick = { selectedType = type },
-                    testTag = "type_option_${type.name}",
+                    label = typeLabel(kind.toAccountType()),
+                    selected = selectedKind == kind,
+                    onClick = { selectedKind = kind },
+                    testTag = "type_option_${kind.name}",
                 )
             }
         }
@@ -172,7 +174,7 @@ private fun EditAccountForm(
         )
         Spacer(modifier = Modifier.height(24.dp))
         SaveAction(editing) {
-            onSave(name, amountInputToRaw(balance), selectedCurrency, selectedType, description)
+            onSave(name, amountInputToRaw(balance), selectedCurrency, selectedKind, description)
         }
         GeneralMessage(editing)
         TextButton(

@@ -3,8 +3,8 @@ package dev.raiseexception.odin.accounting.application.usecase
 import dev.raiseexception.odin.accounting.domain.AccountUpdateError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountFunding
-import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.shared.domain.Outcome
@@ -23,7 +23,7 @@ class AccountUpdater(
         name: String,
         initialBalance: String,
         currency: Currency?,
-        type: AccountType?,
+        kind: MoneyAccountKind?,
         description: String
     ): Outcome<Account> {
         val findOutcome = this.accountFinder.find(id, this.criteria).first()
@@ -33,7 +33,7 @@ class AccountUpdater(
             name = name,
             initialBalance = this.effectiveBalance(existing, initialBalance),
             currency = this.effectiveCurrency(existing, currency),
-            type = type,
+            kind = kind,
             description = description
         )
         if (editOutcome is Outcome.Failure) return editOutcome

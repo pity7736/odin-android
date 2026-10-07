@@ -4,6 +4,7 @@ import dev.raiseexception.odin.accounting.domain.AccountCreationError
 import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.shared.domain.Outcome
 import io.mockk.coEvery
@@ -24,9 +25,9 @@ class AccountCreatorTest {
         name: String = "Ahorros",
         balance: String = "1500.00",
         currency: Currency? = Currency.COP,
-        type: AccountType? = AccountType.SAVINGS,
+        kind: MoneyAccountKind? = MoneyAccountKind.SAVINGS,
         description: String = ""
-    ) = CreateAccountCommand.MoneyAccount(name, balance, currency, type, description)
+    ) = CreateAccountCommand.MoneyAccount(name, balance, currency, kind, description)
 
     private fun creditCard(
         name: String = "Visa",
@@ -61,6 +62,19 @@ class AccountCreatorTest {
         assertTrue(account.createdAt <= after)
         coVerify { accountRepository.add(any()) }
     }
+
+    @Test
+    fun `given a cash kind money account, when creating, then funding is Funds with CASH kind and type is CASH`() =
+        runTest {
+            coEvery { accountRepository.existsByName("Ahorros") } returns Outcome.Success(false)
+            coEvery { accountRepository.add(any()) } returns Outcome.Success(Unit)
+
+            val result = creator.create(moneyAccount(kind = MoneyAccountKind.CASH))
+
+            val account = (result as Outcome.Success).value
+            assertEquals(MoneyAccountKind.CASH, (account.funding as AccountFunding.Funds).kind)
+            assertEquals(AccountType.CASH, account.type)
+        }
 
     @Test
     fun `given a unique valid credit card, when creating, then adds it with credit funding and returns success`() =

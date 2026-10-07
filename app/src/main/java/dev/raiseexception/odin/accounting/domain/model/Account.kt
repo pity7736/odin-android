@@ -21,7 +21,6 @@ class Account private constructor(
     val id: String,
     val name: String,
     val funding: AccountFunding,
-    val type: AccountType,
     val description: String,
     val createdAt: Instant,
     incomes: List<Income> = emptyList(),
@@ -39,6 +38,11 @@ class Account private constructor(
     val currency: Currency get() = this.funding.currency
 
     val balance: Money get() = this.funding.balance(this.incomes, this.expenses)
+
+    val type: AccountType get() = when (this.funding) {
+        is AccountFunding.Funds -> this.funding.kind.toAccountType()
+        is AccountFunding.Credit -> AccountType.CREDIT_CARD
+    }
 
     fun createIncome(
         amount: String,
@@ -195,16 +199,19 @@ class Account private constructor(
         name: String,
         initialBalance: String,
         currency: Currency?,
-        type: AccountType?,
+        kind: MoneyAccountKind?,
         description: String
     ): Outcome<Account> {
+        if (this.funding is AccountFunding.Credit) {
+            return Outcome.Failure(AccountUpdateError.CreditCardNotEditable())
+        }
         val trimmedName = name.trim()
         val trimmedDescription = description.trim()
         val amount = Account.parseAmount(initialBalance)
         val nameError = validateName(trimmedName)
         val balanceError = validateBalance(initialBalance, amount)
         val currencyError = if (currency == null) "La moneda es obligatoria." else null
-        val typeError = if (type == null) "El tipo de cuenta es obligatorio." else null
+        val typeError = if (kind == null) "El tipo de cuenta es obligatorio." else null
         val descriptionError = validateDescription(trimmedDescription)
         if (anyError(nameError, balanceError, currencyError, typeError, descriptionError)) {
             return Outcome.Failure(
@@ -221,8 +228,7 @@ class Account private constructor(
             Account(
                 id = this.id,
                 name = trimmedName,
-                funding = AccountFunding.Funds(Money.of(amount!!, currency!!)),
-                type = type!!,
+                funding = AccountFunding.Funds(Money.of(amount!!, currency!!), kind!!),
                 description = trimmedDescription,
                 createdAt = this.createdAt,
                 incomes = this._incomes.toList(),
@@ -304,7 +310,6 @@ class Account private constructor(
             id: String,
             name: String,
             funding: AccountFunding,
-            type: AccountType,
             description: String,
             createdAt: Instant,
             incomes: List<Income> = emptyList(),
@@ -313,7 +318,6 @@ class Account private constructor(
             id = id,
             name = name,
             funding = funding,
-            type = type,
             description = description,
             createdAt = createdAt,
             incomes = incomes,
@@ -325,7 +329,7 @@ class Account private constructor(
             name: String,
             initialBalance: String,
             currency: Currency?,
-            type: AccountType?,
+            kind: MoneyAccountKind?,
             description: String,
             clock: Clock = Clock.System
         ): Outcome<Account> {
@@ -335,7 +339,7 @@ class Account private constructor(
             val nameError = validateName(trimmedName)
             val balanceError = validateBalance(initialBalance, amount)
             val currencyError = if (currency == null) "La moneda es obligatoria." else null
-            val typeError = if (type == null) "El tipo de cuenta es obligatorio." else null
+            val typeError = if (kind == null) "El tipo de cuenta es obligatorio." else null
             val descriptionError = validateDescription(trimmedDescription)
             if (anyError(nameError, balanceError, currencyError, typeError, descriptionError)) {
                 return Outcome.Failure(
@@ -352,8 +356,7 @@ class Account private constructor(
                 Account(
                     id = UuidCreator.getTimeOrderedEpoch().toString(),
                     name = trimmedName,
-                    funding = AccountFunding.Funds(Money.of(amount!!, currency!!)),
-                    type = type!!,
+                    funding = AccountFunding.Funds(Money.of(amount!!, currency!!), kind!!),
                     description = trimmedDescription,
                     createdAt = clock.now()
                 )
@@ -399,7 +402,6 @@ class Account private constructor(
                         creditLimit = Money.of(parsedCreditLimit!!, currency!!),
                         initialDebt = Money.of(parsedDebt!!, currency)
                     ),
-                    type = AccountType.CREDIT_CARD,
                     description = trimmedDescription,
                     createdAt = clock.now()
                 )
