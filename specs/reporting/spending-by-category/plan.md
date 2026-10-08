@@ -346,38 +346,38 @@ selected tab. Update the six existing screens' instrumented tests for the new
   (`./gradlew compileDebugAndroidTestKotlin`), do not run it.
 
 ## Design decisions to hydrate into design.md
-- [ ] Transfers and card payments are excluded by their link to the transfer
+- [x] Transfers and card payments are excluded by their link to the transfer
       record (`transfers.expenseId`), the same definition `isTransfer` uses;
       rejected: category type `TRANSFER` (a second marker nothing keeps in
       agreement).
-- [ ] The query filters, Kotlin adds: amounts are stored as text, so SQL `SUM`
+- [x] The query filters, Kotlin adds: amounts are stored as text, so SQL `SUM`
       would go through floating point; totals are `BigDecimal` in the use case.
-- [ ] `accounting` owns the spending query and `SpendingLister`; `reporting`
+- [x] `accounting` owns the spending query and `SpendingLister`; `reporting`
       (application + presentation only) owns the rules and the screen, like
       `home`; rejected: a reporting-side query over accounting's tables.
-- [ ] `SpendingReporter` owns every rule (currencies, starting currency and
+- [x] `SpendingReporter` owns every rule (currencies, starting currency and
       period, totals, shares, rounding, ordering); the ViewModel only holds the
       period and chosen currency; "today" comes from an injected `Clock` and
       `TimeZone`.
-- [ ] Shares: exact fraction for the chart, whole-number display rounded
+- [x] Shares: exact fraction for the chart, whole-number display rounded
       `HALF_UP` on its own, "<1%" below one percent; never adjusted to sum 100.
-- [ ] Currency chips come from account currencies, not from the period; the
+- [x] Currency chips come from account currencies, not from the period; the
       chosen currency survives period changes; COP when no accounts.
-- [ ] Shared `SpanishAlphabeticalOrder` in `shared/domain`, used by `Tag` and
+- [x] Shared `SpanishAlphabeticalOrder` in `shared/domain`, used by `Tag` and
       the report; rejected: calling `Tag.normalize` from the report, or a copy.
-- [ ] `DonutChart` drawn with `Canvas` behind a plain-data signature
+- [x] `DonutChart` drawn with `Canvas` behind a plain-data signature
       (`DonutSlice`); slices use each category's own color; rejected: a chart
       library now, and a formal interface for a future library.
-- [ ] `DateRangePickerField` (Material `DateRangePicker`) in `shared/presentation`;
+- [x] `DateRangePickerField` (Material `DateRangePicker`) in `shared/presentation`;
       rejected: two `DatePickerField`s ("Desde"/"Hasta").
-- [ ] "Reportes" is a fourth bottom-bar tab with the PieChart icon, wired
+- [x] "Reportes" is a fourth bottom-bar tab with the PieChart icon, wired
       through the six screens (the duplication is a TASKS.md improvement).
-- [ ] Fresh on every visit: the ViewModel always starts from the defaults and
+- [x] Fresh on every visit: the ViewModel always starts from the defaults and
       the bottom-bar navigation (`popUpTo(Routes.HOME)`) discards the report's
       entry; the navigation half is verified manually, not by an automated test.
-- [ ] Known limitation: no index on `transactions.date`; the range query scans
+- [x] Known limitation: no index on `transactions.date`; the range query scans
       expense rows (fine at single-user scale; adding the index needs a Room
       migration).
-- [ ] Known limitation: two categories can share a color, making their slices
+- [x] Known limitation: two categories can share a color, making their slices
       indistinguishable in the chart (the list still names them).
-- [ ] Quality Pillars (all four) for the report.
+- [x] Quality Pillars (all four) for the report.

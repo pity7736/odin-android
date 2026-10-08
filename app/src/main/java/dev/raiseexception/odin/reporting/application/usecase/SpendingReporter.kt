@@ -79,8 +79,8 @@ class SpendingReporter(
         val totalsByCategory = sources.expenses
             .filter { it.amount.currency == currency }
             .groupBy { it.categoryId }
-            .mapValues { (_, categoryExpenses) -> this.sum(categoryExpenses.map { it.amount.amount }) }
-        val total = this.sum(totalsByCategory.values.toList())
+            .mapValues { (_, categoryExpenses) -> categoryExpenses.sumOf { it.amount.amount } }
+        val total = totalsByCategory.values.sumOf { it }
         val categories = totalsByCategory
             .map { (categoryId, categoryTotal) ->
                 this.categorySpending(categoriesById.getValue(categoryId), categoryTotal, total, currency)
@@ -116,9 +116,6 @@ class SpendingReporter(
             displayedShare = if (percent == 0) DisplayedShare.BelowOnePercent else DisplayedShare.Whole(percent),
         )
     }
-
-    private fun sum(amounts: List<BigDecimal>): BigDecimal =
-        amounts.fold(BigDecimal.ZERO) { sum, amount -> sum.add(amount) }
 
     private data class SpendingSources(
         val expenses: List<Expense>,
