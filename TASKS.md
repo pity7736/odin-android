@@ -69,6 +69,8 @@ continuous days before a production release.
 - [ ] Update incomes
 - [ ] Update categories
 - [ ] Events (group expenses under a trip, project, or occasion for tracking spending on specific activities)
+- [ ] The spending report shows only one total per category for the chosen dates, so the user cannot see how spending in a category changes from one month to the next (e.g. whether food spending is going up)
+- [ ] The spending report cannot be narrowed by tags, so the user cannot see how much went to a specific detail across categories (e.g. everything spent on the car, as opposed to the motorbike, within "Vehículos" and other categories)
 
 ## v1.0.0 — Production
 
@@ -107,6 +109,7 @@ Not yet assigned to a version.
 - [ ] Design a better approach for ViewModel error mapping (unreachable else branch in mapError due to DomainError interface)
 - [ ] `Account.createIncome()` owns income validation logic. Consider moving validation into `Income.create()` so `Income` validates its own invariants and `Account.createIncome()` just delegates, passing `this.id` and `this.currency`.
 - [ ] Navigation: all destinations are defined inline in `AppNavHost` inside `MainActivity.kt`. Extract per-module navigation graphs as screen count grows.
+- [ ] Every screen that shows the bottom bar places `OdinBottomBar` itself and receives one navigation lambda per tab as its own parameters (`AccountDetailScreen`, `AccountsListScreen`, `CategoriesListScreen`, `CategoryDetailScreen`, `HomeScreen`, `TransactionDetailScreen`), and `MainActivity` wires those lambdas separately for each destination. Adding or changing a tab means editing every one of those screens and destinations
 - [ ] `AccountDetailNavigationTarget` has three dead variants (`CreateIncome`, `CreateExpense`, `CreateTransfer`) that are defined and handled in `when` branches but never emitted by `AccountDetailViewModel`. The FABs navigate via direct lambdas, making the ViewModel channel unnecessary for these. Remove the dead variants and their `when` branches
 - [ ] Form field composables are still duplicated as private copies even though shared versions of `OdinField`, `DatePickerField`, `FieldError`, and `CategoryAutocomplete` exist in `shared/presentation/`: `CreateIncomeScreen` (all four), `CreateTransferScreen` (`DatePickerField`, `FieldError`), `EditAccountScreen`, `CreateAccountScreen`, and `CreateCategoryScreen` (`OdinField`, `FieldError`). `LoadingContent` and `ErrorContent` are also duplicated across `CreateExpenseScreen`, `CreateIncomeScreen`, and `CreateTransferScreen`
 - [ ] `ExpenseCreator` and `IncomeCreator` read account balance outside the database transaction (`findById().first()` before `transactionRunner.run {}`). Two concurrent creations could both pass validation on stale balance. Move the read inside the transaction to guarantee consistency

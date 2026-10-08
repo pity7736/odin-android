@@ -96,6 +96,7 @@ fun HomeScreen(
     onNavigateToTransferCreate: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
+    onNavigateToReports: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(Unit) {
@@ -119,6 +120,7 @@ fun HomeScreen(
                 onNavigateToHome = {},
                 onNavigateToAccounts = onNavigateToAccounts,
                 onNavigateToCategories = onNavigateToCategories,
+                onNavigateToReports = onNavigateToReports,
             )
         },
         floatingActionButton = {

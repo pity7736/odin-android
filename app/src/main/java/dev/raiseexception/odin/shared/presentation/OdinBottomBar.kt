@@ -7,9 +7,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -22,14 +24,16 @@ import dev.raiseexception.odin.ui.theme.OrangePrimary
 import dev.raiseexception.odin.ui.theme.Slate500
 import dev.raiseexception.odin.ui.theme.Slate800
 
-enum class BottomBarTab { HOME, ACCOUNTS, CATEGORIES }
+enum class BottomBarTab { HOME, ACCOUNTS, CATEGORIES, REPORTS }
 
+@Suppress("LongMethod")
 @Composable
 fun OdinBottomBar(
     selectedTab: BottomBarTab?,
     onNavigateToHome: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
+    onNavigateToReports: () -> Unit,
 ) {
     NavigationBar(
         containerColor = Slate800,
@@ -81,6 +85,23 @@ fun OdinBottomBar(
             label = { Text("Categorías") },
             colors = navItemColors(),
             modifier = Modifier.testTag("nav_categories"),
+        )
+        NavigationBarItem(
+            selected = selectedTab == BottomBarTab.REPORTS,
+            onClick = onNavigateToReports,
+            icon = {
+                Icon(
+                    imageVector = if (selectedTab == BottomBarTab.REPORTS) {
+                        Icons.Filled.PieChart
+                    } else {
+                        Icons.Outlined.PieChart
+                    },
+                    contentDescription = "Reportes",
+                )
+            },
+            label = { Text("Reportes") },
+            colors = navItemColors(),
+            modifier = Modifier.testTag("nav_reports"),
         )
     }
 }

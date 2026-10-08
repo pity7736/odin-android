@@ -138,7 +138,8 @@ class AccountsListScreenTest {
                 onNavigateToAccountDetail = {},
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
-                onNavigateToCategories = {}
+                onNavigateToCategories = {},
+                onNavigateToReports = {}
             )
         }
     }

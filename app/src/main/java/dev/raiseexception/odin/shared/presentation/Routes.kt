@@ -16,6 +16,7 @@ object Routes {
     const val CATEGORY_DETAIL = "category_detail/{categoryId}"
     const val TRANSACTION_DETAIL = "transaction_detail/{transactionId}"
     const val TRANSFER_CREATE = "transfer_create?accountId={accountId}"
+    const val REPORTS = "reports"
 
     fun accountDetail(accountId: String) = "account_detail/$accountId"
 

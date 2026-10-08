@@ -5,6 +5,10 @@ import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.repository.ExpenseRepository
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.StorageError
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
+import kotlinx.datetime.LocalDate
 
 class RoomExpenseRepository(
     private val transactionDao: TransactionDao,
@@ -29,4 +33,17 @@ class RoomExpenseRepository(
         } catch (e: SQLiteException) {
             Outcome.Failure(StorageError(e.message ?: "Failed to update expense"))
         }
+
+    override fun findSpendingBetween(start: LocalDate, end: LocalDate): Flow<Outcome<List<Expense>>> =
+        this.transactionDao.findSpendingBetween(start.toString(), end.toString())
+            .map<_, Outcome<List<Expense>>> { rows ->
+                Outcome.Success(rows.map { it.transaction.toExpense(it.tagIds) })
+            }
+            .catch { e ->
+                if (e is SQLiteException) {
+                    emit(Outcome.Failure(StorageError(e.message ?: "Failed to list spending")))
+                } else {
+                    throw e
+                }
+            }
 }

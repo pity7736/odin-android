@@ -19,6 +19,7 @@ import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseUpdater
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
+import dev.raiseexception.odin.accounting.application.usecase.SpendingLister
 import dev.raiseexception.odin.accounting.application.usecase.TagLister
 import dev.raiseexception.odin.accounting.application.usecase.TagResolver
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
@@ -68,6 +69,8 @@ import dev.raiseexception.odin.home.application.usecase.HomeSummaryLoader
 import dev.raiseexception.odin.home.application.usecase.RecentTransactionLister
 import dev.raiseexception.odin.home.presentation.home.HomeViewModel
 import dev.raiseexception.odin.persistence.DatabaseProvider
+import dev.raiseexception.odin.reporting.application.usecase.SpendingReporter
+import dev.raiseexception.odin.reporting.presentation.spendingreport.SpendingReportViewModel
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.TransactionRunner
 import dev.raiseexception.odin.shared.infrastructure.persistence.RoomTransactionRunner
@@ -140,6 +143,8 @@ class AppContainer(context: Context) {
             databaseProvider.requireDatabase().expenseTagDao()
         )
     }
+    private val spendingLister by lazy { SpendingLister(expenseRepository) }
+    private val spendingReporter by lazy { SpendingReporter(spendingLister, categoryLister, accountLister) }
     private val tagRepository: TagRepository by lazy {
         RoomTagRepository(databaseProvider.requireDatabase().tagDao())
     }
@@ -253,6 +258,8 @@ class AppContainer(context: Context) {
         }
 
     fun homeViewModel(): HomeViewModel = HomeViewModel(homeSummaryLoader, ioDispatcher)
+
+    fun spendingReportViewModel(): SpendingReportViewModel = SpendingReportViewModel(spendingReporter, ioDispatcher)
 
     fun createCategoryViewModel(): CreateCategoryViewModel = CreateCategoryViewModel(categoryCreator)
 

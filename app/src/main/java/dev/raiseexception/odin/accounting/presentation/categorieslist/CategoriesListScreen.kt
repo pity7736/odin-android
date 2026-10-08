@@ -56,7 +56,7 @@ import dev.raiseexception.odin.ui.theme.Slate500
 import dev.raiseexception.odin.ui.theme.Slate800
 import kotlinx.coroutines.flow.Flow
 
-@Suppress("LongParameterList")
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 fun CategoriesListScreen(
     uiState: CategoriesListUiState,
@@ -69,6 +69,7 @@ fun CategoriesListScreen(
     onNavigateToHome: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
+    onNavigateToReports: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(Unit) {
@@ -87,6 +88,7 @@ fun CategoriesListScreen(
                 onNavigateToHome = onNavigateToHome,
                 onNavigateToAccounts = onNavigateToAccounts,
                 onNavigateToCategories = onNavigateToCategories,
+                onNavigateToReports = onNavigateToReports,
             )
         },
         floatingActionButton = {

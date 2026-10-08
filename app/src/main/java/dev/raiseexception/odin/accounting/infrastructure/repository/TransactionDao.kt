@@ -3,6 +3,7 @@ package dev.raiseexception.odin.accounting.infrastructure.repository
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -27,4 +28,15 @@ interface TransactionDao {
         """
     )
     fun findDetailById(id: String): Flow<TransactionDetailEntity?>
+
+    @Transaction
+    @Query(
+        """
+        SELECT t.*
+        FROM transactions t
+        LEFT JOIN transfers tr ON tr.expenseId = t.id
+        WHERE t.type = 'EXPENSE' AND t.date BETWEEN :start AND :end AND tr.id IS NULL
+        """
+    )
+    fun findSpendingBetween(start: String, end: String): Flow<List<TransactionWithTagIds>>
 }
