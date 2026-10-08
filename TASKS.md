@@ -65,6 +65,8 @@ continuous days before a production release.
 
 ### During the test
 
+- [ ] Movements can only be seen account by account. There is no place to see the user's transactions across all accounts or to narrow them by category, period, or currency, so the user cannot review, for example, every "Mercado" expense this month regardless of which account or card paid it
+- [ ] A category in the spending report cannot be opened to see the expenses behind its total. The user sees that "Mercado" took $1.250.000,00 this month but cannot see which expenses make up that amount, nor check that they add up to it
 - [ ] The user's data has no protection against loss. All data lives only in the device's encrypted database, so losing or resetting the phone, or an update that breaks the database, loses every record with no way to get it back
 - [ ] Test coverage is not enforced. The Kover rule in `app/build.gradle.kts` uses `minBound(0)`, so `./gradlew koverVerify` and `./gradlew check` pass at any coverage level, while `CLAUDE.md` requires 100% coverage for business logic (domain, application) and ViewModels. A drop in coverage goes unnoticed by the gate
 - [ ] Update incomes
