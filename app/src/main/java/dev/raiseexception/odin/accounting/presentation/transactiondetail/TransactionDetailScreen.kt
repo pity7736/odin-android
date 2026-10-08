@@ -50,6 +50,7 @@ fun TransactionDetailScreen(
     onNavigateToHome: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
+    onNavigateToReports: () -> Unit,
     onEditExpense: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -61,6 +62,7 @@ fun TransactionDetailScreen(
                 onNavigateToHome = onNavigateToHome,
                 onNavigateToAccounts = onNavigateToAccounts,
                 onNavigateToCategories = onNavigateToCategories,
+                onNavigateToReports = onNavigateToReports,
             )
         },
     ) { innerPadding ->

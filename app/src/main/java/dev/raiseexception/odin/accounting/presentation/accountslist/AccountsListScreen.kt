@@ -61,6 +61,7 @@ fun AccountsListScreen(
     onNavigateToHome: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
+    onNavigateToReports: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(Unit) {
@@ -78,6 +79,7 @@ fun AccountsListScreen(
                 onNavigateToHome = onNavigateToHome,
                 onNavigateToAccounts = onNavigateToAccounts,
                 onNavigateToCategories = onNavigateToCategories,
+                onNavigateToReports = onNavigateToReports,
             )
         },
         floatingActionButton = {

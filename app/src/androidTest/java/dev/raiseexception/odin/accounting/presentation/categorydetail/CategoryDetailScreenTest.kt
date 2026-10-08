@@ -28,6 +28,7 @@ class CategoryDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
             )
         }
         composeTestRule.onNodeWithText("Alimentación").assertIsDisplayed()
@@ -51,6 +52,7 @@ class CategoryDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
             )
         }
         composeTestRule.onNodeWithText("Salario").assertIsDisplayed()
@@ -66,6 +68,7 @@ class CategoryDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
             )
         }
         composeTestRule.onNodeWithText("Categoría no encontrada").assertIsDisplayed()
@@ -79,6 +82,7 @@ class CategoryDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
             )
         }
         composeTestRule.onNodeWithText("Error al acceder a los datos").assertIsDisplayed()
@@ -92,6 +96,7 @@ class CategoryDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
             )
         }
         composeTestRule.onNodeWithTag("loading_indicator").assertIsDisplayed()

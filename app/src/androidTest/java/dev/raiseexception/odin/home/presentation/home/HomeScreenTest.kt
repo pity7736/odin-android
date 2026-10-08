@@ -153,7 +153,8 @@ class HomeScreenTest {
                 onNavigateToExpenseCreate = {},
                 onNavigateToTransferCreate = {},
                 onNavigateToAccounts = {},
-                onNavigateToCategories = {}
+                onNavigateToCategories = {},
+                onNavigateToReports = {}
             )
         }
     }

@@ -257,7 +257,8 @@ class AccountDetailScreenTest {
                 onFilterChanged = {},
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
-                onNavigateToCategories = {}
+                onNavigateToCategories = {},
+                onNavigateToReports = {}
             )
         }
     }

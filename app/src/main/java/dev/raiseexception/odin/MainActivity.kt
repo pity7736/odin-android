@@ -56,6 +56,8 @@ import dev.raiseexception.odin.accounts.presentation.startup.StartupState
 import dev.raiseexception.odin.accounts.presentation.startup.StartupViewModel
 import dev.raiseexception.odin.home.presentation.home.HomeScreen
 import dev.raiseexception.odin.home.presentation.home.HomeViewModel
+import dev.raiseexception.odin.reporting.presentation.spendingreport.SpendingReportScreen
+import dev.raiseexception.odin.reporting.presentation.spendingreport.SpendingReportViewModel
 import dev.raiseexception.odin.shared.presentation.Routes
 import dev.raiseexception.odin.ui.theme.OdinTheme
 
@@ -173,6 +175,9 @@ private fun AppNavHost(startRoute: String) {
                 val categoryId = backStackEntry.arguments?.getString("categoryId") ?: ""
                 CategoryDetailDestination(categoryId, navController)
             }
+            composable(Routes.REPORTS) {
+                SpendingReportDestination(navController)
+            }
         }
     }
 }
@@ -241,6 +246,11 @@ private fun AccountsListDestination(navController: NavHostController) {
                 popUpTo(Routes.HOME)
             }
         },
+        onNavigateToReports = {
+            navController.navigate(Routes.REPORTS) {
+                popUpTo(Routes.HOME)
+            }
+        },
     )
 }
 
@@ -303,6 +313,11 @@ private fun AccountDetailDestination(accountId: String, navController: NavHostCo
         },
         onNavigateToCategories = {
             navController.navigate(Routes.CATEGORIES) {
+                popUpTo(Routes.HOME)
+            }
+        },
+        onNavigateToReports = {
+            navController.navigate(Routes.REPORTS) {
                 popUpTo(Routes.HOME)
             }
         },
@@ -425,6 +440,11 @@ private fun HomeDestination(navController: NavHostController) {
         onNavigateToTransferCreate = { navController.navigate(Routes.transferCreate()) },
         onNavigateToAccounts = { navController.navigate(Routes.ACCOUNTS) },
         onNavigateToCategories = { navController.navigate(Routes.CATEGORIES) },
+        onNavigateToReports = {
+            navController.navigate(Routes.REPORTS) {
+                popUpTo(Routes.HOME)
+            }
+        },
     )
 }
 
@@ -456,6 +476,11 @@ private fun CategoriesListDestination(navController: NavHostController) {
             }
         },
         onNavigateToCategories = {},
+        onNavigateToReports = {
+            navController.navigate(Routes.REPORTS) {
+                popUpTo(Routes.HOME)
+            }
+        },
     )
 }
 
@@ -480,6 +505,11 @@ private fun TransactionDetailDestination(transactionId: String, navController: N
         },
         onNavigateToCategories = {
             navController.navigate(Routes.CATEGORIES) {
+                popUpTo(Routes.HOME)
+            }
+        },
+        onNavigateToReports = {
+            navController.navigate(Routes.REPORTS) {
                 popUpTo(Routes.HOME)
             }
         },
@@ -531,5 +561,40 @@ private fun CategoryDetailDestination(categoryId: String, navController: NavHost
                 popUpTo(Routes.HOME)
             }
         },
+        onNavigateToReports = {
+            navController.navigate(Routes.REPORTS) {
+                popUpTo(Routes.HOME)
+            }
+        },
+    )
+}
+
+@Composable
+private fun SpendingReportDestination(navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val spendingReportViewModel: SpendingReportViewModel = viewModel {
+        application.appContainer.spendingReportViewModel()
+    }
+    val uiState by spendingReportViewModel.uiState.collectAsStateWithLifecycle()
+    SpendingReportScreen(
+        uiState = uiState,
+        onPeriodSelected = spendingReportViewModel::onPeriodSelected,
+        onCurrencySelected = spendingReportViewModel::onCurrencySelected,
+        onNavigateToHome = {
+            navController.navigate(Routes.HOME) {
+                popUpTo(Routes.HOME) { inclusive = true }
+            }
+        },
+        onNavigateToAccounts = {
+            navController.navigate(Routes.ACCOUNTS) {
+                popUpTo(Routes.HOME)
+            }
+        },
+        onNavigateToCategories = {
+            navController.navigate(Routes.CATEGORIES) {
+                popUpTo(Routes.HOME)
+            }
+        },
+        onNavigateToReports = {},
     )
 }

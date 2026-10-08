@@ -35,6 +35,7 @@ class TransactionDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
                 onEditExpense = {},
             )
         }
@@ -65,6 +66,7 @@ class TransactionDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
                 onEditExpense = {},
             )
         }
@@ -95,6 +97,7 @@ class TransactionDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
                 onEditExpense = {},
             )
         }
@@ -110,6 +113,7 @@ class TransactionDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
                 onEditExpense = {},
             )
         }
@@ -124,6 +128,7 @@ class TransactionDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
                 onEditExpense = {},
             )
         }
@@ -138,6 +143,7 @@ class TransactionDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
                 onEditExpense = {},
             )
         }
@@ -153,6 +159,7 @@ class TransactionDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
                 onEditExpense = { editClicks++ },
             )
         }
@@ -170,6 +177,7 @@ class TransactionDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
                 onEditExpense = {},
             )
         }
@@ -195,6 +203,7 @@ class TransactionDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
                 onEditExpense = {},
             )
         }
@@ -210,6 +219,7 @@ class TransactionDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
                 onEditExpense = {},
             )
         }
@@ -226,6 +236,7 @@ class TransactionDetailScreenTest {
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
                 onNavigateToCategories = {},
+                onNavigateToReports = {},
                 onEditExpense = {},
             )
         }

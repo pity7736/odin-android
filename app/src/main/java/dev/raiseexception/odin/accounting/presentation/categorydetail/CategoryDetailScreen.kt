@@ -47,6 +47,7 @@ fun CategoryDetailScreen(
     onNavigateToHome: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
+    onNavigateToReports: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -57,6 +58,7 @@ fun CategoryDetailScreen(
                 onNavigateToHome = onNavigateToHome,
                 onNavigateToAccounts = onNavigateToAccounts,
                 onNavigateToCategories = onNavigateToCategories,
+                onNavigateToReports = onNavigateToReports,
             )
         },
     ) { innerPadding ->

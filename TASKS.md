@@ -45,7 +45,7 @@ Tasks are listed in priority order.
 - [x] An income can be recorded on a credit card from the home shortcut. The home income form's account picker lists every account, cards included, and nothing rejects a card as the income's account, so the income is saved and silently lowers the card's debt. A card never takes a user-recorded income; the only money that enters a card is a payment from another account
 - [x] Whether an account is a credit card is stored twice: in `Account.type` (`AccountType.CREDIT_CARD`) and in `Account.funding` (`AccountFunding.Credit`). Nothing in the domain keeps them in agreement — `Account.edit` builds a `Funds` with whatever `type` it receives, so an account with type `CREDIT_CARD` and `Funds` funding is representable, and only the edit form's type filter prevents it. Code that asks "is this account a card?" can read either one
 - [x] How a movement changes an account's main figure is defined twice in `AccountFunding`. `movementEffect(transaction)` states it per funding (for `Funds` an income raises the balance; for `Credit` a payment lowers the debt), while `Funds.balance()` and `Credit.currentDebt()` each fold incomes and expenses with their own hand-written arithmetic. Nothing ties the two together, so they can drift: a change to one leaves the running figure in the movement list disagreeing with the account's current figure
-- [ ] Basic reporting (e.g. expenses by category)
+- [x] Basic reporting (e.g. expenses by category)
 
 ## v0.2.0 — Closed testing
 
@@ -60,6 +60,7 @@ continuous days before a production release.
 - [ ] Registration rollback is incomplete after vault unlock. If any step fails after `vaultUnlocker.unlock()` (user persistence, post-registration setup), only the salt is deleted. The SQLCipher database file remains encrypted with the first attempt's key, blocking future registration retries on app restart
 - [ ] App briefly flashes a content screen (e.g. account details) before navigating to login/registration on cold start. `StartupViewModel` check is async and the default navigation route renders before it resolves
 - [ ] Privacy policy: hosted page describing data handling, required by Play Store for finance apps
+- [ ] Date pickers follow the phone's language instead of Spanish. On a phone set to English, the calendar in every date field (income, expense, and transfer forms, and the spending report's period) shows English month names, day initials, and labels, although all user-facing text must be in Spanish. Nothing in the app sets a language for the pickers or for the app itself
 - [ ] Play Store listing: app icon (512x512), feature graphic (1024x500), screenshots, descriptions, content rating questionnaire, Data Safety section declaration
 
 ### During the test
@@ -69,6 +70,8 @@ continuous days before a production release.
 - [ ] Update incomes
 - [ ] Update categories
 - [ ] Events (group expenses under a trip, project, or occasion for tracking spending on specific activities)
+- [ ] The spending report shows only one total per category for the chosen dates, so the user cannot see how spending in a category changes from one month to the next (e.g. whether food spending is going up)
+- [ ] The spending report cannot be narrowed by tags, so the user cannot see how much went to a specific detail across categories (e.g. everything spent on the car, as opposed to the motorbike, within "Vehículos" and other categories)
 
 ## v1.0.0 — Production
 
@@ -107,6 +110,7 @@ Not yet assigned to a version.
 - [ ] Design a better approach for ViewModel error mapping (unreachable else branch in mapError due to DomainError interface)
 - [ ] `Account.createIncome()` owns income validation logic. Consider moving validation into `Income.create()` so `Income` validates its own invariants and `Account.createIncome()` just delegates, passing `this.id` and `this.currency`.
 - [ ] Navigation: all destinations are defined inline in `AppNavHost` inside `MainActivity.kt`. Extract per-module navigation graphs as screen count grows.
+- [ ] Every screen that shows the bottom bar places `OdinBottomBar` itself and receives one navigation lambda per tab as its own parameters (`AccountDetailScreen`, `AccountsListScreen`, `CategoriesListScreen`, `CategoryDetailScreen`, `HomeScreen`, `TransactionDetailScreen`), and `MainActivity` wires those lambdas separately for each destination. Adding or changing a tab means editing every one of those screens and destinations
 - [ ] `AccountDetailNavigationTarget` has three dead variants (`CreateIncome`, `CreateExpense`, `CreateTransfer`) that are defined and handled in `when` branches but never emitted by `AccountDetailViewModel`. The FABs navigate via direct lambdas, making the ViewModel channel unnecessary for these. Remove the dead variants and their `when` branches
 - [ ] Form field composables are still duplicated as private copies even though shared versions of `OdinField`, `DatePickerField`, `FieldError`, and `CategoryAutocomplete` exist in `shared/presentation/`: `CreateIncomeScreen` (all four), `CreateTransferScreen` (`DatePickerField`, `FieldError`), `EditAccountScreen`, `CreateAccountScreen`, and `CreateCategoryScreen` (`OdinField`, `FieldError`). `LoadingContent` and `ErrorContent` are also duplicated across `CreateExpenseScreen`, `CreateIncomeScreen`, and `CreateTransferScreen`
 - [ ] `ExpenseCreator` and `IncomeCreator` read account balance outside the database transaction (`findById().first()` before `transactionRunner.run {}`). Two concurrent creations could both pass validation on stale balance. Move the read inside the transaction to guarantee consistency
