@@ -49,31 +49,34 @@ Tasks are listed in priority order.
 
 ## v0.2.0 — Closed testing
 
-Play Store requires a closed test with at least 12 testers opted in for 14
-continuous days before a production release.
+A closed test with invited testers to gather feedback before the public
+release. The Play Store's mandatory closed test (12 testers for 14 continuous
+days) applies only to personal developer accounts; the app is published under
+an organization account, so this test is by choice, not a release requirement.
 
 ### Before the test
 
-- [ ] Play Store developer account and at least 12 testers recruited for the closed test (not blocked by code)
-- [ ] Session management + biometric unlock (ship together): lock when the app goes to background, clear master key, close SQLCipher database. Biometric as the fast path back in; password as fallback
+- [ ] Play Store organization developer account for SITIA TECH S A S and testers recruited for the closed test (not blocked by code). Account creation needs the company's D-U-N-S number, requested from Informa Colombia on 2026-10-08 (about 15 business days). D-U-N-S number requested, waiting.
 - [ ] Production failures are invisible. There is no crash reporting and no structured logging, so production crashes and errors are never seen. ViewModels have no global exception handler: uncaught library exceptions crash the app or leave screens stuck. Confirmed during SQLCipher integration: `UnsatisfiedLinkError` in `DatabaseProvider.unlock()` bypasses the `SQLiteException` catch, kills the coroutine, and leaves `LoginViewModel` stuck on `Loading` with no user feedback. Long-running operations (login, registration) have no timeout — if a coroutine hangs (e.g. Room Flow never emitting), the UI stays on Loading forever with no way to cancel or surface an error. Reports and logs must respect zero-knowledge: no keys, plaintext, or financial data
+- [ ] Android's automatic backup is enabled with untouched template rules. `AndroidManifest.xml` sets `android:allowBackup="true"`, and `backup_rules.xml` and `data_extraction_rules.xml` are the generated samples, so Android copies the app's files (encrypted database included) to the user's Google Drive and restores them on a new or reset phone. No one has decided whether these files should leave the device, and what the app does after such a restore is unknown: it may open normally, refuse the user's password, or fail to start. This also determines the Data Safety answers
 - [ ] Registration rollback is incomplete after vault unlock. If any step fails after `vaultUnlocker.unlock()` (user persistence, post-registration setup), only the salt is deleted. The SQLCipher database file remains encrypted with the first attempt's key, blocking future registration retries on app restart
-- [ ] App briefly flashes a content screen (e.g. account details) before navigating to login/registration on cold start. `StartupViewModel` check is async and the default navigation route renders before it resolves
 - [ ] Privacy policy: hosted page describing data handling, required by Play Store for finance apps
-- [ ] Date pickers follow the phone's language instead of Spanish. On a phone set to English, the calendar in every date field (income, expense, and transfer forms, and the spending report's period) shows English month names, day initials, and labels, although all user-facing text must be in Spanish. Nothing in the app sets a language for the pickers or for the app itself
 - [ ] Play Store listing: app icon (512x512), feature graphic (1024x500), screenshots, descriptions, content rating questionnaire, Data Safety section declaration
+- [ ] Test coverage is not enforced. The Kover rule in `app/build.gradle.kts` uses `minBound(0)`, so `./gradlew koverVerify` and `./gradlew check` pass at any coverage level, while `CLAUDE.md` requires 100% coverage for business logic (domain, application) and ViewModels. A drop in coverage goes unnoticed by the gate
 
 ### During the test
 
 - [ ] Movements can only be seen account by account. There is no place to see the user's transactions across all accounts or to narrow them by category, period, or currency, so the user cannot review, for example, every "Mercado" expense this month regardless of which account or card paid it
 - [ ] A category in the spending report cannot be opened to see the expenses behind its total. The user sees that "Mercado" took $1.250.000,00 this month but cannot see which expenses make up that amount, nor check that they add up to it
+- [ ] Session management + biometric unlock (ship together): lock when the app goes to background, clear master key, close SQLCipher database. Biometric as the fast path back in; password as fallback
+- [ ] Events (group expenses under a trip, project, or occasion for tracking spending on specific activities)
+- [ ] Date pickers follow the phone's language instead of Spanish. On a phone set to English, the calendar in every date field (income, expense, and transfer forms, and the spending report's period) shows English month names, day initials, and labels, although all user-facing text must be in Spanish. Nothing in the app sets a language for the pickers or for the app itself
 - [ ] The user's data has no protection against loss. All data lives only in the device's encrypted database, so losing or resetting the phone, or an update that breaks the database, loses every record with no way to get it back
-- [ ] Test coverage is not enforced. The Kover rule in `app/build.gradle.kts` uses `minBound(0)`, so `./gradlew koverVerify` and `./gradlew check` pass at any coverage level, while `CLAUDE.md` requires 100% coverage for business logic (domain, application) and ViewModels. A drop in coverage goes unnoticed by the gate
 - [ ] Update incomes
 - [ ] Update categories
-- [ ] Events (group expenses under a trip, project, or occasion for tracking spending on specific activities)
 - [ ] The spending report shows only one total per category for the chosen dates, so the user cannot see how spending in a category changes from one month to the next (e.g. whether food spending is going up)
 - [ ] The spending report cannot be narrowed by tags, so the user cannot see how much went to a specific detail across categories (e.g. everything spent on the car, as opposed to the motorbike, within "Vehículos" and other categories)
+- [ ] App briefly flashes a content screen (e.g. account details) before navigating to login/registration on cold start. `StartupViewModel` check is async and the default navigation route renders before it resolves
 
 ## v1.0.0 — Production
 
