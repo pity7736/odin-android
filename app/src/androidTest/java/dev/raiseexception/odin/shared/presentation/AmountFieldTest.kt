@@ -45,10 +45,10 @@ class AmountFieldTest {
     }
 
     @Test
-    fun given_amount_field_when_user_types_a_dot_then_the_dot_is_ignored() {
+    fun given_amount_field_when_user_types_a_dot_then_it_starts_the_decimal_part() {
         setAmountField()
         composeTestRule.onNodeWithTag("amount_field").performTextInput("12.34")
-        composeTestRule.onNodeWithText("1.234").assertIsDisplayed()
+        composeTestRule.onNodeWithText("12,34").assertIsDisplayed()
     }
 
     @Test
