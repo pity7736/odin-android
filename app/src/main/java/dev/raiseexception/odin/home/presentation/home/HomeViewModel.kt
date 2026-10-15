@@ -4,18 +4,25 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.home.application.usecase.HomeSummary
 import dev.raiseexception.odin.home.application.usecase.HomeSummaryLoader
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.presentation.RestartableLoad
+import dev.raiseexception.odin.shared.presentation.launchObservation
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 class HomeViewModel(
     private val homeSummaryLoader: HomeSummaryLoader,
+    private val failureRecorder: FailureRecorder,
     private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
@@ -25,19 +32,29 @@ class HomeViewModel(
     private val navigationChannel = Channel<HomeNavigationTarget>(Channel.BUFFERED)
     val navigationEvent: Flow<HomeNavigationTarget> = this.navigationChannel.receiveAsFlow()
 
+    private val restartableLoad = RestartableLoad { this.load() }
+
     init {
-        this.load()
+        this.restartableLoad.start()
     }
 
-    private fun load() {
-        this.viewModelScope.launch(this.ioDispatcher) {
-            this@HomeViewModel.homeSummaryLoader.load().collect { outcome ->
-                this@HomeViewModel.mutableUiState.value = when (outcome) {
-                    is Outcome.Success -> this@HomeViewModel.mapToUiState(outcome.value)
-                    is Outcome.Failure -> HomeUiState.Error("Error al cargar la información")
-                }
-            }
-        }
+    fun retry() {
+        this.mutableUiState.value = HomeUiState.Loading
+        this.restartableLoad.start()
+    }
+
+    private fun load(): Job =
+        this.launchObservation(
+            operation = LOAD_OPERATION,
+            recorder = this.failureRecorder,
+            flow = this.homeSummaryLoader.load().map { outcome -> this.toUiState(outcome) }.flowOn(this.ioDispatcher),
+            onEach = { state -> this.mutableUiState.value = state },
+            onUnexpectedFailure = { this.mutableUiState.value = HomeUiState.UnexpectedFailure }
+        )
+
+    private fun toUiState(outcome: Outcome<HomeSummary>): HomeUiState = when (outcome) {
+        is Outcome.Success -> this.mapToUiState(outcome.value)
+        is Outcome.Failure -> HomeUiState.Error("Error al cargar la información")
     }
 
     fun onAccountSelected(accountId: String) {
@@ -90,4 +107,8 @@ class HomeViewModel(
                 canRecordIncome = summary.canRecordIncome,
             )
         }
+
+    private companion object {
+        const val LOAD_OPERATION = "home.load"
+    }
 }

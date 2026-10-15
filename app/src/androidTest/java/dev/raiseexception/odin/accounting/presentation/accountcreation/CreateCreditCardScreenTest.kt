@@ -22,6 +22,7 @@ class CreateCreditCardScreenTest {
     fun given_credit_card_type_selected_when_displayed_then_shows_credit_limit_and_debt_fields() {
         composeTestRule.setContent {
             CreateAccountScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = CreateAccountUiState.Idle,
                 onCreate = {},
                 navigationEvent = emptyFlow(),
@@ -39,6 +40,7 @@ class CreateCreditCardScreenTest {
         var captured: CreateAccountCommand? = null
         composeTestRule.setContent {
             CreateAccountScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = CreateAccountUiState.Idle,
                 onCreate = { captured = it },
                 navigationEvent = emptyFlow(),
@@ -63,6 +65,7 @@ class CreateCreditCardScreenTest {
     fun given_credit_card_validation_errors_when_displayed_then_shows_credit_limit_and_debt_messages() {
         composeTestRule.setContent {
             CreateAccountScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = CreateAccountUiState.ValidationError(
                     creditLimitError = "El cupo es obligatorio.",
                     debtError = "La deuda actual no puede ser negativa."

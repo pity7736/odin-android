@@ -21,4 +21,5 @@ sealed interface AccountDetailUiState {
     ) : AccountDetailUiState
     data object NotFound : AccountDetailUiState
     data class Error(val message: String) : AccountDetailUiState
+    data object UnexpectedFailure : AccountDetailUiState
 }

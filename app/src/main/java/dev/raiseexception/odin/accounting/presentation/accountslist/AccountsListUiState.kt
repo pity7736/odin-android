@@ -10,4 +10,5 @@ sealed interface AccountsListUiState {
         val creditCards: List<CreditCardItem>
     ) : AccountsListUiState
     data class Error(val message: String) : AccountsListUiState
+    data object UnexpectedFailure : AccountsListUiState
 }

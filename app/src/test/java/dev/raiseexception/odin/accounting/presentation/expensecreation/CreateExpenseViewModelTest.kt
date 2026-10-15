@@ -7,6 +7,7 @@ import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.TagLister
 import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
+import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
@@ -14,6 +15,7 @@ import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.Tag
 import dev.raiseexception.odin.accounting.domain.model.TagInput
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.StorageError
 import dev.raiseexception.odin.shared.presentation.SelectedTag
@@ -25,9 +27,14 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -45,12 +52,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
+import kotlin.time.Duration.Companion.seconds
 
 @Suppress("MagicNumber")
 @OptIn(ExperimentalCoroutinesApi::class)
 class CreateExpenseViewModelTest {
 
     private val expenseCreator = mockk<ExpenseCreator>()
+    private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
     private val categoryLister = mockk<CategoryLister>()
     private val accountFinder = mockk<AccountFinder>()
     private val accountLister = mockk<AccountLister>()
@@ -80,6 +89,7 @@ class CreateExpenseViewModelTest {
         accountFinder = accountFinder,
         accountLister = accountLister,
         tagLister = tagLister,
+        failureRecorder = failureRecorder,
         ioDispatcher = testDispatcher
     )
 
@@ -337,6 +347,7 @@ class CreateExpenseViewModelTest {
             accountFinder = accountFinder,
             accountLister = accountLister,
             tagLister = tagLister,
+            failureRecorder = failureRecorder,
             ioDispatcher = testDispatcher
         )
         viewModel.uiState.test {
@@ -364,6 +375,7 @@ class CreateExpenseViewModelTest {
             accountFinder = accountFinder,
             accountLister = accountLister,
             tagLister = tagLister,
+            failureRecorder = failureRecorder,
             ioDispatcher = testDispatcher
         )
         testDispatcher.scheduler.advanceUntilIdle()
@@ -390,6 +402,7 @@ class CreateExpenseViewModelTest {
             accountFinder = accountFinder,
             accountLister = accountLister,
             tagLister = tagLister,
+            failureRecorder = failureRecorder,
             ioDispatcher = testDispatcher
         )
         testDispatcher.scheduler.advanceUntilIdle()
@@ -440,6 +453,7 @@ class CreateExpenseViewModelTest {
             accountFinder = accountFinder,
             accountLister = accountLister,
             tagLister = tagLister,
+            failureRecorder = failureRecorder,
             ioDispatcher = testDispatcher
         )
         testDispatcher.scheduler.advanceUntilIdle()
@@ -498,12 +512,135 @@ class CreateExpenseViewModelTest {
 
         io.mockk.coVerify(exactly = 1) { expenseCreator.create(any(), any(), any(), any(), any(), any()) }
     }
+
+    @Test
+    fun `given the save throws, when saving an expense, then the prior state is restored and reported`() = runTest {
+        every { categoryLister.list(CategoryType.EXPENSE, "") } returns flowOf(Outcome.Success(listOf(expenseCategory)))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        val stateBeforeSaving = viewModel.uiState.value
+        coEvery { expenseCreator.create(any(), any(), any(), any(), any(), any()) } throws
+            IllegalStateException("falla")
+        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(stateBeforeSaving is CreateExpenseUiState.Idle)
+        assertEquals(stateBeforeSaving, viewModel.uiState.value)
+        viewModel.unexpectedFailureEvent.test {
+            assertEquals(Unit, awaitItem())
+            expectNoEvents()
+        }
+        verify(exactly = 1) { failureRecorder.record(any()) }
+    }
+
+    @Test
+    fun `given a save that takes 60 seconds, when saving an expense, then it completes with no failure`() = runTest {
+        every { categoryLister.list(CategoryType.EXPENSE, "") } returns flowOf(Outcome.Success(listOf(expenseCategory)))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        coEvery { expenseCreator.create(any(), any(), any(), any(), any(), any()) } coAnswers {
+            delay(60.seconds)
+            Outcome.Success(
+                Expense.restore(
+                    id = "exp-1",
+                    accountId = accountId,
+                    amount = Money.of(BigDecimal("500.00"), Currency.COP),
+                    date = LocalDate(2026, 8, 29),
+                    categoryId = expenseCategory.id,
+                    description = "",
+                    createdAt = Instant.parse("2026-08-29T10:00:00Z"),
+                    tagIds = emptyList()
+                )
+            )
+        }
+        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(NavigationTarget.AccountDetail(accountId), viewModel.navigationEvent.first())
+        verify(exactly = 0) { failureRecorder.record(any()) }
+    }
+
+    @Test
+    fun `given an expected failure, when saving an expense, then it shows as before and is not recorded`() =
+        runTest {
+            every { categoryLister.list(CategoryType.EXPENSE, "") } returns
+                flowOf(Outcome.Success(listOf(expenseCategory)))
+            coEvery { expenseCreator.create(any(), any(), any(), any(), any(), any()) } returns Outcome.Failure(
+                ExpenseCreationError.StorageFailure("storage", "No se pudo guardar")
+            )
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CreateExpenseUiState.Error("No se pudo guardar"), viewModel.uiState.value)
+            verify(exactly = 0) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given loading throws, when loading the expense form, then UnexpectedFailure is shown and recorded`() =
+        runTest {
+            every { categoryLister.list(CategoryType.EXPENSE, "") } returns
+                flow<Outcome<List<Category>>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CreateExpenseUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given no result within 10 seconds, when loading the expense form, then UnexpectedFailure is shown`() =
+        runTest {
+            every { categoryLister.list(CategoryType.EXPENSE, "") } returns
+                flow<Outcome<List<Category>>> { awaitCancellation() }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceTimeBy(10.seconds)
+            testDispatcher.scheduler.runCurrent()
+            assertEquals(CreateExpenseUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the expense form again succeeds, then the normal content is shown`() =
+        runTest {
+            every { categoryLister.list(CategoryType.EXPENSE, "") } returns
+                flow<Outcome<List<Category>>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            every { categoryLister.list(CategoryType.EXPENSE, "") } returns
+                flowOf(Outcome.Success(listOf(expenseCategory)))
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertTrue(viewModel.uiState.value is CreateExpenseUiState.Idle)
+        }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the expense form again fails, then it is shown and recorded twice`() =
+        runTest {
+            every { categoryLister.list(CategoryType.EXPENSE, "") } returns
+                flow<Outcome<List<Category>>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CreateExpenseUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 2) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given an expected failure, when loading the expense form, then it shows as before and is not recorded`() =
+        runTest {
+            every { categoryLister.list(CategoryType.EXPENSE, "") } returns
+                flowOf(Outcome.Failure(StorageError("DB error")))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CreateExpenseUiState.Error("Error al acceder a los datos"), viewModel.uiState.value)
+            verify(exactly = 0) { failureRecorder.record(any()) }
+        }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CreateExpenseViewModelTagsTest {
 
     private val expenseCreator = mockk<ExpenseCreator>()
+    private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
     private val categoryLister = mockk<CategoryLister>()
     private val accountFinder = mockk<AccountFinder>()
     private val accountLister = mockk<AccountLister>()
@@ -770,6 +907,7 @@ class CreateExpenseViewModelTagsTest {
         accountFinder = accountFinder,
         accountLister = accountLister,
         tagLister = tagLister,
+        failureRecorder = failureRecorder,
         ioDispatcher = testDispatcher
     )
 
@@ -784,6 +922,7 @@ class CreateExpenseViewModelTagsTest {
         accountFinder = accountFinder,
         accountLister = accountLister,
         tagLister = tagLister,
+        failureRecorder = failureRecorder,
         ioDispatcher = testDispatcher
     )
 

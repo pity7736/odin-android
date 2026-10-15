@@ -13,6 +13,7 @@ import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.StorageError
 import dev.raiseexception.odin.testutil.AccountBuilder
@@ -21,7 +22,9 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -37,12 +40,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AccountDetailViewModelTest {
 
     private val accountFinder = mockk<AccountFinder>()
     private val accountLister = mockk<AccountLister>()
+    private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
     private val accountTransactionLister = AccountTransactionLister()
     private val testDispatcher = StandardTestDispatcher()
     private val accountId = "test-account-id"
@@ -60,7 +65,14 @@ class AccountDetailViewModelTest {
     }
 
     private fun buildViewModel() =
-        AccountDetailViewModel(accountId, accountFinder, accountLister, accountTransactionLister, testDispatcher)
+        AccountDetailViewModel(
+            accountId,
+            accountFinder,
+            accountLister,
+            accountTransactionLister,
+            failureRecorder,
+            testDispatcher
+        )
 
     private fun clockAt(instant: String): Clock = object : Clock {
         override fun now(): Instant = Instant.parse(instant)
@@ -562,6 +574,78 @@ class AccountDetailViewModelTest {
         )
 
     private fun savingsAccount(): Account = AccountBuilder().id("savings-1").build()
+
+    @Test
+    fun `given loading throws, when loading the account, then UnexpectedFailure is shown and recorded`() =
+        runTest {
+            every { accountFinder.find(accountId, criteria) } returns flow<Outcome<Account>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(AccountDetailUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given no result within 10 seconds, when loading the account, then UnexpectedFailure is shown`() = runTest {
+        every { accountFinder.find(accountId, criteria) } returns flow<Outcome<Account>> { awaitCancellation() }
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceTimeBy(10.seconds)
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(AccountDetailUiState.UnexpectedFailure, viewModel.uiState.value)
+        verify(exactly = 1) { failureRecorder.record(any()) }
+    }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the account again succeeds, then the normal content is shown`() =
+        runTest {
+            every { accountFinder.find(accountId, criteria) } returns flow<Outcome<Account>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            every {
+                accountFinder.find(accountId, criteria)
+            } returns flowOf(Outcome.Success(AccountBuilder().id(accountId).build()))
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertTrue(viewModel.uiState.value is AccountDetailUiState.MoneyAccountContent)
+        }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the account again fails, then it is shown and recorded twice`() =
+        runTest {
+            every { accountFinder.find(accountId, criteria) } returns flow<Outcome<Account>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(AccountDetailUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 2) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given an expected failure, when loading the account, then it shows as before and is not recorded`() =
+        runTest {
+            every {
+                accountFinder.find(accountId, criteria)
+            } returns
+                flowOf(Outcome.Failure(AccountLookupError.NotFound("Not found", "No existe")))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(AccountDetailUiState.NotFound, viewModel.uiState.value)
+            verify(exactly = 0) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given a first result then a failure, when loading the account, then UnexpectedFailure is shown`() =
+        runTest {
+            every { accountFinder.find(accountId, criteria) } returns flow<Outcome<Account>> {
+                emit(Outcome.Success(AccountBuilder().id(accountId).build()))
+                error("falla")
+            }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(AccountDetailUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -569,6 +653,7 @@ class AccountDetailViewModelCreditCardMovementsTest {
 
     private val accountFinder = mockk<AccountFinder>()
     private val accountLister = mockk<AccountLister>()
+    private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
     private val accountTransactionLister = AccountTransactionLister()
     private val testDispatcher = StandardTestDispatcher()
     private val accountId = "test-account-id"
@@ -586,7 +671,14 @@ class AccountDetailViewModelCreditCardMovementsTest {
     }
 
     private fun buildViewModel() =
-        AccountDetailViewModel(accountId, accountFinder, accountLister, accountTransactionLister, testDispatcher)
+        AccountDetailViewModel(
+            accountId,
+            accountFinder,
+            accountLister,
+            accountTransactionLister,
+            failureRecorder,
+            testDispatcher
+        )
 
     private fun clockAt(instant: String): Clock = object : Clock {
         override fun now(): Instant = Instant.parse(instant)

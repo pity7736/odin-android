@@ -47,19 +47,23 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.raiseexception.odin.R
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureDialogHost
 import kotlinx.coroutines.flow.Flow
 
+@Suppress("LongParameterList")
 @Composable
 fun RegistrationScreen(
     uiState: RegistrationUiState,
     onRegister: (String, String) -> Unit,
     navigationEvent: Flow<NavigationTarget>,
+    unexpectedFailureEvent: Flow<Unit>,
     onRegistrationSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     LaunchedEffect(Unit) {
         navigationEvent.collect { onRegistrationSuccess() }
     }
+    UnexpectedFailureDialogHost(unexpectedFailureEvent)
     var password by rememberSaveable { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var passwordConfirmation by rememberSaveable { mutableStateOf("") }

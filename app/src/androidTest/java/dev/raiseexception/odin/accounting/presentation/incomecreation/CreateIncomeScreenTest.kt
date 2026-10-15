@@ -1,14 +1,18 @@
 package dev.raiseexception.odin.accounting.presentation.incomecreation
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -36,6 +40,8 @@ class CreateIncomeScreenTest {
     fun given_idle_state_when_displayed_then_shows_amount_date_category_and_description_fields() {
         composeTestRule.setContent {
             CreateIncomeScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = CreateIncomeUiState.Idle(
                     categories = listOf(incomeCategory),
                     accountCreatedAt = LocalDate(2026, 1, 1)
@@ -62,6 +68,8 @@ class CreateIncomeScreenTest {
         var capturedDescription = ""
         composeTestRule.setContent {
             CreateIncomeScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = CreateIncomeUiState.Idle(
                     categories = listOf(incomeCategory),
                     accountCreatedAt = LocalDate(2026, 1, 1)
@@ -90,6 +98,8 @@ class CreateIncomeScreenTest {
     fun given_invalid_amount_when_save_tapped_then_amount_error_is_shown() {
         composeTestRule.setContent {
             CreateIncomeScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = CreateIncomeUiState.ValidationError(
                     categories = listOf(incomeCategory),
                     accountCreatedAt = LocalDate(2026, 1, 1),
@@ -109,6 +119,8 @@ class CreateIncomeScreenTest {
     fun given_future_date_when_save_tapped_then_date_error_is_shown() {
         composeTestRule.setContent {
             CreateIncomeScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = CreateIncomeUiState.ValidationError(
                     categories = listOf(incomeCategory),
                     accountCreatedAt = LocalDate(2026, 1, 1),
@@ -128,6 +140,8 @@ class CreateIncomeScreenTest {
     fun given_missing_category_when_save_tapped_then_category_error_is_shown() {
         composeTestRule.setContent {
             CreateIncomeScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = CreateIncomeUiState.ValidationError(
                     categories = listOf(incomeCategory),
                     accountCreatedAt = LocalDate(2026, 1, 1),
@@ -141,5 +155,46 @@ class CreateIncomeScreenTest {
             )
         }
         composeTestRule.onNodeWithTag("category_field_error").assertIsDisplayed()
+    }
+
+    @Test
+    fun given_typed_text_and_an_unexpected_failure_when_accepting_the_message_then_the_typed_text_is_kept() {
+        val unexpectedFailures = Channel<Unit>(Channel.BUFFERED)
+        composeTestRule.setContent {
+            CreateIncomeScreen(
+                unexpectedFailureEvent = unexpectedFailures.receiveAsFlow(),
+                onRetry = {},
+                uiState = CreateIncomeUiState.Idle(categories = listOf(incomeCategory), accountCreatedAt = LocalDate(2026, 1, 1)),
+                onSave = { _, _, _, _ -> },
+                navigationEvent = emptyFlow(),
+                onNavigateBack = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("description_field").performTextInput("Prima")
+        unexpectedFailures.trySend(Unit)
+        composeTestRule.onNodeWithText("Ocurrió un error inesperado.").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("description_field").assertExists()
+        composeTestRule.onNodeWithText("Aceptar").performClick()
+        composeTestRule.onNodeWithText("Ocurrió un error inesperado.").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("description_field").assertTextContains("Prima", substring = true)
+    }
+
+    @Test
+    fun given_an_unexpected_failure_when_displayed_then_shows_the_retry_content_and_no_information() {
+        composeTestRule.setContent {
+            CreateIncomeScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
+                uiState = CreateIncomeUiState.UnexpectedFailure,
+                onSave = { _, _, _, _ -> },
+                navigationEvent = emptyFlow(),
+                onNavigateBack = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("unexpected_failure_content").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("unexpected_failure_retry").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("amount_field").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("save_button").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("loading_indicator").assertDoesNotExist()
     }
 }

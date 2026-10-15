@@ -7,9 +7,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -59,6 +61,7 @@ import dev.raiseexception.odin.home.presentation.home.HomeViewModel
 import dev.raiseexception.odin.reporting.presentation.spendingreport.SpendingReportScreen
 import dev.raiseexception.odin.reporting.presentation.spendingreport.SpendingReportViewModel
 import dev.raiseexception.odin.shared.presentation.Routes
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
 import dev.raiseexception.odin.ui.theme.OdinTheme
 
 class MainActivity : ComponentActivity() {
@@ -80,6 +83,10 @@ class MainActivity : ComponentActivity() {
                 when (val decided = startupState) {
                     is StartupState.Deciding -> Unit
                     is StartupState.Decided -> AppNavHost(startRoute = decided.startRoute)
+                    is StartupState.UnexpectedFailure -> UnexpectedFailureContent(
+                        onRetry = startupViewModel::retry,
+                        modifier = Modifier.background(MaterialTheme.colorScheme.background),
+                    )
                 }
             }
         }
@@ -191,6 +198,7 @@ private fun RegistrationDestination(navController: NavHostController) {
     val uiState by registrationViewModel.uiState.collectAsStateWithLifecycle()
     RegistrationScreen(
         uiState = uiState,
+        unexpectedFailureEvent = registrationViewModel.unexpectedFailureEvent,
         onRegister = registrationViewModel::register,
         navigationEvent = registrationViewModel.navigationEvent,
         onRegistrationSuccess = {
@@ -210,6 +218,7 @@ private fun LoginDestination(navController: NavHostController) {
     val uiState by loginViewModel.uiState.collectAsStateWithLifecycle()
     LoginScreen(
         uiState = uiState,
+        unexpectedFailureEvent = loginViewModel.unexpectedFailureEvent,
         onLogin = loginViewModel::login,
         navigationEvent = loginViewModel.navigationEvent,
         onLoginSuccess = {
@@ -229,6 +238,7 @@ private fun AccountsListDestination(navController: NavHostController) {
     val uiState by accountsListViewModel.uiState.collectAsStateWithLifecycle()
     AccountsListScreen(
         uiState = uiState,
+        onRetry = accountsListViewModel::retry,
         navigationEvent = accountsListViewModel.navigationEvent,
         onCreateAccount = { navController.navigate(Routes.ACCOUNT_CREATE) },
         onAccountSelected = accountsListViewModel::onAccountSelected,
@@ -263,6 +273,7 @@ private fun CreateAccountDestination(navController: NavHostController) {
     val uiState by createAccountViewModel.uiState.collectAsStateWithLifecycle()
     CreateAccountScreen(
         uiState = uiState,
+        unexpectedFailureEvent = createAccountViewModel.unexpectedFailureEvent,
         onCreate = createAccountViewModel::create,
         navigationEvent = createAccountViewModel.navigationEvent,
         onCreateSuccess = {
@@ -282,6 +293,7 @@ private fun AccountDetailDestination(accountId: String, navController: NavHostCo
     val uiState by accountDetailViewModel.uiState.collectAsStateWithLifecycle()
     AccountDetailScreen(
         uiState = uiState,
+        onRetry = accountDetailViewModel::retry,
         navigationEvent = accountDetailViewModel.navigationEvent,
         onCreateIncome = {
             navController.navigate(Routes.incomeCreate(accountId))
@@ -333,6 +345,8 @@ private fun EditAccountDestination(accountId: String, navController: NavHostCont
     val uiState by editAccountViewModel.uiState.collectAsStateWithLifecycle()
     EditAccountScreen(
         uiState = uiState,
+        unexpectedFailureEvent = editAccountViewModel.unexpectedFailureEvent,
+        onRetry = editAccountViewModel::retry,
         onSave = editAccountViewModel::save,
         navigationEvent = editAccountViewModel.navigationEvent,
         onSaved = { navController.popBackStack() },
@@ -349,6 +363,8 @@ private fun CreateIncomeDestination(accountId: String?, navController: NavHostCo
     val uiState by createIncomeViewModel.uiState.collectAsStateWithLifecycle()
     CreateIncomeScreen(
         uiState = uiState,
+        unexpectedFailureEvent = createIncomeViewModel.unexpectedFailureEvent,
+        onRetry = createIncomeViewModel::retry,
         onSave = createIncomeViewModel::save,
         onAccountSelected = createIncomeViewModel::onAccountSelected,
         navigationEvent = createIncomeViewModel.navigationEvent,
@@ -365,6 +381,8 @@ private fun CreateExpenseDestination(accountId: String?, navController: NavHostC
     val uiState by createExpenseViewModel.uiState.collectAsStateWithLifecycle()
     CreateExpenseScreen(
         uiState = uiState,
+        unexpectedFailureEvent = createExpenseViewModel.unexpectedFailureEvent,
+        onRetry = createExpenseViewModel::retry,
         onSave = createExpenseViewModel::save,
         onAccountSelected = createExpenseViewModel::onAccountSelected,
         onTagTextChange = createExpenseViewModel::onTagTextChange,
@@ -385,6 +403,8 @@ private fun CreateTransferDestination(accountId: String?, navController: NavHost
     val uiState by createTransferViewModel.uiState.collectAsStateWithLifecycle()
     CreateTransferScreen(
         uiState = uiState,
+        unexpectedFailureEvent = createTransferViewModel.unexpectedFailureEvent,
+        onRetry = createTransferViewModel::retry,
         onSourceSelected = createTransferViewModel::onSourceSelected,
         onDestinationSelected = createTransferViewModel::onDestinationSelected,
         onSave = createTransferViewModel::save,
@@ -402,6 +422,7 @@ private fun CreateCategoryDestination(navController: NavHostController) {
     val uiState by createCategoryViewModel.uiState.collectAsStateWithLifecycle()
     CreateCategoryScreen(
         uiState = uiState,
+        unexpectedFailureEvent = createCategoryViewModel.unexpectedFailureEvent,
         onCreate = createCategoryViewModel::create,
         navigationEvent = createCategoryViewModel.navigationEvent,
         onCreateSuccess = {
@@ -421,6 +442,7 @@ private fun HomeDestination(navController: NavHostController) {
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     HomeScreen(
         uiState = uiState,
+        onRetry = homeViewModel::retry,
         navigationEvent = homeViewModel.navigationEvent,
         onAccountSelected = homeViewModel::onAccountSelected,
         onTransactionSelected = homeViewModel::onTransactionSelected,
@@ -457,6 +479,7 @@ private fun CategoriesListDestination(navController: NavHostController) {
     val uiState by categoriesListViewModel.uiState.collectAsStateWithLifecycle()
     CategoriesListScreen(
         uiState = uiState,
+        onRetry = categoriesListViewModel::retry,
         navigationEvent = categoriesListViewModel.navigationEvent,
         onCreateCategory = { navController.navigate(Routes.CATEGORY_CREATE) },
         onFilterChanged = categoriesListViewModel::onFilterChanged,
@@ -493,6 +516,7 @@ private fun TransactionDetailDestination(transactionId: String, navController: N
     val uiState by transactionDetailViewModel.uiState.collectAsStateWithLifecycle()
     TransactionDetailScreen(
         uiState = uiState,
+        onRetry = transactionDetailViewModel::retry,
         onNavigateToHome = {
             navController.navigate(Routes.HOME) {
                 popUpTo(Routes.HOME) { inclusive = true }
@@ -526,6 +550,8 @@ private fun EditExpenseDestination(expenseId: String, navController: NavHostCont
     val uiState by editExpenseViewModel.uiState.collectAsStateWithLifecycle()
     EditExpenseScreen(
         uiState = uiState,
+        unexpectedFailureEvent = editExpenseViewModel.unexpectedFailureEvent,
+        onRetry = editExpenseViewModel::retry,
         onSave = editExpenseViewModel::save,
         navigationEvent = editExpenseViewModel.navigationEvent,
         onSaved = { navController.popBackStack() },
@@ -546,6 +572,7 @@ private fun CategoryDetailDestination(categoryId: String, navController: NavHost
     val uiState by categoryDetailViewModel.uiState.collectAsStateWithLifecycle()
     CategoryDetailScreen(
         uiState = uiState,
+        onRetry = categoryDetailViewModel::retry,
         onNavigateToHome = {
             navController.navigate(Routes.HOME) {
                 popUpTo(Routes.HOME) { inclusive = true }
@@ -578,6 +605,7 @@ private fun SpendingReportDestination(navController: NavHostController) {
     val uiState by spendingReportViewModel.uiState.collectAsStateWithLifecycle()
     SpendingReportScreen(
         uiState = uiState,
+        onRetry = spendingReportViewModel::retry,
         onPeriodSelected = spendingReportViewModel::onPeriodSelected,
         onCurrencySelected = spendingReportViewModel::onCurrencySelected,
         onNavigateToHome = {

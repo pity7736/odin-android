@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.shared.presentation.BottomBarTab
 import dev.raiseexception.odin.shared.presentation.OdinBottomBar
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
 import dev.raiseexception.odin.ui.theme.Slate400
 import dev.raiseexception.odin.ui.theme.Slate50
 import dev.raiseexception.odin.ui.theme.Slate600
@@ -48,6 +49,7 @@ fun CategoryDetailScreen(
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToReports: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -63,6 +65,12 @@ fun CategoryDetailScreen(
         },
     ) { innerPadding ->
         when (uiState) {
+            is CategoryDetailUiState.UnexpectedFailure -> UnexpectedFailureContent(
+                onRetry = onRetry,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
             is CategoryDetailUiState.Loading -> CategoryDetailLoading(
                 modifier = Modifier
                     .fillMaxSize()

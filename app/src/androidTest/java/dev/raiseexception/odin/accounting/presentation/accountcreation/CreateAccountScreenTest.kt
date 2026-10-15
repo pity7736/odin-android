@@ -1,6 +1,7 @@
 package dev.raiseexception.odin.accounting.presentation.accountcreation
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -25,6 +26,7 @@ class CreateAccountScreenTest {
     fun given_idle_state_when_displayed_then_shows_the_fields_and_the_create_action() {
         composeTestRule.setContent {
             CreateAccountScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = CreateAccountUiState.Idle,
                 onCreate = {},
                 navigationEvent = emptyFlow(),
@@ -41,6 +43,7 @@ class CreateAccountScreenTest {
     fun given_loading_state_when_displayed_then_shows_the_loading_indicator() {
         composeTestRule.setContent {
             CreateAccountScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = CreateAccountUiState.Loading,
                 onCreate = {},
                 navigationEvent = emptyFlow(),
@@ -56,6 +59,7 @@ class CreateAccountScreenTest {
         var callbackInvoked = false
         composeTestRule.setContent {
             CreateAccountScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = CreateAccountUiState.Idle,
                 onCreate = {},
                 navigationEvent = channel.receiveAsFlow(),
@@ -71,6 +75,7 @@ class CreateAccountScreenTest {
     fun given_a_validation_error_when_displayed_then_shows_each_field_message() {
         composeTestRule.setContent {
             CreateAccountScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = CreateAccountUiState.ValidationError(
                     nameError = "El nombre es obligatorio.",
                     balanceError = "El saldo inicial no puede ser negativo.",
@@ -95,6 +100,7 @@ class CreateAccountScreenTest {
     fun given_an_error_state_when_displayed_then_shows_the_general_error_message() {
         composeTestRule.setContent {
             CreateAccountScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = CreateAccountUiState.Error("Algo salió mal. Intente de nuevo más tarde"),
                 onCreate = {},
                 navigationEvent = emptyFlow(),
@@ -110,6 +116,7 @@ class CreateAccountScreenTest {
         var captured: CreateAccountCommand? = null
         composeTestRule.setContent {
             CreateAccountScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = CreateAccountUiState.Idle,
                 onCreate = { captured = it },
                 navigationEvent = emptyFlow(),
@@ -134,6 +141,7 @@ class CreateAccountScreenTest {
         var captured: CreateAccountCommand? = null
         composeTestRule.setContent {
             CreateAccountScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = CreateAccountUiState.Idle,
                 onCreate = { captured = it },
                 navigationEvent = emptyFlow(),
@@ -152,6 +160,7 @@ class CreateAccountScreenTest {
         var captured: CreateAccountCommand? = null
         composeTestRule.setContent {
             CreateAccountScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = CreateAccountUiState.Idle,
                 onCreate = { captured = it },
                 navigationEvent = emptyFlow(),
@@ -163,5 +172,26 @@ class CreateAccountScreenTest {
         composeTestRule.onNodeWithText("111.176,46").assertIsDisplayed()
         composeTestRule.onNodeWithTag("create_button").performClick()
         assertEquals("111176.46", (captured as CreateAccountCommand.MoneyAccount).balance)
+    }
+
+    @Test
+    fun given_typed_text_and_an_unexpected_failure_when_accepting_the_message_then_the_typed_text_is_kept() {
+        val unexpectedFailures = Channel<Unit>(Channel.BUFFERED)
+        composeTestRule.setContent {
+            CreateAccountScreen(
+                unexpectedFailureEvent = unexpectedFailures.receiveAsFlow(),
+                uiState = CreateAccountUiState.Idle,
+                onCreate = {},
+                navigationEvent = emptyFlow(),
+                onCreateSuccess = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("name_field").performTextInput("Ahorros")
+        unexpectedFailures.trySend(Unit)
+        composeTestRule.onNodeWithText("Ocurrió un error inesperado.").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("name_field").assertExists()
+        composeTestRule.onNodeWithText("Aceptar").performClick()
+        composeTestRule.onNodeWithText("Ocurrió un error inesperado.").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("name_field").assertTextContains("Ahorros", substring = true)
     }
 }

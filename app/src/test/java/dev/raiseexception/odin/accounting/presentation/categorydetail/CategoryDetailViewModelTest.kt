@@ -3,14 +3,19 @@ package dev.raiseexception.odin.accounting.presentation.categorydetail
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.CategoryFinder
 import dev.raiseexception.odin.accounting.domain.CategoryLookupError
+import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.StorageError
 import dev.raiseexception.odin.testutil.CategoryBuilder
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -20,13 +25,16 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CategoryDetailViewModelTest {
 
     private val categoryFinder = mockk<CategoryFinder>()
+    private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
     private val categoryId = "test-category-id"
     private val bogotaTimeZone = TimeZone.of("America/Bogota")
@@ -42,7 +50,7 @@ class CategoryDetailViewModelTest {
     }
 
     private fun buildViewModel() =
-        CategoryDetailViewModel(categoryId, categoryFinder, testDispatcher, bogotaTimeZone)
+        CategoryDetailViewModel(categoryId, categoryFinder, failureRecorder, testDispatcher, bogotaTimeZone)
 
     @Test
     fun `given an existing category, when loaded, then emits loading then content`() = runTest {
@@ -147,4 +155,76 @@ class CategoryDetailViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test
+    fun `given loading throws, when loading the category, then UnexpectedFailure is shown and recorded`() =
+        runTest {
+            every { categoryFinder.find(categoryId) } returns flow<Outcome<Category>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CategoryDetailUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given no result within 10 seconds, when loading the category, then UnexpectedFailure is shown`() =
+        runTest {
+            every { categoryFinder.find(categoryId) } returns flow<Outcome<Category>> { awaitCancellation() }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceTimeBy(10.seconds)
+            testDispatcher.scheduler.runCurrent()
+            assertEquals(CategoryDetailUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the category again succeeds, then the normal content is shown`() =
+        runTest {
+            every { categoryFinder.find(categoryId) } returns flow<Outcome<Category>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            every { categoryFinder.find(categoryId) } returns
+                flowOf(Outcome.Success(CategoryBuilder().id(categoryId).build()))
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertTrue(viewModel.uiState.value is CategoryDetailUiState.Content)
+        }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the category again fails, then it is shown and recorded twice`() =
+        runTest {
+            every { categoryFinder.find(categoryId) } returns flow<Outcome<Category>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CategoryDetailUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 2) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given an expected failure, when loading the category, then it shows as before and is not recorded`() =
+        runTest {
+            every {
+                categoryFinder.find(categoryId)
+            } returns
+                flowOf(Outcome.Failure(CategoryLookupError.NotFound("Not found", "No existe")))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CategoryDetailUiState.NotFound, viewModel.uiState.value)
+            verify(exactly = 0) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given a first result then a failure, when loading the category, then UnexpectedFailure is shown`() =
+        runTest {
+            every { categoryFinder.find(categoryId) } returns flow<Outcome<Category>> {
+                emit(Outcome.Success(CategoryBuilder().id(categoryId).build()))
+                error("falla")
+            }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CategoryDetailUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
 }

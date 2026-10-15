@@ -21,6 +21,7 @@ class TransactionDetailScreenTest {
     fun given_content_state_with_income_when_displayed_then_shows_income_details() {
         composeTestRule.setContent {
             TransactionDetailScreen(
+                onRetry = {},
                 uiState = TransactionDetailUiState.Content(
                     formattedAmount = "+$1.000,00",
                     amountColor = IncomeGreen,
@@ -52,6 +53,7 @@ class TransactionDetailScreenTest {
     fun given_content_state_with_expense_when_displayed_then_shows_expense_details() {
         composeTestRule.setContent {
             TransactionDetailScreen(
+                onRetry = {},
                 uiState = TransactionDetailUiState.Content(
                     formattedAmount = "-$500,00",
                     amountColor = ExpenseRed,
@@ -83,6 +85,7 @@ class TransactionDetailScreenTest {
     fun given_content_state_with_empty_description_when_displayed_then_hides_description() {
         composeTestRule.setContent {
             TransactionDetailScreen(
+                onRetry = {},
                 uiState = TransactionDetailUiState.Content(
                     formattedAmount = "+$1.000,00",
                     amountColor = IncomeGreen,
@@ -109,6 +112,7 @@ class TransactionDetailScreenTest {
     fun given_loading_state_when_displayed_then_shows_loading_indicator() {
         composeTestRule.setContent {
             TransactionDetailScreen(
+                onRetry = {},
                 uiState = TransactionDetailUiState.Loading,
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -124,6 +128,7 @@ class TransactionDetailScreenTest {
     fun given_not_found_state_when_displayed_then_shows_not_found_message() {
         composeTestRule.setContent {
             TransactionDetailScreen(
+                onRetry = {},
                 uiState = TransactionDetailUiState.NotFound,
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -139,6 +144,7 @@ class TransactionDetailScreenTest {
     fun given_error_state_when_displayed_then_shows_error_message() {
         composeTestRule.setContent {
             TransactionDetailScreen(
+                onRetry = {},
                 uiState = TransactionDetailUiState.Error(message = "Error al acceder a los datos"),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -155,6 +161,7 @@ class TransactionDetailScreenTest {
         var editClicks = 0
         composeTestRule.setContent {
             TransactionDetailScreen(
+                onRetry = {},
                 uiState = expenseContent(isEditable = true),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -173,6 +180,7 @@ class TransactionDetailScreenTest {
     fun given_non_editable_content_when_shown_then_no_editar_action_is_displayed() {
         composeTestRule.setContent {
             TransactionDetailScreen(
+                onRetry = {},
                 uiState = expenseContent(isEditable = false),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -189,6 +197,7 @@ class TransactionDetailScreenTest {
     fun given_content_state_of_a_card_payment_when_displayed_then_names_it_pago() {
         composeTestRule.setContent {
             TransactionDetailScreen(
+                onRetry = {},
                 uiState = TransactionDetailUiState.Content(
                     formattedAmount = "+$300.000,00",
                     amountColor = IncomeGreen,
@@ -215,6 +224,7 @@ class TransactionDetailScreenTest {
     fun given_content_with_tags_when_displayed_then_shows_etiquetas_with_a_chip_per_tag_in_order() {
         composeTestRule.setContent {
             TransactionDetailScreen(
+                onRetry = {},
                 uiState = expenseContent(isEditable = true).copy(tagNames = listOf("Comida", "Nala")),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -232,6 +242,7 @@ class TransactionDetailScreenTest {
     fun given_content_without_tags_when_displayed_then_nothing_about_tags_is_shown() {
         composeTestRule.setContent {
             TransactionDetailScreen(
+                onRetry = {},
                 uiState = expenseContent(isEditable = true),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -255,4 +266,23 @@ class TransactionDetailScreenTest {
         typeLabel = "Gasto",
         isEditable = isEditable,
     )
+
+    @Test
+    fun given_an_unexpected_failure_when_displayed_then_shows_the_retry_content_and_no_information() {
+        composeTestRule.setContent {
+            TransactionDetailScreen(
+                onRetry = {},
+                uiState = TransactionDetailUiState.UnexpectedFailure,
+                onNavigateToHome = {},
+                onNavigateToAccounts = {},
+                onNavigateToCategories = {},
+                onNavigateToReports = {},
+                onEditExpense = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("unexpected_failure_content").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("unexpected_failure_retry").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("amount_text").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("loading_indicator").assertDoesNotExist()
+    }
 }

@@ -2,14 +2,19 @@ package dev.raiseexception.odin.accounting.presentation.categorieslist
 
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
+import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.shared.domain.DomainError
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.CategoryBuilder
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -20,11 +25,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CategoriesListViewModelTest {
 
     private val categoryLister = mockk<CategoryLister>()
+    private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
 
     @Before
@@ -37,7 +44,7 @@ class CategoriesListViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun buildViewModel() = CategoriesListViewModel(categoryLister, testDispatcher)
+    private fun buildViewModel() = CategoriesListViewModel(categoryLister, failureRecorder, testDispatcher)
 
     private val storageError = object : DomainError {
         override val internalMessage = "Storage error"
@@ -161,4 +168,72 @@ class CategoriesListViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test
+    fun `given loading throws, when loading the categories, then UnexpectedFailure is shown and recorded`() =
+        runTest {
+            every { categoryLister.list(any(), any()) } returns flow<Outcome<List<Category>>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CategoriesListUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given no result within 10 seconds, when loading the categories, then UnexpectedFailure is shown`() =
+        runTest {
+            every { categoryLister.list(any(), any()) } returns flow<Outcome<List<Category>>> { awaitCancellation() }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceTimeBy(10.seconds)
+            testDispatcher.scheduler.runCurrent()
+            assertEquals(CategoriesListUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the categories again succeeds, then the normal content is shown`() =
+        runTest {
+            every { categoryLister.list(any(), any()) } returns flow<Outcome<List<Category>>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            every { categoryLister.list(any(), any()) } returns flowOf(Outcome.Success(emptyList()))
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CategoriesListUiState.Empty(null, ""), viewModel.uiState.value)
+        }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the categories again fails, then it is shown and recorded twice`() =
+        runTest {
+            every { categoryLister.list(any(), any()) } returns flow<Outcome<List<Category>>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CategoriesListUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 2) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given an expected failure, when loading the categories, then it shows as before and is not recorded`() =
+        runTest {
+            every { categoryLister.list(any(), any()) } returns flowOf(Outcome.Failure(storageError))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CategoriesListUiState.Error("Error al cargar las categorías"), viewModel.uiState.value)
+            verify(exactly = 0) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given a first result then a failure, when loading the categories, then UnexpectedFailure is shown`() =
+        runTest {
+            every { categoryLister.list(any(), any()) } returns flow<Outcome<List<Category>>> {
+                emit(Outcome.Success(emptyList()))
+                error("falla")
+            }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CategoriesListUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
 }

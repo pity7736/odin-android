@@ -24,7 +24,9 @@ import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Tag
 import dev.raiseexception.odin.shared.presentation.TagSelection
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.Assert.assertEquals
@@ -135,6 +137,8 @@ class EditExpenseScreenTest {
         var uiState: EditExpenseUiState by mutableStateOf(editing)
         composeTestRule.setContent {
             EditExpenseScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = uiState,
                 onSave = { _, _, _, _ -> },
                 navigationEvent = emptyFlow(),
@@ -166,6 +170,8 @@ class EditExpenseScreenTest {
         var uiState: EditExpenseUiState by mutableStateOf(editing)
         composeTestRule.setContent {
             EditExpenseScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = uiState,
                 onSave = { _, _, _, _ -> },
                 navigationEvent = emptyFlow(),
@@ -237,6 +243,8 @@ class EditExpenseScreenTest {
         var removedIndex = -1
         composeTestRule.setContent {
             EditExpenseScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = editing.copy(tagSelection = TagSelection.of(listOf(nalaTag, comidaTag))),
                 onSave = { _, _, _, _ -> },
                 navigationEvent = emptyFlow(),
@@ -272,6 +280,8 @@ class EditExpenseScreenTest {
     ) {
         composeTestRule.setContent {
             EditExpenseScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = uiState,
                 onSave = onSave,
                 navigationEvent = emptyFlow(),
@@ -279,5 +289,38 @@ class EditExpenseScreenTest {
                 onCancel = onCancel,
             )
         }
+    }
+
+    @Test
+    fun given_typed_text_and_an_unexpected_failure_when_accepting_the_message_then_the_typed_text_is_kept() {
+        val unexpectedFailures = Channel<Unit>(Channel.BUFFERED)
+        composeTestRule.setContent {
+            EditExpenseScreen(
+                unexpectedFailureEvent = unexpectedFailures.receiveAsFlow(),
+                onRetry = {},
+                uiState = editing,
+                onSave = { _, _, _, _ -> },
+                navigationEvent = emptyFlow(),
+                onSaved = {},
+                onCancel = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("description_field").performTextInput("Bus")
+        unexpectedFailures.trySend(Unit)
+        composeTestRule.onNodeWithText("Ocurrió un error inesperado.").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("description_field").assertExists()
+        composeTestRule.onNodeWithText("Aceptar").performClick()
+        composeTestRule.onNodeWithText("Ocurrió un error inesperado.").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("description_field").assertTextContains("Bus", substring = true)
+    }
+
+    @Test
+    fun given_an_unexpected_failure_when_displayed_then_shows_the_retry_content_and_no_information() {
+        setScreen(EditExpenseUiState.UnexpectedFailure)
+        composeTestRule.onNodeWithTag("unexpected_failure_content").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("unexpected_failure_retry").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("amount_field").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("save_button").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("not_found_message").assertDoesNotExist()
     }
 }

@@ -4,12 +4,15 @@ import app.cash.turbine.test
 import dev.raiseexception.odin.accounts.application.usecase.UserRegistrar
 import dev.raiseexception.odin.accounts.domain.RegistrationError
 import dev.raiseexception.odin.accounts.domain.model.User
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -20,6 +23,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import kotlin.time.Duration.Companion.seconds
 
 private const val TEST_BYTE_ARRAY_SIZE = 8
 
@@ -27,13 +31,14 @@ private const val TEST_BYTE_ARRAY_SIZE = 8
 class RegistrationViewModelTest {
 
     private val userRegistrar = mockk<UserRegistrar>()
+    private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: RegistrationViewModel
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        viewModel = RegistrationViewModel(userRegistrar)
+        viewModel = RegistrationViewModel(userRegistrar, failureRecorder)
     }
 
     @After
@@ -221,5 +226,50 @@ class RegistrationViewModelTest {
                 (state as RegistrationUiState.Error).message
             )
         }
+    }
+
+    @Test
+    fun `given the save throws, when registering, then the prior state is restored and reported`() =
+        runTest {
+            coEvery { userRegistrar.register(any(), any()) } returns Outcome.Failure(
+                RegistrationError.PasswordsDoNotMatch(internalMessage = "mismatch", externalMessage = "No coinciden")
+            )
+            viewModel.register("validPassword1", "validPassword2")
+            testDispatcher.scheduler.advanceUntilIdle()
+            coEvery { userRegistrar.register(any(), any()) } throws IllegalStateException("falla")
+            viewModel.register("validPassword1", "validPassword2")
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(
+                RegistrationUiState.ValidationError(passwordConfirmationError = "No coinciden"),
+                viewModel.uiState.value
+            )
+            viewModel.unexpectedFailureEvent.test {
+                assertEquals(Unit, awaitItem())
+                expectNoEvents()
+            }
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given a save that takes 60 seconds, when registering, then it completes with no failure`() = runTest {
+        coEvery { userRegistrar.register(any(), any()) } coAnswers {
+            delay(60.seconds)
+            Outcome.Success(User(id = "id", wrappedMasterKey = ByteArray(TEST_BYTE_ARRAY_SIZE)))
+        }
+        viewModel.register("validPassword1", "validPassword1")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(NavigationTarget.Home, viewModel.navigationEvent.first())
+        verify(exactly = 0) { failureRecorder.record(any()) }
+    }
+
+    @Test
+    fun `given an expected failure, when registering, then its own state is shown and nothing is recorded`() = runTest {
+        coEvery { userRegistrar.register(any(), any()) } returns Outcome.Failure(
+            RegistrationError.StorageFailure("storage", "No se pudo guardar")
+        )
+        viewModel.register("validPassword1", "validPassword2")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(RegistrationUiState.Error("No se pudo guardar"), viewModel.uiState.value)
+        verify(exactly = 0) { failureRecorder.record(any()) }
     }
 }

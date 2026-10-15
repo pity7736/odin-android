@@ -43,6 +43,7 @@ import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.shared.presentation.AmountField
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureDialogHost
 import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.Slate200
@@ -58,12 +59,14 @@ fun CreateAccountScreen(
     uiState: CreateAccountUiState,
     onCreate: (CreateAccountCommand) -> Unit,
     navigationEvent: Flow<NavigationTarget>,
+    unexpectedFailureEvent: Flow<Unit>,
     onCreateSuccess: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(Unit) {
         navigationEvent.collect { onCreateSuccess() }
     }
+    UnexpectedFailureDialogHost(unexpectedFailureEvent)
     var name by rememberSaveable { mutableStateOf("") }
     var balance by rememberSaveable { mutableStateOf("") }
     var creditLimit by rememberSaveable { mutableStateOf("") }

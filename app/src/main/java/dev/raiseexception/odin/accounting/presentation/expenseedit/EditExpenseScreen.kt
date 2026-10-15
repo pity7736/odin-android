@@ -38,6 +38,8 @@ import dev.raiseexception.odin.shared.presentation.CategoryAutocomplete
 import dev.raiseexception.odin.shared.presentation.DatePickerField
 import dev.raiseexception.odin.shared.presentation.OdinField
 import dev.raiseexception.odin.shared.presentation.TagField
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureDialogHost
 import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
 import dev.raiseexception.odin.shared.presentation.resolveCategoryInput
@@ -55,6 +57,8 @@ fun EditExpenseScreen(
     uiState: EditExpenseUiState,
     onSave: (String, String, CategoryInput, String) -> Unit,
     navigationEvent: Flow<Unit>,
+    unexpectedFailureEvent: Flow<Unit>,
+    onRetry: () -> Unit,
     onSaved: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
@@ -66,7 +70,9 @@ fun EditExpenseScreen(
     LaunchedEffect(Unit) {
         navigationEvent.collect { onSaved() }
     }
+    UnexpectedFailureDialogHost(unexpectedFailureEvent)
     when (uiState) {
+        is EditExpenseUiState.UnexpectedFailure -> UnexpectedFailureContent(onRetry = onRetry, modifier = modifier)
         is EditExpenseUiState.Loading -> EditExpenseLoading(modifier)
         is EditExpenseUiState.NotFound -> EditExpenseNotFound(modifier)
         is EditExpenseUiState.Editing -> EditExpenseForm(

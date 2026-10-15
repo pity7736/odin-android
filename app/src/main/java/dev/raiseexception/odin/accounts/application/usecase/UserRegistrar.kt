@@ -27,10 +27,12 @@ class UserRegistrar(
 ) {
 
     suspend fun register(password: SensitivePassword, confirmation: SensitivePassword): Outcome<User> {
-        val result = this.performValidationAndRegistration(password, confirmation)
-        password.wipe()
-        confirmation.wipe()
-        return result
+        try {
+            return this.performValidationAndRegistration(password, confirmation)
+        } finally {
+            password.wipe()
+            confirmation.wipe()
+        }
     }
 
     private suspend fun performValidationAndRegistration(

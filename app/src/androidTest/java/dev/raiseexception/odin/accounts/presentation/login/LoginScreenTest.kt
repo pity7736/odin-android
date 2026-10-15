@@ -2,6 +2,7 @@ package dev.raiseexception.odin.accounts.presentation.login
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -25,6 +26,7 @@ class LoginScreenTest {
     fun given_idle_state_when_displayed_then_shows_password_field_and_submit_hidden_by_default() {
         composeTestRule.setContent {
             LoginScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = LoginUiState.Idle,
                 onLogin = {},
                 navigationEvent = emptyFlow(),
@@ -41,6 +43,7 @@ class LoginScreenTest {
     fun given_hidden_password_when_reveal_toggled_then_password_becomes_visible_and_can_be_hidden_again() {
         composeTestRule.setContent {
             LoginScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = LoginUiState.Idle,
                 onLogin = {},
                 navigationEvent = emptyFlow(),
@@ -58,6 +61,7 @@ class LoginScreenTest {
     fun given_loading_state_when_displayed_then_shows_loading_indicator_and_disables_submit() {
         composeTestRule.setContent {
             LoginScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = LoginUiState.Loading,
                 onLogin = {},
                 navigationEvent = emptyFlow(),
@@ -72,6 +76,7 @@ class LoginScreenTest {
     fun given_validation_error_when_displayed_then_shows_error_next_to_password_field() {
         composeTestRule.setContent {
             LoginScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = LoginUiState.ValidationError(passwordError = "Ingrese su contraseña"),
                 onLogin = {},
                 navigationEvent = emptyFlow(),
@@ -86,6 +91,7 @@ class LoginScreenTest {
     fun given_error_state_when_displayed_then_shows_general_error_message() {
         composeTestRule.setContent {
             LoginScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = LoginUiState.Error(message = "Contraseña incorrecta"),
                 onLogin = {},
                 navigationEvent = emptyFlow(),
@@ -101,6 +107,7 @@ class LoginScreenTest {
         var capturedPassword = ""
         composeTestRule.setContent {
             LoginScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = LoginUiState.Idle,
                 onLogin = { capturedPassword = it },
                 navigationEvent = emptyFlow(),
@@ -118,6 +125,7 @@ class LoginScreenTest {
         var callbackInvoked = false
         composeTestRule.setContent {
             LoginScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = LoginUiState.Idle,
                 onLogin = {},
                 navigationEvent = channel.receiveAsFlow(),
@@ -127,5 +135,27 @@ class LoginScreenTest {
         channel.trySend(NavigationTarget.Home)
         composeTestRule.waitUntil(timeoutMillis = 3000) { callbackInvoked }
         assertTrue(callbackInvoked)
+    }
+
+    @Test
+    fun given_typed_text_and_an_unexpected_failure_when_accepting_the_message_then_the_typed_text_is_kept() {
+        val unexpectedFailures = Channel<Unit>(Channel.BUFFERED)
+        composeTestRule.setContent {
+            LoginScreen(
+                unexpectedFailureEvent = unexpectedFailures.receiveAsFlow(),
+                uiState = LoginUiState.Idle,
+                onLogin = {},
+                navigationEvent = emptyFlow(),
+                onLoginSuccess = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("password_field").performTextInput("clave-secreta")
+        unexpectedFailures.trySend(Unit)
+        composeTestRule.onNodeWithText("Ocurrió un error inesperado.").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("password_field").assertExists()
+        composeTestRule.onNodeWithText("Aceptar").performClick()
+        composeTestRule.onNodeWithText("Ocurrió un error inesperado.").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("reveal_toggle").performClick()
+        composeTestRule.onNodeWithTag("password_field").assertTextContains("clave-secreta", substring = true)
     }
 }

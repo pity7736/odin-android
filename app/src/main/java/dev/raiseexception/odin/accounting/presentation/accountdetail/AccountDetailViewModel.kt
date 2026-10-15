@@ -10,9 +10,13 @@ import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.presentation.RestartableLoad
 import dev.raiseexception.odin.shared.presentation.isMoneyAccount
+import dev.raiseexception.odin.shared.presentation.launchObservation
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +32,7 @@ class AccountDetailViewModel(
     private val accountFinder: AccountFinder,
     private val accountLister: AccountLister,
     private val accountTransactionLister: AccountTransactionLister,
+    private val failureRecorder: FailureRecorder,
     private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -39,35 +44,45 @@ class AccountDetailViewModel(
 
     private val activeFilter = MutableStateFlow(TransactionFilter.ALL)
     private var cachedDetail: LoadedDetail? = null
+    private val restartableLoad = RestartableLoad { this.observeAccount() }
 
     init {
-        this.observeAccount()
+        this.restartableLoad.start()
     }
 
-    private fun observeAccount() {
+    fun retry() {
+        this.mutableUiState.value = AccountDetailUiState.Loading
+        this.restartableLoad.start()
+    }
+
+    private fun observeAccount(): Job {
         val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
-        this.viewModelScope.launch {
-            combine(
-                this@AccountDetailViewModel.accountFinder.find(this@AccountDetailViewModel.accountId, criteria),
-                this@AccountDetailViewModel.accountLister.list()
-            ) { accountOutcome, accountsOutcome ->
-                Pair(accountOutcome, this@AccountDetailViewModel.hasMoneyAccount(accountsOutcome))
-            }.flowOn(this@AccountDetailViewModel.ioDispatcher).collect { (outcome, canPay) ->
-                this@AccountDetailViewModel.mutableUiState.value = when (outcome) {
-                    is Outcome.Success -> {
-                        val detail = LoadedDetail(outcome.value, canPay)
-                        this@AccountDetailViewModel.cachedDetail = detail
-                        this@AccountDetailViewModel.toContentState(
-                            detail,
-                            this@AccountDetailViewModel.activeFilter.value
-                        )
-                    }
-                    is Outcome.Failure -> when (outcome.error) {
-                        is AccountLookupError.NotFound -> AccountDetailUiState.NotFound
-                        else -> AccountDetailUiState.Error(outcome.error.externalMessage)
-                    }
-                }
-            }
+        val detailFlow = combine(
+            this.accountFinder.find(this.accountId, criteria),
+            this.accountLister.list()
+        ) { accountOutcome, accountsOutcome ->
+            this.toLoadedState(accountOutcome, this.hasMoneyAccount(accountsOutcome))
+        }.flowOn(this.ioDispatcher)
+        return this.launchObservation(
+            operation = LOAD_OPERATION,
+            recorder = this.failureRecorder,
+            flow = detailFlow,
+            onEach = { (detail, state) ->
+                this.cachedDetail = detail ?: this.cachedDetail
+                this.mutableUiState.value = state
+            },
+            onUnexpectedFailure = { this.mutableUiState.value = AccountDetailUiState.UnexpectedFailure }
+        )
+    }
+
+    private fun toLoadedState(outcome: Outcome<Account>, canPay: Boolean): LoadedState = when (outcome) {
+        is Outcome.Success -> {
+            val detail = LoadedDetail(outcome.value, canPay)
+            LoadedState(detail, this.toContentState(detail, this.activeFilter.value))
+        }
+        is Outcome.Failure -> when (outcome.error) {
+            is AccountLookupError.NotFound -> LoadedState(null, AccountDetailUiState.NotFound)
+            else -> LoadedState(null, AccountDetailUiState.Error(outcome.error.externalMessage))
         }
     }
 
@@ -138,4 +153,10 @@ class AccountDetailViewModel(
     }
 
     private data class LoadedDetail(val account: Account, val canPay: Boolean)
+
+    private data class LoadedState(val detail: LoadedDetail?, val uiState: AccountDetailUiState)
+
+    private companion object {
+        const val LOAD_OPERATION = "account-detail.load"
+    }
 }

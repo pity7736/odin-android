@@ -72,6 +72,8 @@ class TagFieldKeyboardVisibilityTest {
             Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                 Box(modifier = Modifier.padding(innerPadding).imePadding()) {
                     CreateExpenseScreen(
+                        unexpectedFailureEvent = emptyFlow(),
+                        onRetry = {},
                         uiState = uiState,
                         onSave = { _, _, _, _ -> },
                         onTagTextChange = { text ->

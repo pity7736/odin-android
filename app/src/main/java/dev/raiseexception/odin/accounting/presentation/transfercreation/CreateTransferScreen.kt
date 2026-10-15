@@ -47,6 +47,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.shared.presentation.AmountField
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureDialogHost
 import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.Slate200
@@ -69,6 +71,8 @@ fun CreateTransferScreen(
     onDestinationSelected: (String) -> Unit,
     onSave: (String, String) -> Unit,
     navigationEvent: Flow<NavigationTarget>,
+    unexpectedFailureEvent: Flow<Unit>,
+    onRetry: () -> Unit,
     onNavigateBack: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -79,7 +83,9 @@ fun CreateTransferScreen(
             }
         }
     }
+    UnexpectedFailureDialogHost(unexpectedFailureEvent)
     when (uiState) {
+        is CreateTransferUiState.UnexpectedFailure -> UnexpectedFailureContent(onRetry = onRetry, modifier = modifier)
         is CreateTransferUiState.Loading -> LoadingContent(modifier)
         is CreateTransferUiState.Error -> ErrorContent(message = uiState.message, modifier = modifier)
         else -> TransferForm(

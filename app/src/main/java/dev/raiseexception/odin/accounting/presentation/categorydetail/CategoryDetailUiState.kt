@@ -13,4 +13,5 @@ sealed interface CategoryDetailUiState {
     ) : CategoryDetailUiState
     data object NotFound : CategoryDetailUiState
     data class Error(val message: String) : CategoryDetailUiState
+    data object UnexpectedFailure : CategoryDetailUiState
 }

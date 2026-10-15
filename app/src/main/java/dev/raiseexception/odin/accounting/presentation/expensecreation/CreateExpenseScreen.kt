@@ -40,6 +40,8 @@ import dev.raiseexception.odin.shared.presentation.DatePickerField
 import dev.raiseexception.odin.shared.presentation.OdinField
 import dev.raiseexception.odin.shared.presentation.TagField
 import dev.raiseexception.odin.shared.presentation.TagSelection
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureDialogHost
 import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.shared.presentation.resolveCategoryInput
 import dev.raiseexception.odin.ui.theme.ExpenseRed
@@ -63,6 +65,8 @@ fun CreateExpenseScreen(
     onTagPicked: (Tag) -> Unit = {},
     onTagRemoved: (Int) -> Unit = {},
     navigationEvent: Flow<NavigationTarget>,
+    unexpectedFailureEvent: Flow<Unit>,
+    onRetry: () -> Unit,
     onNavigateBack: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -74,6 +78,7 @@ fun CreateExpenseScreen(
             }
         }
     }
+    UnexpectedFailureDialogHost(unexpectedFailureEvent)
     val currentTagSelection = when (uiState) {
         is CreateExpenseUiState.Idle -> uiState.tagSelection
         is CreateExpenseUiState.ValidationError -> uiState.tagSelection
@@ -84,6 +89,7 @@ fun CreateExpenseScreen(
         if (currentTagSelection != null) lastTagSelection = currentTagSelection
     }
     when (uiState) {
+        is CreateExpenseUiState.UnexpectedFailure -> UnexpectedFailureContent(onRetry = onRetry, modifier = modifier)
         is CreateExpenseUiState.Loading -> LoadingContent(modifier)
         is CreateExpenseUiState.Error -> ErrorContent(message = uiState.message, modifier = modifier)
         else -> ExpenseForm(

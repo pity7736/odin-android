@@ -245,6 +245,7 @@ class AccountDetailScreenTest {
     ) {
         this.composeTestRule.setContent {
             AccountDetailScreen(
+                onRetry = {},
                 uiState = uiState,
                 navigationEvent = emptyFlow(),
                 onCreateIncome = {},
@@ -264,4 +265,14 @@ class AccountDetailScreenTest {
     }
 
     private fun pesos(amount: String) = Money.of(BigDecimal(amount), Currency.COP)
+
+    @Test
+    fun given_an_unexpected_failure_when_displayed_then_shows_the_retry_content_and_no_information() {
+        this.setScreen(AccountDetailUiState.UnexpectedFailure)
+        composeTestRule.onNodeWithTag("unexpected_failure_content").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("unexpected_failure_retry").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("account_balance").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("credit_card_debt").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("empty_transactions_message").assertDoesNotExist()
+    }
 }
