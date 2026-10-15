@@ -13,4 +13,5 @@ sealed interface SpendingReportUiState {
         val currency: Currency,
     ) : SpendingReportUiState
     data class Error(val message: String) : SpendingReportUiState
+    data object UnexpectedFailure : SpendingReportUiState
 }

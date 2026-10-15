@@ -52,6 +52,7 @@ import dev.raiseexception.odin.shared.domain.SPANISH_MONTHS
 import dev.raiseexception.odin.shared.presentation.BottomBarTab
 import dev.raiseexception.odin.shared.presentation.ExpandableFab
 import dev.raiseexception.odin.shared.presentation.OdinBottomBar
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
 import dev.raiseexception.odin.shared.presentation.formatMoney
 import dev.raiseexception.odin.ui.theme.ExpenseBadge
@@ -96,6 +97,7 @@ fun AccountDetailScreen(
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToReports: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     LaunchedEffect(Unit) {
@@ -155,45 +157,16 @@ fun AccountDetailScreen(
         },
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
-            when (uiState) {
-                is AccountDetailUiState.Loading -> AccountDetailLoading(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                )
-                is AccountDetailUiState.MoneyAccountContent -> AccountDetailContent(
-                    account = uiState.account,
-                    initialBalance = uiState.initialBalance,
-                    transactions = uiState.transactions,
-                    activeFilter = uiState.activeFilter,
-                    onEditAccount = onEditAccount,
-                    onTransactionSelected = onTransactionSelected,
-                    onFilterChanged = onFilterChanged,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                )
-                is AccountDetailUiState.CreditCardContent -> CreditCardDetailContent(
-                    uiState = uiState,
-                    onTransactionSelected = onTransactionSelected,
-                    onFilterChanged = onFilterChanged,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                )
-                is AccountDetailUiState.NotFound -> AccountDetailMessage(
-                    message = "Cuenta no encontrada",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                )
-                is AccountDetailUiState.Error -> AccountDetailMessage(
-                    message = uiState.message,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                )
-            }
+            AccountDetailBody(
+                uiState = uiState,
+                onRetry = onRetry,
+                onEditAccount = onEditAccount,
+                onTransactionSelected = onTransactionSelected,
+                onFilterChanged = onFilterChanged,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
             if (fabExpanded) {
                 Box(
                     modifier = Modifier
@@ -206,6 +179,51 @@ fun AccountDetailScreen(
                 )
             }
         }
+    }
+}
+
+@Suppress("LongParameterList")
+@Composable
+private fun AccountDetailBody(
+    uiState: AccountDetailUiState,
+    onRetry: () -> Unit,
+    onEditAccount: () -> Unit,
+    onTransactionSelected: (String) -> Unit,
+    onFilterChanged: (TransactionFilter) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (uiState) {
+        is AccountDetailUiState.UnexpectedFailure -> UnexpectedFailureContent(
+            onRetry = onRetry,
+            modifier = modifier,
+        )
+        is AccountDetailUiState.Loading -> AccountDetailLoading(
+            modifier = modifier,
+        )
+        is AccountDetailUiState.MoneyAccountContent -> AccountDetailContent(
+            account = uiState.account,
+            initialBalance = uiState.initialBalance,
+            transactions = uiState.transactions,
+            activeFilter = uiState.activeFilter,
+            onEditAccount = onEditAccount,
+            onTransactionSelected = onTransactionSelected,
+            onFilterChanged = onFilterChanged,
+            modifier = modifier,
+        )
+        is AccountDetailUiState.CreditCardContent -> CreditCardDetailContent(
+            uiState = uiState,
+            onTransactionSelected = onTransactionSelected,
+            onFilterChanged = onFilterChanged,
+            modifier = modifier,
+        )
+        is AccountDetailUiState.NotFound -> AccountDetailMessage(
+            message = "Cuenta no encontrada",
+            modifier = modifier,
+        )
+        is AccountDetailUiState.Error -> AccountDetailMessage(
+            message = uiState.message,
+            modifier = modifier,
+        )
     }
 }
 

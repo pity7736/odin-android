@@ -1,29 +1,38 @@
 package dev.raiseexception.odin.accounting.presentation.transfercreation
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.application.usecase.TransferCreator
 import dev.raiseexception.odin.accounting.domain.TransferCreationError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountFunding
+import dev.raiseexception.odin.accounting.domain.model.Transfer
 import dev.raiseexception.odin.shared.domain.DomainError
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.presentation.RestartableLoad
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureSignal
 import dev.raiseexception.odin.shared.presentation.isMoneyAccount
+import dev.raiseexception.odin.shared.presentation.launchObservation
+import dev.raiseexception.odin.shared.presentation.launchOperation
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class CreateTransferViewModel(
     private val originAccountId: String?,
     private val transferCreator: TransferCreator,
     private val accountLister: AccountLister,
+    private val failureRecorder: FailureRecorder,
     private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -33,19 +42,19 @@ class CreateTransferViewModel(
     private val navigationChannel = Channel<NavigationTarget>(Channel.BUFFERED)
     val navigationEvent: Flow<NavigationTarget> = this.navigationChannel.receiveAsFlow()
 
+    private val unexpectedFailure = UnexpectedFailureSignal(this.mutableUiState)
+    val unexpectedFailureEvent: Flow<Unit> = this.unexpectedFailure.event
+
     private var accounts: List<Account> = emptyList()
+    private val restartableLoad = RestartableLoad { this.load() }
 
     init {
-        this.viewModelScope.launch(this.ioDispatcher) {
-            val outcome = this@CreateTransferViewModel.accountLister.list().first()
-            this@CreateTransferViewModel.mutableUiState.value = when (outcome) {
-                is Outcome.Success -> {
-                    this@CreateTransferViewModel.accounts = outcome.value
-                    this@CreateTransferViewModel.initialState()
-                }
-                is Outcome.Failure -> CreateTransferUiState.Error(outcome.error.externalMessage)
-            }
-        }
+        this.restartableLoad.start()
+    }
+
+    fun retry() {
+        this.mutableUiState.value = CreateTransferUiState.Loading
+        this.restartableLoad.start()
     }
 
     fun onSourceSelected(sourceAccountId: String) {
@@ -84,7 +93,8 @@ class CreateTransferViewModel(
     }
 
     fun save(amount: String, date: String) {
-        if (this.mutableUiState.value is CreateTransferUiState.Saving) return
+        val stateBeforeSaving = this.mutableUiState.value
+        if (stateBeforeSaving is CreateTransferUiState.Saving) return
         val selection = this.currentSelection()
         val formState = this.idle(selection)
         this.mutableUiState.value = CreateTransferUiState.Saving(
@@ -94,19 +104,47 @@ class CreateTransferViewModel(
             selectedDestinationAccountId = formState.selectedDestinationAccountId,
             saveLabel = formState.saveLabel
         )
-        this.viewModelScope.launch(this.ioDispatcher) {
-            val outcome = this@CreateTransferViewModel.transferCreator.create(
-                sourceAccountId = selection.sourceAccountId,
-                destinationAccountId = selection.destinationAccountId,
-                amount = amount,
-                date = date
-            )
-            when (outcome) {
-                is Outcome.Success -> navigationChannel.send(NavigationTarget.AccountDetail(selection.sourceAccountId))
-                is Outcome.Failure -> mutableUiState.value = mapError(outcome.error, selection)
-            }
+        this.launchOperation(
+            operation = SUBMIT_OPERATION,
+            recorder = this.failureRecorder,
+            work = {
+                withContext(this.ioDispatcher) {
+                    transferCreator.create(
+                        sourceAccountId = selection.sourceAccountId,
+                        destinationAccountId = selection.destinationAccountId,
+                        amount = amount,
+                        date = date
+                    )
+                }
+            },
+            onResult = { outcome -> this.handleSave(outcome, selection) },
+            onUnexpectedFailure = { this.unexpectedFailure.restore(stateBeforeSaving) }
+        )
+    }
+
+    private suspend fun handleSave(outcome: Outcome<Transfer>, selection: Selection) {
+        when (outcome) {
+            is Outcome.Success -> this.navigationChannel.send(NavigationTarget.AccountDetail(selection.sourceAccountId))
+            is Outcome.Failure -> this.mutableUiState.value = this.mapError(outcome.error, selection)
         }
     }
+
+    private fun load(): Job =
+        this.launchObservation(
+            operation = LOAD_OPERATION,
+            recorder = this.failureRecorder,
+            flow = flow { emit(accountLister.list().first()) }.flowOn(this.ioDispatcher),
+            onEach = { outcome ->
+                this.mutableUiState.value = when (outcome) {
+                    is Outcome.Success -> {
+                        this.accounts = outcome.value
+                        this.initialState()
+                    }
+                    is Outcome.Failure -> CreateTransferUiState.Error(outcome.error.externalMessage)
+                }
+            },
+            onUnexpectedFailure = { this.mutableUiState.value = CreateTransferUiState.UnexpectedFailure }
+        )
 
     private fun initialState(): CreateTransferUiState.Idle {
         val origin = this.accounts.firstOrNull { it.id == this.originAccountId }
@@ -177,6 +215,8 @@ class CreateTransferViewModel(
     private data class Selection(val sourceAccountId: String, val destinationAccountId: String)
 
     companion object {
+        private const val LOAD_OPERATION = "transfer-creation.load"
+        private const val SUBMIT_OPERATION = "transfer-creation.submit"
         private const val PAY_LABEL = "Pagar"
         private const val TRANSFER_LABEL = "Transferir"
     }

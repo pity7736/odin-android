@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.raiseexception.odin.shared.presentation.OdinBottomBar
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
 import dev.raiseexception.odin.ui.theme.ExpenseBadge
 import dev.raiseexception.odin.ui.theme.ExpenseDark
 import dev.raiseexception.odin.ui.theme.IncomeBadge
@@ -52,6 +53,7 @@ fun TransactionDetailScreen(
     onNavigateToCategories: () -> Unit,
     onNavigateToReports: () -> Unit,
     onEditExpense: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -67,6 +69,12 @@ fun TransactionDetailScreen(
         },
     ) { innerPadding ->
         when (uiState) {
+            is TransactionDetailUiState.UnexpectedFailure -> UnexpectedFailureContent(
+                onRetry = onRetry,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
             is TransactionDetailUiState.Loading -> TransactionDetailLoading(
                 modifier = Modifier
                     .fillMaxSize()

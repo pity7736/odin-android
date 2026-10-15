@@ -138,6 +138,7 @@ class HomeScreenTest {
     private fun setScreen(uiState: HomeUiState, onAccountSelected: (String) -> Unit = {}) {
         this.composeTestRule.setContent {
             HomeScreen(
+                onRetry = {},
                 uiState = uiState,
                 navigationEvent = emptyFlow(),
                 onAccountSelected = onAccountSelected,
@@ -160,4 +161,14 @@ class HomeScreenTest {
     }
 
     private fun pesos(amount: String) = Money.of(BigDecimal(amount), Currency.COP)
+
+    @Test
+    fun given_an_unexpected_failure_when_displayed_then_shows_the_retry_content_and_no_information() {
+        this.setScreen(HomeUiState.UnexpectedFailure)
+        composeTestRule.onNodeWithTag("unexpected_failure_content").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("unexpected_failure_retry").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("empty_accounts_message").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("total_balance_zero").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("empty_transactions_message").assertDoesNotExist()
+    }
 }

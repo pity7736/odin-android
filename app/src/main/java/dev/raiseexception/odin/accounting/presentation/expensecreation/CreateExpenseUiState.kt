@@ -33,4 +33,5 @@ sealed interface CreateExpenseUiState {
         val tagSelection: TagSelection = TagSelection(),
     ) : CreateExpenseUiState
     data class Error(val message: String) : CreateExpenseUiState
+    data object UnexpectedFailure : CreateExpenseUiState
 }

@@ -46,13 +46,16 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.raiseexception.odin.R
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureDialogHost
 import kotlinx.coroutines.flow.Flow
 
+@Suppress("LongParameterList")
 @Composable
 fun LoginScreen(
     uiState: LoginUiState,
     onLogin: (String) -> Unit,
     navigationEvent: Flow<NavigationTarget>,
+    unexpectedFailureEvent: Flow<Unit>,
     onLoginSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -60,6 +63,7 @@ fun LoginScreen(
     LaunchedEffect(Unit) {
         navigationEvent.collect { onLoginSuccess() }
     }
+    UnexpectedFailureDialogHost(unexpectedFailureEvent)
     var password by rememberSaveable { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     Column(

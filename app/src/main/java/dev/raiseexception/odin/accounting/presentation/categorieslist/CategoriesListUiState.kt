@@ -15,4 +15,5 @@ sealed interface CategoriesListUiState {
         val searchQuery: String,
     ) : CategoriesListUiState
     data class Error(val message: String) : CategoriesListUiState
+    data object UnexpectedFailure : CategoriesListUiState
 }

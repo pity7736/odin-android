@@ -9,6 +9,7 @@ import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.TransactionDetail
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.StorageError
 import dev.raiseexception.odin.testutil.TagBuilder
@@ -16,8 +17,11 @@ import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.IncomeGreen
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -31,11 +35,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TransactionDetailViewModelTest {
 
     private val transactionFinder = mockk<TransactionFinder>()
+    private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
     private val transactionId = "test-tx-id"
 
@@ -50,7 +56,7 @@ class TransactionDetailViewModelTest {
     }
 
     private fun buildViewModel() =
-        TransactionDetailViewModel(transactionId, transactionFinder, testDispatcher)
+        TransactionDetailViewModel(transactionId, transactionFinder, failureRecorder, testDispatcher)
 
     @Test
     fun `given a loading state, when the view model initializes, then emits loading`() = runTest {
@@ -321,4 +327,76 @@ class TransactionDetailViewModelTest {
             accountType = AccountType.CASH,
             tags = emptyList()
         )
+
+    @Test
+    fun `given loading throws, when loading the movement, then UnexpectedFailure is shown and recorded`() =
+        runTest {
+            every { transactionFinder.find(transactionId) } returns flow<Outcome<TransactionDetail>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(TransactionDetailUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given no result within 10 seconds, when loading the movement, then UnexpectedFailure is shown`() =
+        runTest {
+            every { transactionFinder.find(transactionId) } returns
+                flow<Outcome<TransactionDetail>> { awaitCancellation() }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceTimeBy(10.seconds)
+            testDispatcher.scheduler.runCurrent()
+            assertEquals(TransactionDetailUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the movement again succeeds, then the normal content is shown`() =
+        runTest {
+            every { transactionFinder.find(transactionId) } returns flow<Outcome<TransactionDetail>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(incomeDetail()))
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertTrue(viewModel.uiState.value is TransactionDetailUiState.Content)
+        }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the movement again fails, then it is shown and recorded twice`() =
+        runTest {
+            every { transactionFinder.find(transactionId) } returns flow<Outcome<TransactionDetail>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(TransactionDetailUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 2) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given an expected failure, when loading the movement, then it shows as before and is not recorded`() =
+        runTest {
+            every {
+                transactionFinder.find(transactionId)
+            } returns
+                flowOf(Outcome.Failure(TransactionLookupError.NotFound("Not found", "No existe")))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(TransactionDetailUiState.NotFound, viewModel.uiState.value)
+            verify(exactly = 0) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given a first result then a failure, when loading the movement, then UnexpectedFailure is shown`() =
+        runTest {
+            every { transactionFinder.find(transactionId) } returns flow<Outcome<TransactionDetail>> {
+                emit(Outcome.Success(incomeDetail()))
+                error("falla")
+            }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(TransactionDetailUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
 }

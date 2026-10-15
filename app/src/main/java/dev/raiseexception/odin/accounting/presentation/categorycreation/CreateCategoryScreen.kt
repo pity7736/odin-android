@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureDialogHost
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.Slate200
 import dev.raiseexception.odin.ui.theme.Slate50
@@ -53,17 +54,20 @@ import dev.raiseexception.odin.ui.theme.Slate900
 import dev.raiseexception.odin.ui.theme.SoraFamily
 import kotlinx.coroutines.flow.Flow
 
+@Suppress("LongParameterList")
 @Composable
 fun CreateCategoryScreen(
     uiState: CreateCategoryUiState,
     onCreate: (String, CategoryType?, String, String?) -> Unit,
     navigationEvent: Flow<NavigationTarget>,
+    unexpectedFailureEvent: Flow<Unit>,
     onCreateSuccess: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(Unit) {
         navigationEvent.collect { onCreateSuccess() }
     }
+    UnexpectedFailureDialogHost(unexpectedFailureEvent)
     var name by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
     var selectedColor by rememberSaveable { mutableStateOf<String?>(null) }

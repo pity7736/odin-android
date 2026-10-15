@@ -6,6 +6,7 @@ import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 sealed interface EditAccountUiState {
     data object Loading : EditAccountUiState
     data object NotFound : EditAccountUiState
+    data object UnexpectedFailure : EditAccountUiState
     data class Editing(
         val name: String,
         val initialBalance: String,

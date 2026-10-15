@@ -211,4 +211,12 @@ class UserAuthenticatorTest {
     }
 
     private fun sensitivePassword(raw: String) = SensitivePassword(raw.toCharArray())
+
+    @Test
+    fun `given the work throws, when authenticating, then password is wiped`() = runTest {
+        coEvery { saltRepository.get() } throws IllegalStateException("falla")
+        val password = sensitivePassword("validPassword1")
+        runCatching { authenticator.authenticate(password) }
+        assertTrue(password.isBlank())
+    }
 }

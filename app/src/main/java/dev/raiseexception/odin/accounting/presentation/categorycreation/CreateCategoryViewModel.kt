@@ -1,22 +1,25 @@
 package dev.raiseexception.odin.accounting.presentation.categorycreation
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.domain.CategoryCreationError
+import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.shared.domain.DomainError
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureSignal
+import dev.raiseexception.odin.shared.presentation.launchOperation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.launch
 
 class CreateCategoryViewModel(
-    private val categoryCreator: CategoryCreator
+    private val categoryCreator: CategoryCreator,
+    private val failureRecorder: FailureRecorder,
 ) : ViewModel() {
 
     private val mutableUiState = MutableStateFlow<CreateCategoryUiState>(CreateCategoryUiState.Idle)
@@ -25,20 +28,31 @@ class CreateCategoryViewModel(
     private val navigationChannel = Channel<NavigationTarget>(Channel.BUFFERED)
     val navigationEvent: Flow<NavigationTarget> = this.navigationChannel.receiveAsFlow()
 
+    private val unexpectedFailure = UnexpectedFailureSignal(this.mutableUiState)
+    val unexpectedFailureEvent: Flow<Unit> = this.unexpectedFailure.event
+
     fun create(
         rawName: String,
         type: CategoryType?,
         rawDescription: String,
         color: String?
     ) {
-        if (this.mutableUiState.value is CreateCategoryUiState.Loading) return
+        val stateBeforeSaving = this.mutableUiState.value
+        if (stateBeforeSaving is CreateCategoryUiState.Loading) return
         this.mutableUiState.value = CreateCategoryUiState.Loading
-        this.viewModelScope.launch {
-            val outcome = categoryCreator.create(rawName, type, rawDescription, color)
-            when (outcome) {
-                is Outcome.Success -> navigationChannel.send(NavigationTarget.CategoriesList)
-                is Outcome.Failure -> mutableUiState.value = mapError(outcome.error)
-            }
+        this.launchOperation(
+            operation = SUBMIT_OPERATION,
+            recorder = this.failureRecorder,
+            work = { this.categoryCreator.create(rawName, type, rawDescription, color) },
+            onResult = { outcome -> this.handle(outcome) },
+            onUnexpectedFailure = { this.unexpectedFailure.restore(stateBeforeSaving) }
+        )
+    }
+
+    private suspend fun handle(outcome: Outcome<Category>) {
+        when (outcome) {
+            is Outcome.Success -> this.navigationChannel.send(NavigationTarget.CategoriesList)
+            is Outcome.Failure -> this.mutableUiState.value = this.mapError(outcome.error)
         }
     }
 
@@ -57,5 +71,9 @@ class CreateCategoryViewModel(
         is CategoryCreationError.CryptoFailure -> CreateCategoryUiState.Error(error.externalMessage)
         is CategoryCreationError.StorageFailure -> CreateCategoryUiState.Error(error.externalMessage)
         else -> CreateCategoryUiState.Error(error.externalMessage)
+    }
+
+    private companion object {
+        const val SUBMIT_OPERATION = "category-creation.submit"
     }
 }

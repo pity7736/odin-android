@@ -27,4 +27,5 @@ sealed interface CreateIncomeUiState {
         val accountError: String? = null,
     ) : CreateIncomeUiState
     data class Error(val message: String) : CreateIncomeUiState
+    data object UnexpectedFailure : CreateIncomeUiState
 }

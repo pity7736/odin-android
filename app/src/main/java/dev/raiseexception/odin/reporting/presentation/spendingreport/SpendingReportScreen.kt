@@ -46,6 +46,7 @@ import dev.raiseexception.odin.reporting.presentation.DonutSlice
 import dev.raiseexception.odin.shared.presentation.BottomBarTab
 import dev.raiseexception.odin.shared.presentation.DateRangePickerField
 import dev.raiseexception.odin.shared.presentation.OdinBottomBar
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
 import dev.raiseexception.odin.shared.presentation.formatMoney
 import dev.raiseexception.odin.ui.theme.ExpenseRed
@@ -70,6 +71,7 @@ fun SpendingReportScreen(
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToReports: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -101,6 +103,7 @@ fun SpendingReportScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
             when (uiState) {
+                is SpendingReportUiState.UnexpectedFailure -> UnexpectedFailureContent(onRetry = onRetry)
                 is SpendingReportUiState.Loading -> LoadingContent()
                 is SpendingReportUiState.Error -> ErrorContent(uiState.message)
                 is SpendingReportUiState.Content -> ReportContent(

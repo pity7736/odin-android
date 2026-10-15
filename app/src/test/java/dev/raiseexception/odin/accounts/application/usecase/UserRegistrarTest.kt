@@ -386,4 +386,14 @@ class UserRegistrarTest {
     }
 
     private fun sensitivePassword(raw: String) = SensitivePassword(raw.toCharArray())
+
+    @Test
+    fun `given the work throws, when registering, then both passwords are wiped`() = runTest {
+        coEvery { saltRepository.exists() } throws IllegalStateException("falla")
+        val password = sensitivePassword("validPassword1")
+        val confirmation = sensitivePassword("validPassword1")
+        runCatching { registrar.register(password, confirmation) }
+        assertTrue(password.isBlank())
+        assertTrue(confirmation.isBlank())
+    }
 }

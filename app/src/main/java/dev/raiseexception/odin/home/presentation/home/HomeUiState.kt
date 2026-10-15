@@ -17,4 +17,5 @@ sealed interface HomeUiState {
         val canRecordIncome: Boolean,
     ) : HomeUiState
     data class Error(val message: String) : HomeUiState
+    data object UnexpectedFailure : HomeUiState
 }

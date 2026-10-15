@@ -26,9 +26,11 @@ class UserAuthenticator(
 ) {
 
     suspend fun authenticate(password: SensitivePassword): Outcome<User> {
-        val result = this.performAuthentication(password)
-        password.wipe()
-        return result
+        try {
+            return this.performAuthentication(password)
+        } finally {
+            password.wipe()
+        }
     }
 
     private suspend fun performAuthentication(password: SensitivePassword): Outcome<User> {

@@ -41,6 +41,7 @@ import dev.raiseexception.odin.shared.presentation.AccountIcon
 import dev.raiseexception.odin.shared.presentation.BottomBarTab
 import dev.raiseexception.odin.shared.presentation.CreditCardRow
 import dev.raiseexception.odin.shared.presentation.OdinBottomBar
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
 import dev.raiseexception.odin.shared.presentation.formatMoney
 import dev.raiseexception.odin.ui.theme.OrangePrimary
@@ -62,6 +63,7 @@ fun AccountsListScreen(
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToReports: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(Unit) {
@@ -98,6 +100,12 @@ fun AccountsListScreen(
         },
     ) { innerPadding ->
         when (uiState) {
+            is AccountsListUiState.UnexpectedFailure -> UnexpectedFailureContent(
+                onRetry = onRetry,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
             is AccountsListUiState.Loading -> LoadingContent(
                 modifier = Modifier
                     .fillMaxSize()

@@ -47,6 +47,7 @@ import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.shared.presentation.BottomBarTab
 import dev.raiseexception.odin.shared.presentation.OdinBottomBar
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
 import dev.raiseexception.odin.ui.theme.OrangePrimary
 import dev.raiseexception.odin.ui.theme.Slate200
@@ -70,6 +71,7 @@ fun CategoriesListScreen(
     onNavigateToAccounts: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToReports: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(Unit) {
@@ -107,6 +109,12 @@ fun CategoriesListScreen(
         },
     ) { innerPadding ->
         when (uiState) {
+            is CategoriesListUiState.UnexpectedFailure -> UnexpectedFailureContent(
+                onRetry = onRetry,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
             is CategoriesListUiState.Loading -> LoadingContent(
                 modifier = Modifier
                     .fillMaxSize()

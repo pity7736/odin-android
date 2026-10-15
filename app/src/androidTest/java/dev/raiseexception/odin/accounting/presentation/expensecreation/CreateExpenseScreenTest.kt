@@ -17,7 +17,9 @@ import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Tag
 import dev.raiseexception.odin.shared.presentation.TagSelection
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.Assert.assertEquals
@@ -46,6 +48,8 @@ class CreateExpenseScreenTest {
     fun given_idle_state_when_displayed_then_shows_amount_date_category_and_description_fields() {
         composeTestRule.setContent {
             CreateExpenseScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = CreateExpenseUiState.Idle(
                     categories = listOf(expenseCategory),
                     accountCreatedAt = LocalDate(2026, 1, 1)
@@ -67,6 +71,8 @@ class CreateExpenseScreenTest {
         var capturedAmount = ""
         composeTestRule.setContent {
             CreateExpenseScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = CreateExpenseUiState.Idle(
                     categories = listOf(expenseCategory),
                     accountCreatedAt = LocalDate(2026, 1, 1)
@@ -89,6 +95,8 @@ class CreateExpenseScreenTest {
     fun given_invalid_amount_when_save_tapped_then_amount_error_is_shown() {
         composeTestRule.setContent {
             CreateExpenseScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = CreateExpenseUiState.ValidationError(
                     categories = listOf(expenseCategory),
                     accountCreatedAt = LocalDate(2026, 1, 1),
@@ -108,6 +116,8 @@ class CreateExpenseScreenTest {
     fun given_future_date_when_save_tapped_then_date_error_is_shown() {
         composeTestRule.setContent {
             CreateExpenseScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = CreateExpenseUiState.ValidationError(
                     categories = listOf(expenseCategory),
                     accountCreatedAt = LocalDate(2026, 1, 1),
@@ -127,6 +137,8 @@ class CreateExpenseScreenTest {
     fun given_missing_category_when_save_tapped_then_category_error_is_shown() {
         composeTestRule.setContent {
             CreateExpenseScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = CreateExpenseUiState.ValidationError(
                     categories = listOf(expenseCategory),
                     accountCreatedAt = LocalDate(2026, 1, 1),
@@ -249,6 +261,8 @@ class CreateExpenseScreenTest {
         )
         composeTestRule.setContent {
             CreateExpenseScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = uiState,
                 onSave = { _, _, _, _ -> },
                 navigationEvent = emptyFlow(),
@@ -269,6 +283,8 @@ class CreateExpenseScreenTest {
     ) {
         composeTestRule.setContent {
             CreateExpenseScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
                 uiState = CreateExpenseUiState.Idle(
                     categories = listOf(expenseCategory),
                     accountCreatedAt = LocalDate(2026, 1, 1),
@@ -284,5 +300,46 @@ class CreateExpenseScreenTest {
                 onNavigateBack = {}
             )
         }
+    }
+
+    @Test
+    fun given_typed_text_and_an_unexpected_failure_when_accepting_the_message_then_the_typed_text_is_kept() {
+        val unexpectedFailures = Channel<Unit>(Channel.BUFFERED)
+        composeTestRule.setContent {
+            CreateExpenseScreen(
+                unexpectedFailureEvent = unexpectedFailures.receiveAsFlow(),
+                onRetry = {},
+                uiState = CreateExpenseUiState.Idle(categories = listOf(expenseCategory), accountCreatedAt = LocalDate(2026, 1, 1)),
+                onSave = { _, _, _, _ -> },
+                navigationEvent = emptyFlow(),
+                onNavigateBack = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("description_field").performTextInput("Mercado")
+        unexpectedFailures.trySend(Unit)
+        composeTestRule.onNodeWithText("Ocurrió un error inesperado.").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("description_field").assertExists()
+        composeTestRule.onNodeWithText("Aceptar").performClick()
+        composeTestRule.onNodeWithText("Ocurrió un error inesperado.").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("description_field").assertTextContains("Mercado", substring = true)
+    }
+
+    @Test
+    fun given_an_unexpected_failure_when_displayed_then_shows_the_retry_content_and_no_information() {
+        composeTestRule.setContent {
+            CreateExpenseScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
+                uiState = CreateExpenseUiState.UnexpectedFailure,
+                onSave = { _, _, _, _ -> },
+                navigationEvent = emptyFlow(),
+                onNavigateBack = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("unexpected_failure_content").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("unexpected_failure_retry").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("amount_field").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("save_button").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("loading_indicator").assertDoesNotExist()
     }
 }

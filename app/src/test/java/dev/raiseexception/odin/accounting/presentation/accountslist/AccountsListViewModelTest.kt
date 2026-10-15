@@ -2,16 +2,21 @@ package dev.raiseexception.odin.accounting.presentation.accountslist
 
 import app.cash.turbine.test
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
+import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.DomainError
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -23,11 +28,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AccountsListViewModelTest {
 
     private val accountLister = mockk<AccountLister>()
+    private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
 
     @Before
@@ -42,7 +49,7 @@ class AccountsListViewModelTest {
 
     private val criteriaWithTransactions = AccountCriteria(includeIncomes = true, includeExpenses = true)
 
-    private fun buildViewModel() = AccountsListViewModel(accountLister, testDispatcher)
+    private fun buildViewModel() = AccountsListViewModel(accountLister, failureRecorder, testDispatcher)
 
     private fun account(id: String, name: String) = AccountBuilder().id(id).name(name).build()
 
@@ -274,4 +281,76 @@ class AccountsListViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test
+    fun `given loading throws, when loading the accounts, then UnexpectedFailure is shown and recorded`() =
+        runTest {
+            every { accountLister.list(criteriaWithTransactions) } returns
+                flow<Outcome<List<Account>>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(AccountsListUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given no result within 10 seconds, when loading the accounts, then UnexpectedFailure is shown`() =
+        runTest {
+            every { accountLister.list(criteriaWithTransactions) } returns
+                flow<Outcome<List<Account>>> { awaitCancellation() }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceTimeBy(10.seconds)
+            testDispatcher.scheduler.runCurrent()
+            assertEquals(AccountsListUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the accounts again succeeds, then the normal content is shown`() =
+        runTest {
+            every { accountLister.list(criteriaWithTransactions) } returns
+                flow<Outcome<List<Account>>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            every { accountLister.list(criteriaWithTransactions) } returns flowOf(Outcome.Success(emptyList()))
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(AccountsListUiState.Empty, viewModel.uiState.value)
+        }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the accounts again fails, then it is shown and recorded twice`() =
+        runTest {
+            every { accountLister.list(criteriaWithTransactions) } returns
+                flow<Outcome<List<Account>>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(AccountsListUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 2) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given an expected failure, when loading the accounts, then it shows as before and is not recorded`() =
+        runTest {
+            every { accountLister.list(criteriaWithTransactions) } returns flowOf(Outcome.Failure(storageError))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(AccountsListUiState.Error("Error al cargar las cuentas"), viewModel.uiState.value)
+            verify(exactly = 0) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given a first result then a failure, when loading the accounts, then UnexpectedFailure is shown`() =
+        runTest {
+            every { accountLister.list(criteriaWithTransactions) } returns flow<Outcome<List<Account>>> {
+                emit(Outcome.Success(emptyList()))
+                error("falla")
+            }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(AccountsListUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
 }

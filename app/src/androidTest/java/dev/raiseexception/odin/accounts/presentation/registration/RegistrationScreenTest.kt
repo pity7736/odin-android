@@ -1,6 +1,7 @@
 package dev.raiseexception.odin.accounts.presentation.registration
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -23,6 +24,7 @@ class RegistrationScreenTest {
     fun given_idle_state_when_displayed_then_shows_password_fields_submit_and_recommendation() {
         composeTestRule.setContent {
             RegistrationScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = RegistrationUiState.Idle,
                 onRegister = { _, _ -> },
                 navigationEvent = emptyFlow(),
@@ -39,6 +41,7 @@ class RegistrationScreenTest {
     fun given_loading_state_when_displayed_then_shows_loading_indicator() {
         composeTestRule.setContent {
             RegistrationScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = RegistrationUiState.Loading,
                 onRegister = { _, _ -> },
                 navigationEvent = emptyFlow(),
@@ -54,6 +57,7 @@ class RegistrationScreenTest {
         var callbackInvoked = false
         composeTestRule.setContent {
             RegistrationScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = RegistrationUiState.Idle,
                 onRegister = { _, _ -> },
                 navigationEvent = channel.receiveAsFlow(),
@@ -69,6 +73,7 @@ class RegistrationScreenTest {
     fun given_validation_error_with_password_error_when_displayed_then_shows_error_next_to_password_field() {
         composeTestRule.setContent {
             RegistrationScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = RegistrationUiState.ValidationError(
                     passwordError = "La contraseña debe tener al menos 12 caracteres"
                 ),
@@ -85,6 +90,7 @@ class RegistrationScreenTest {
     fun given_validation_error_with_confirmation_error_when_displayed_then_shows_error_next_to_confirmation_field() {
         composeTestRule.setContent {
             RegistrationScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = RegistrationUiState.ValidationError(
                     passwordConfirmationError = "Las contraseñas no coinciden"
                 ),
@@ -101,6 +107,7 @@ class RegistrationScreenTest {
     fun given_error_state_when_displayed_then_shows_general_error_message() {
         composeTestRule.setContent {
             RegistrationScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = RegistrationUiState.Error(
                     message = "Algo salió mal. Intente de nuevo más tarde"
                 ),
@@ -119,6 +126,7 @@ class RegistrationScreenTest {
         var capturedConfirmation = ""
         composeTestRule.setContent {
             RegistrationScreen(
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = RegistrationUiState.Idle,
                 onRegister = { password, confirmation ->
                     capturedPassword = password
@@ -133,5 +141,27 @@ class RegistrationScreenTest {
         composeTestRule.onNodeWithTag("register_button").performClick()
         assertEquals("mySecurePassword1", capturedPassword)
         assertEquals("mySecurePassword1", capturedConfirmation)
+    }
+
+    @Test
+    fun given_typed_text_and_an_unexpected_failure_when_accepting_the_message_then_the_typed_text_is_kept() {
+        val unexpectedFailures = Channel<Unit>(Channel.BUFFERED)
+        composeTestRule.setContent {
+            RegistrationScreen(
+                unexpectedFailureEvent = unexpectedFailures.receiveAsFlow(),
+                uiState = RegistrationUiState.Idle,
+                onRegister = { _, _ -> },
+                navigationEvent = emptyFlow(),
+                onRegistrationSuccess = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("password_field").performTextInput("clave-secreta")
+        unexpectedFailures.trySend(Unit)
+        composeTestRule.onNodeWithText("Ocurrió un error inesperado.").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("password_field").assertExists()
+        composeTestRule.onNodeWithText("Aceptar").performClick()
+        composeTestRule.onNodeWithText("Ocurrió un error inesperado.").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("password_field_reveal_toggle").performClick()
+        composeTestRule.onNodeWithTag("password_field").assertTextContains("clave-secreta", substring = true)
     }
 }

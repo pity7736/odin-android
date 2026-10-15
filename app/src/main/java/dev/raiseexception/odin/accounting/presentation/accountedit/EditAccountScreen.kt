@@ -44,6 +44,8 @@ import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.model.toAccountType
 import dev.raiseexception.odin.shared.presentation.AmountField
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureDialogHost
 import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.Slate100
@@ -64,6 +66,8 @@ fun EditAccountScreen(
     uiState: EditAccountUiState,
     onSave: (String, String, Currency?, MoneyAccountKind?, String) -> Unit,
     navigationEvent: Flow<Unit>,
+    unexpectedFailureEvent: Flow<Unit>,
+    onRetry: () -> Unit,
     onSaved: () -> Unit,
     onCancel: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -71,7 +75,9 @@ fun EditAccountScreen(
     LaunchedEffect(Unit) {
         navigationEvent.collect { onSaved() }
     }
+    UnexpectedFailureDialogHost(unexpectedFailureEvent)
     when (uiState) {
+        is EditAccountUiState.UnexpectedFailure -> UnexpectedFailureContent(onRetry = onRetry, modifier = modifier)
         is EditAccountUiState.Loading -> EditAccountLoading(modifier)
         is EditAccountUiState.NotFound -> EditAccountMessage(modifier)
         is EditAccountUiState.Editing -> EditAccountForm(uiState, onSave, onCancel, modifier)

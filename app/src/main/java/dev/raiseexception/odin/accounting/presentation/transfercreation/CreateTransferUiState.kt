@@ -32,4 +32,5 @@ sealed interface CreateTransferUiState {
         val destinationAccountError: String? = null
     ) : CreateTransferUiState
     data class Error(val message: String) : CreateTransferUiState
+    data object UnexpectedFailure : CreateTransferUiState
 }

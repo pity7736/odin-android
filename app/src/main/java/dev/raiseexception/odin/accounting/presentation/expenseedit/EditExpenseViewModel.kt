@@ -1,7 +1,6 @@
 package dev.raiseexception.odin.accounting.presentation.expenseedit
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseUpdater
@@ -13,17 +12,24 @@ import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Tag
 import dev.raiseexception.odin.shared.domain.DomainError
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.presentation.RestartableLoad
 import dev.raiseexception.odin.shared.presentation.TagSelection
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureSignal
+import dev.raiseexception.odin.shared.presentation.launchObservation
+import dev.raiseexception.odin.shared.presentation.launchOperation
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -36,6 +42,7 @@ class EditExpenseViewModel(
     private val categoryLister: CategoryLister,
     private val expenseUpdater: ExpenseUpdater,
     private val tagLister: TagLister,
+    private val failureRecorder: FailureRecorder,
     private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -45,8 +52,18 @@ class EditExpenseViewModel(
     private val navigationChannel = Channel<Unit>(Channel.BUFFERED)
     val navigationEvent: Flow<Unit> = this.navigationChannel.receiveAsFlow()
 
+    private val unexpectedFailure = UnexpectedFailureSignal(this.mutableUiState)
+    val unexpectedFailureEvent: Flow<Unit> = this.unexpectedFailure.event
+
+    private val restartableLoad = RestartableLoad { this.load() }
+
     init {
-        this.load()
+        this.restartableLoad.start()
+    }
+
+    fun retry() {
+        this.mutableUiState.value = EditExpenseUiState.Loading
+        this.restartableLoad.start()
     }
 
     fun save(rawAmount: String, rawDate: String, categoryInput: CategoryInput, rawDescription: String) {
@@ -66,14 +83,30 @@ class EditExpenseViewModel(
             saveError = null,
             tagSelection = tagSelection
         )
-        this.viewModelScope.launch {
-            val outcome = withContext(ioDispatcher) {
-                expenseUpdater.update(expenseId, rawAmount, rawDate, categoryInput, rawDescription, tagSelection.inputs)
-            }
-            when (outcome) {
-                is Outcome.Success -> navigationChannel.send(Unit)
-                is Outcome.Failure -> mutableUiState.value = mapError(savingState(), outcome.error)
-            }
+        this.launchOperation(
+            operation = SUBMIT_OPERATION,
+            recorder = this.failureRecorder,
+            work = {
+                withContext(this.ioDispatcher) {
+                    expenseUpdater.update(
+                        expenseId,
+                        rawAmount,
+                        rawDate,
+                        categoryInput,
+                        rawDescription,
+                        tagSelection.inputs
+                    )
+                }
+            },
+            onResult = { outcome -> this.handleSave(outcome) },
+            onUnexpectedFailure = { this.unexpectedFailure.restore(current) }
+        )
+    }
+
+    private suspend fun handleSave(outcome: Outcome<Expense>) {
+        when (outcome) {
+            is Outcome.Success -> this.navigationChannel.send(Unit)
+            is Outcome.Failure -> this.mutableUiState.value = this.mapError(this.savingState(), outcome.error)
         }
     }
 
@@ -98,11 +131,14 @@ class EditExpenseViewModel(
         this.mutableUiState.value = current.copy(tagSelection = update(current.tagSelection, current.tags))
     }
 
-    private fun load() {
-        this.viewModelScope.launch {
-            mutableUiState.value = withContext(ioDispatcher) { loadEditing() } ?: EditExpenseUiState.NotFound
-        }
-    }
+    private fun load(): Job =
+        this.launchObservation(
+            operation = LOAD_OPERATION,
+            recorder = this.failureRecorder,
+            flow = flow { emit(loadEditing()) }.flowOn(this.ioDispatcher),
+            onEach = { editing -> this.mutableUiState.value = editing ?: EditExpenseUiState.NotFound },
+            onUnexpectedFailure = { this.mutableUiState.value = EditExpenseUiState.UnexpectedFailure }
+        )
 
     private suspend fun loadEditing(): EditExpenseUiState.Editing? {
         val detail = (this.transactionFinder.find(this.expenseId).first() as? Outcome.Success)?.value
@@ -141,4 +177,9 @@ class EditExpenseViewModel(
             )
             else -> editing.copy(isSaving = false, saveError = error.externalMessage)
         }
+
+    private companion object {
+        const val LOAD_OPERATION = "expense-edit.load"
+        const val SUBMIT_OPERATION = "expense-edit.submit"
+    }
 }

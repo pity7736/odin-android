@@ -53,6 +53,8 @@ import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.shared.presentation.AccountAutocomplete
 import dev.raiseexception.odin.shared.presentation.AmountField
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureDialogHost
 import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
 import dev.raiseexception.odin.ui.theme.ExpenseRed
@@ -75,6 +77,8 @@ fun CreateIncomeScreen(
     onSave: (String, String, CategoryInput, String) -> Unit,
     onAccountSelected: (String) -> Unit = {},
     navigationEvent: Flow<NavigationTarget>,
+    unexpectedFailureEvent: Flow<Unit>,
+    onRetry: () -> Unit,
     onNavigateBack: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -86,7 +90,9 @@ fun CreateIncomeScreen(
             }
         }
     }
+    UnexpectedFailureDialogHost(unexpectedFailureEvent)
     when (uiState) {
+        is CreateIncomeUiState.UnexpectedFailure -> UnexpectedFailureContent(onRetry = onRetry, modifier = modifier)
         is CreateIncomeUiState.Loading -> LoadingContent(modifier)
         is CreateIncomeUiState.Error -> ErrorContent(message = uiState.message, modifier = modifier)
         else -> IncomeForm(

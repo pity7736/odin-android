@@ -4,12 +4,15 @@ import app.cash.turbine.test
 import dev.raiseexception.odin.accounts.application.usecase.UserAuthenticator
 import dev.raiseexception.odin.accounts.domain.LoginError
 import dev.raiseexception.odin.accounts.domain.model.User
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -20,6 +23,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import kotlin.time.Duration.Companion.seconds
 
 private const val TEST_BYTE_ARRAY_SIZE = 8
 
@@ -27,6 +31,7 @@ private const val TEST_BYTE_ARRAY_SIZE = 8
 class LoginViewModelTest {
 
     private val userAuthenticator = mockk<UserAuthenticator>()
+    private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: LoginViewModel
 
@@ -38,7 +43,7 @@ class LoginViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        viewModel = LoginViewModel(userAuthenticator)
+        viewModel = LoginViewModel(userAuthenticator, failureRecorder)
     }
 
     @After
@@ -139,5 +144,58 @@ class LoginViewModelTest {
             assertTrue(state is LoginUiState.Error)
             assertEquals("Algo salió mal. Intente de nuevo más tarde", (state as LoginUiState.Error).message)
         }
+    }
+
+    @Test
+    fun `given the save throws, when logging in, then the prior state is restored and reported`() =
+        runTest {
+            coEvery { userAuthenticator.authenticate(any()) } returns Outcome.Failure(
+                LoginError.EmptyPassword(internalMessage = "blank", externalMessage = "Ingrese su contraseña")
+            )
+            viewModel.login("validPassword1")
+            testDispatcher.scheduler.advanceUntilIdle()
+            coEvery { userAuthenticator.authenticate(any()) } throws IllegalStateException("falla")
+            viewModel.login("validPassword1")
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(
+                LoginUiState.ValidationError(passwordError = "Ingrese su contraseña"),
+                viewModel.uiState.value
+            )
+            viewModel.unexpectedFailureEvent.test {
+                assertEquals(Unit, awaitItem())
+                expectNoEvents()
+            }
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given a save that takes 60 seconds, when logging in, then it completes with no failure`() = runTest {
+        coEvery { userAuthenticator.authenticate(any()) } coAnswers {
+            delay(60.seconds)
+            Outcome.Success(user)
+        }
+        viewModel.login("validPassword1")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(NavigationTarget.Home, viewModel.navigationEvent.first())
+        verify(exactly = 0) { failureRecorder.record(any()) }
+    }
+
+    @Test
+    fun `given an expected failure, when logging in, then its own state is shown and nothing is recorded`() = runTest {
+        coEvery { userAuthenticator.authenticate(any()) } returns Outcome.Failure(
+            LoginError.InvalidCredentials(internalMessage = "wrong", externalMessage = "Contraseña incorrecta")
+        )
+        viewModel.login("validPassword1")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(LoginUiState.Error("Contraseña incorrecta"), viewModel.uiState.value)
+        verify(exactly = 0) { failureRecorder.record(any()) }
+    }
+
+    @Test
+    fun `given the authenticator throws, when logging in, then the state leaves Loading`() = runTest {
+        coEvery { userAuthenticator.authenticate(any()) } throws IllegalStateException("falla")
+        viewModel.login("validPassword1")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(LoginUiState.Idle, viewModel.uiState.value)
     }
 }

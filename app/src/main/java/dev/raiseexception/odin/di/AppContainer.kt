@@ -71,6 +71,7 @@ import dev.raiseexception.odin.home.presentation.home.HomeViewModel
 import dev.raiseexception.odin.persistence.DatabaseProvider
 import dev.raiseexception.odin.reporting.application.usecase.SpendingReporter
 import dev.raiseexception.odin.reporting.presentation.spendingreport.SpendingReportViewModel
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.TransactionRunner
 import dev.raiseexception.odin.shared.infrastructure.persistence.RoomTransactionRunner
@@ -81,7 +82,10 @@ import java.security.SecureRandom
 private val Context.saltDataStore: DataStore<Preferences> by preferencesDataStore(name = "odin_salt")
 
 @Suppress("TooManyFunctions")
-class AppContainer(context: Context) {
+class AppContainer(
+    context: Context,
+    private val failureRecorder: FailureRecorder,
+) {
 
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
     private val databaseProvider: DatabaseProvider = DatabaseProvider(context)
@@ -205,11 +209,11 @@ class AppContainer(context: Context) {
         )
     }
 
-    fun registrationViewModel(): RegistrationViewModel = RegistrationViewModel(userRegistrar)
+    fun registrationViewModel(): RegistrationViewModel = RegistrationViewModel(this.userRegistrar, this.failureRecorder)
 
     fun loginViewModel(): LoginViewModel {
         if (BuildConfig.DEBUG) {
-            return LoginViewModel(userAuthenticator) {
+            return LoginViewModel(this.userAuthenticator, this.failureRecorder) {
                 DevDataSeeder(
                     accountRepository,
                     categoryCreator,
@@ -218,27 +222,43 @@ class AppContainer(context: Context) {
                 ).seed()
             }
         }
-        return LoginViewModel(userAuthenticator)
+        return LoginViewModel(this.userAuthenticator, this.failureRecorder)
     }
 
-    fun startupViewModel(): StartupViewModel = StartupViewModel(saltRepository)
+    fun startupViewModel(): StartupViewModel = StartupViewModel(this.saltRepository, this.failureRecorder)
 
-    fun createAccountViewModel(): CreateAccountViewModel = CreateAccountViewModel(accountCreator)
+    fun createAccountViewModel(): CreateAccountViewModel = CreateAccountViewModel(
+        this.accountCreator,
+        this.failureRecorder
+    )
 
     fun accountsListViewModel(): AccountsListViewModel =
-        AccountsListViewModel(accountLister, ioDispatcher)
+        AccountsListViewModel(this.accountLister, this.failureRecorder, this.ioDispatcher)
 
     fun accountDetailViewModelFactory(accountId: String): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
-                AccountDetailViewModel(accountId, accountFinder, accountLister, accountTransactionLister, ioDispatcher)
+                AccountDetailViewModel(
+                    accountId,
+                    accountFinder,
+                    accountLister,
+                    accountTransactionLister,
+                    this@AppContainer.failureRecorder,
+                    ioDispatcher
+                )
             }
         }
 
     fun editAccountViewModelFactory(accountId: String): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
-                EditAccountViewModel(accountId, accountFinder, accountUpdater, ioDispatcher)
+                EditAccountViewModel(
+                    accountId,
+                    accountFinder,
+                    accountUpdater,
+                    this@AppContainer.failureRecorder,
+                    ioDispatcher
+                )
             }
         }
 
@@ -252,31 +272,44 @@ class AppContainer(context: Context) {
                     categoryLister = categoryLister,
                     expenseUpdater = expenseUpdater,
                     tagLister = tagLister,
+                    failureRecorder = this@AppContainer.failureRecorder,
                     ioDispatcher = ioDispatcher
                 )
             }
         }
 
-    fun homeViewModel(): HomeViewModel = HomeViewModel(homeSummaryLoader, ioDispatcher)
+    fun homeViewModel(): HomeViewModel = HomeViewModel(this.homeSummaryLoader, this.failureRecorder, this.ioDispatcher)
 
-    fun spendingReportViewModel(): SpendingReportViewModel = SpendingReportViewModel(spendingReporter, ioDispatcher)
+    fun spendingReportViewModel(): SpendingReportViewModel = SpendingReportViewModel(
+        this.spendingReporter,
+        this.failureRecorder,
+        this.ioDispatcher
+    )
 
-    fun createCategoryViewModel(): CreateCategoryViewModel = CreateCategoryViewModel(categoryCreator)
+    fun createCategoryViewModel(): CreateCategoryViewModel = CreateCategoryViewModel(
+        this.categoryCreator,
+        this.failureRecorder
+    )
 
     fun categoriesListViewModel(): CategoriesListViewModel =
-        CategoriesListViewModel(categoryLister, ioDispatcher)
+        CategoriesListViewModel(this.categoryLister, this.failureRecorder, this.ioDispatcher)
 
     fun categoryDetailViewModelFactory(categoryId: String): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
-                CategoryDetailViewModel(categoryId, categoryFinder, ioDispatcher)
+                CategoryDetailViewModel(categoryId, categoryFinder, this@AppContainer.failureRecorder, ioDispatcher)
             }
         }
 
     fun transactionDetailViewModelFactory(transactionId: String): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
-                TransactionDetailViewModel(transactionId, transactionFinder, ioDispatcher)
+                TransactionDetailViewModel(
+                    transactionId,
+                    transactionFinder,
+                    this@AppContainer.failureRecorder,
+                    ioDispatcher
+                )
             }
         }
 
@@ -289,6 +322,7 @@ class AppContainer(context: Context) {
                     categoryLister,
                     accountFinder,
                     accountLister,
+                    this@AppContainer.failureRecorder,
                     ioDispatcher,
                 )
             }
@@ -304,6 +338,7 @@ class AppContainer(context: Context) {
                     accountFinder,
                     accountLister,
                     tagLister,
+                    this@AppContainer.failureRecorder,
                     ioDispatcher,
                 )
             }
@@ -312,7 +347,13 @@ class AppContainer(context: Context) {
     fun createTransferViewModelFactory(originAccountId: String?): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
-                CreateTransferViewModel(originAccountId, transferCreator, accountLister, ioDispatcher)
+                CreateTransferViewModel(
+                    originAccountId,
+                    transferCreator,
+                    accountLister,
+                    this@AppContainer.failureRecorder,
+                    ioDispatcher
+                )
             }
         }
 }

@@ -8,6 +8,7 @@ import dev.raiseexception.odin.reporting.application.usecase.DisplayedShare
 import dev.raiseexception.odin.reporting.application.usecase.ReportPeriod
 import dev.raiseexception.odin.reporting.application.usecase.SpendingReport
 import dev.raiseexception.odin.reporting.application.usecase.SpendingReporter
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.StorageError
 import io.mockk.every
@@ -15,6 +16,8 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -26,12 +29,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
+import kotlin.time.Duration.Companion.seconds
 
 @Suppress("MagicNumber")
 @OptIn(ExperimentalCoroutinesApi::class)
 class SpendingReportViewModelTest {
 
     private val spendingReporter = mockk<SpendingReporter>()
+    private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
     private val october = ReportPeriod(LocalDate.parse("2026-10-01"), LocalDate.parse("2026-10-07"))
     private val september = ReportPeriod(LocalDate.parse("2026-09-01"), LocalDate.parse("2026-09-30"))
@@ -165,5 +170,76 @@ class SpendingReportViewModelTest {
         verify(exactly = 1) { spendingReporter.report(september, Currency.USD) }
     }
 
-    private fun buildViewModel() = SpendingReportViewModel(this.spendingReporter, this.testDispatcher)
+    private fun buildViewModel() = SpendingReportViewModel(
+        this.spendingReporter,
+        this.failureRecorder,
+        this.testDispatcher
+    )
+
+    @Test
+    fun `given loading throws, when loading the report, then the state is UnexpectedFailure and it is recorded once`() =
+        runTest {
+            every { spendingReporter.report(any(), any()) } returns flow<Outcome<SpendingReport>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(SpendingReportUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given no result within 10 seconds, when loading the report, then UnexpectedFailure is shown`() = runTest {
+        every { spendingReporter.report(any(), any()) } returns flow<Outcome<SpendingReport>> { awaitCancellation() }
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceTimeBy(10.seconds)
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(SpendingReportUiState.UnexpectedFailure, viewModel.uiState.value)
+        verify(exactly = 1) { failureRecorder.record(any()) }
+    }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the report again succeeds, then the normal content is shown`() =
+        runTest {
+            every { spendingReporter.report(any(), any()) } returns flow<Outcome<SpendingReport>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            every { spendingReporter.report(any(), any()) } returns flowOf(Outcome.Success(octoberReport))
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(SpendingReportUiState.Content(octoberReport), viewModel.uiState.value)
+        }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the report again fails, then it is shown and recorded twice`() =
+        runTest {
+            every { spendingReporter.report(any(), any()) } returns flow<Outcome<SpendingReport>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(SpendingReportUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 2) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given an expected failure, when loading the report, then it shows as before and is not recorded`() =
+        runTest {
+            every { spendingReporter.report(any(), any()) } returns flowOf(Outcome.Failure(StorageError("DB error")))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(SpendingReportUiState.Error("Error al cargar el reporte"), viewModel.uiState.value)
+            verify(exactly = 0) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given a first result then a failure, when loading the report, then UnexpectedFailure is shown`() =
+        runTest {
+            every { spendingReporter.report(any(), any()) } returns flow<Outcome<SpendingReport>> {
+                emit(Outcome.Success(octoberReport))
+                error("falla")
+            }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(SpendingReportUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
 }

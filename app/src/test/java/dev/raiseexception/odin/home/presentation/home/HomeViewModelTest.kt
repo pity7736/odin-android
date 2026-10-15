@@ -10,11 +10,15 @@ import dev.raiseexception.odin.home.application.usecase.HomeSummary
 import dev.raiseexception.odin.home.application.usecase.HomeSummaryLoader
 import dev.raiseexception.odin.home.application.usecase.RecentTransaction
 import dev.raiseexception.odin.shared.domain.DomainError
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -29,12 +33,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
+import kotlin.time.Duration.Companion.seconds
 
 @Suppress("MagicNumber")
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
 
     private val homeSummaryLoader = mockk<HomeSummaryLoader>()
+    private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
 
     private val storageError = object : DomainError {
@@ -76,7 +82,7 @@ class HomeViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun buildViewModel() = HomeViewModel(homeSummaryLoader, testDispatcher)
+    private fun buildViewModel() = HomeViewModel(homeSummaryLoader, failureRecorder, testDispatcher)
 
     @Test
     fun `given a summary with entries, when initialized, then emits Content with every summary field`() = runTest {
@@ -264,4 +270,71 @@ class HomeViewModelTest {
     private fun summaryWith(entry: HomeAccountEntry): HomeSummary = emptySummary.copy(entries = listOf(entry))
 
     private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)
+
+    @Test
+    fun `given loading throws, when loading the summary, then UnexpectedFailure is shown and recorded`() =
+        runTest {
+            every { homeSummaryLoader.load() } returns flow<Outcome<HomeSummary>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(HomeUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given no result within 10 seconds, when loading the summary, then UnexpectedFailure is shown`() = runTest {
+        every { homeSummaryLoader.load() } returns flow<Outcome<HomeSummary>> { awaitCancellation() }
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceTimeBy(10.seconds)
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(HomeUiState.UnexpectedFailure, viewModel.uiState.value)
+        verify(exactly = 1) { failureRecorder.record(any()) }
+    }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the summary again succeeds, then the normal content is shown`() =
+        runTest {
+            every { homeSummaryLoader.load() } returns flow<Outcome<HomeSummary>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            every { homeSummaryLoader.load() } returns flowOf(Outcome.Success(emptySummary))
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(HomeUiState.Empty, viewModel.uiState.value)
+        }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the summary again fails, then it is shown and recorded twice`() =
+        runTest {
+            every { homeSummaryLoader.load() } returns flow<Outcome<HomeSummary>> { error("falla") }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(HomeUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 2) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given an expected failure, when loading the summary, then it shows as before and is not recorded`() =
+        runTest {
+            every { homeSummaryLoader.load() } returns flowOf(Outcome.Failure(storageError))
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(HomeUiState.Error("Error al cargar la información"), viewModel.uiState.value)
+            verify(exactly = 0) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given a first result then a failure, when loading the summary, then UnexpectedFailure is shown`() =
+        runTest {
+            every { homeSummaryLoader.load() } returns flow<Outcome<HomeSummary>> {
+                emit(Outcome.Success(emptySummary))
+                error("falla")
+            }
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(HomeUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
 }

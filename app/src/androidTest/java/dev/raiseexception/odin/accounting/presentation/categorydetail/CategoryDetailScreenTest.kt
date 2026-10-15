@@ -18,6 +18,7 @@ class CategoryDetailScreenTest {
     fun given_content_state_when_displayed_then_shows_all_category_data() {
         composeTestRule.setContent {
             CategoryDetailScreen(
+                onRetry = {},
                 uiState = CategoryDetailUiState.Content(
                     name = "Alimentación",
                     type = CategoryType.EXPENSE,
@@ -42,6 +43,7 @@ class CategoryDetailScreenTest {
     fun given_content_without_description_when_displayed_then_hides_description() {
         composeTestRule.setContent {
             CategoryDetailScreen(
+                onRetry = {},
                 uiState = CategoryDetailUiState.Content(
                     name = "Salario",
                     type = CategoryType.INCOME,
@@ -64,6 +66,7 @@ class CategoryDetailScreenTest {
     fun given_not_found_state_when_displayed_then_shows_error_message() {
         composeTestRule.setContent {
             CategoryDetailScreen(
+                onRetry = {},
                 uiState = CategoryDetailUiState.NotFound,
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -78,6 +81,7 @@ class CategoryDetailScreenTest {
     fun given_error_state_when_displayed_then_shows_error_message() {
         composeTestRule.setContent {
             CategoryDetailScreen(
+                onRetry = {},
                 uiState = CategoryDetailUiState.Error(message = "Error al acceder a los datos"),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -92,6 +96,7 @@ class CategoryDetailScreenTest {
     fun given_loading_state_when_displayed_then_shows_loading_indicator() {
         composeTestRule.setContent {
             CategoryDetailScreen(
+                onRetry = {},
                 uiState = CategoryDetailUiState.Loading,
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -100,5 +105,24 @@ class CategoryDetailScreenTest {
             )
         }
         composeTestRule.onNodeWithTag("loading_indicator").assertIsDisplayed()
+    }
+
+    @Test
+    fun given_an_unexpected_failure_when_displayed_then_shows_the_retry_content_and_no_information() {
+        composeTestRule.setContent {
+            CategoryDetailScreen(
+                onRetry = {},
+                uiState = CategoryDetailUiState.UnexpectedFailure,
+                onNavigateToHome = {},
+                onNavigateToAccounts = {},
+                onNavigateToCategories = {},
+                onNavigateToReports = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("unexpected_failure_content").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("unexpected_failure_retry").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("description_text").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("color_dot").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("loading_indicator").assertDoesNotExist()
     }
 }

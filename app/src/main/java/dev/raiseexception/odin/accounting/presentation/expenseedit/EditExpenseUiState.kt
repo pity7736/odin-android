@@ -8,6 +8,7 @@ import kotlinx.datetime.LocalDate
 sealed interface EditExpenseUiState {
     data object Loading : EditExpenseUiState
     data object NotFound : EditExpenseUiState
+    data object UnexpectedFailure : EditExpenseUiState
     data class Editing(
         val amount: String,
         val date: String,

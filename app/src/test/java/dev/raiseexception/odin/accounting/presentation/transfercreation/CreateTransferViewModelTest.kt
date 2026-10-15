@@ -11,6 +11,7 @@ import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.model.Transfer
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.StorageError
 import dev.raiseexception.odin.testutil.AccountBuilder
@@ -18,8 +19,13 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -31,14 +37,17 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CreateTransferViewModelTest {
 
     private val transferCreator = mockk<TransferCreator>()
+    private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
     private val accountLister = mockk<AccountLister>()
     private val testDispatcher = StandardTestDispatcher()
     private val transferDate = LocalDate.parse("2026-08-29")
@@ -358,6 +367,7 @@ class CreateTransferViewModelTest {
         originAccountId = originAccountId,
         transferCreator = this.transferCreator,
         accountLister = this.accountLister,
+        failureRecorder = this.failureRecorder,
         ioDispatcher = this.testDispatcher
     )
 
@@ -387,4 +397,107 @@ class CreateTransferViewModelTest {
             createdAt = fixedInstant
         )
     }
+
+    @Test
+    fun `given the save throws, when saving a transfer, then the prior state is restored and reported`() = runTest {
+        every { accountLister.list() } returns flowOf(Outcome.Success(listOf(savingsAccount, cashAccount)))
+        val viewModel = buildViewModel(originAccountId = "src-1")
+        testDispatcher.scheduler.advanceUntilIdle()
+        val stateBeforeSaving = viewModel.uiState.value
+        coEvery { transferCreator.create(any(), any(), any(), any()) } throws IllegalStateException("falla")
+        viewModel.save("200.00", "2026-08-29")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(stateBeforeSaving is CreateTransferUiState.Idle)
+        assertEquals(stateBeforeSaving, viewModel.uiState.value)
+        viewModel.unexpectedFailureEvent.test {
+            assertEquals(Unit, awaitItem())
+            expectNoEvents()
+        }
+        verify(exactly = 1) { failureRecorder.record(any()) }
+    }
+
+    @Test
+    fun `given a save that takes 60 seconds, when saving a transfer, then it completes with no failure`() = runTest {
+        every { accountLister.list() } returns flowOf(Outcome.Success(listOf(savingsAccount, cashAccount)))
+        val viewModel = buildViewModel(originAccountId = "src-1")
+        testDispatcher.scheduler.advanceUntilIdle()
+        coEvery { transferCreator.create(any(), any(), any(), any()) } coAnswers {
+            delay(60.seconds)
+            Outcome.Success(transfer())
+        }
+        viewModel.save("200.00", "2026-08-29")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(NavigationTarget.AccountDetail("src-1"), viewModel.navigationEvent.first())
+        verify(exactly = 0) { failureRecorder.record(any()) }
+    }
+
+    @Test
+    fun `given an expected failure, when saving a transfer, then it shows as before and is not recorded`() =
+        runTest {
+            every { accountLister.list() } returns flowOf(Outcome.Success(listOf(savingsAccount, cashAccount)))
+            coEvery { transferCreator.create(any(), any(), any(), any()) } returns Outcome.Failure(
+                TransferCreationError.StorageFailure("storage", "No se pudo guardar")
+            )
+            val viewModel = buildViewModel(originAccountId = "src-1")
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.save("200.00", "2026-08-29")
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CreateTransferUiState.Error("No se pudo guardar"), viewModel.uiState.value)
+            verify(exactly = 0) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given loading throws, when loading the transfer form, then UnexpectedFailure is shown and recorded`() =
+        runTest {
+            every { accountLister.list() } returns flow<Outcome<List<Account>>> { error("falla") }
+            val viewModel = buildViewModel(originAccountId = "src-1")
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CreateTransferUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given no result within 10 seconds, when loading the transfer form, then UnexpectedFailure is shown`() =
+        runTest {
+            every { accountLister.list() } returns flow<Outcome<List<Account>>> { awaitCancellation() }
+            val viewModel = buildViewModel(originAccountId = "src-1")
+            testDispatcher.scheduler.advanceTimeBy(10.seconds)
+            testDispatcher.scheduler.runCurrent()
+            assertEquals(CreateTransferUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the transfer form again succeeds, then the normal content is shown`() =
+        runTest {
+            every { accountLister.list() } returns flow<Outcome<List<Account>>> { error("falla") }
+            val viewModel = buildViewModel(originAccountId = "src-1")
+            testDispatcher.scheduler.advanceUntilIdle()
+            every { accountLister.list() } returns flowOf(Outcome.Success(listOf(savingsAccount, cashAccount)))
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertTrue(viewModel.uiState.value is CreateTransferUiState.Idle)
+        }
+
+    @Test
+    fun `given UnexpectedFailure, when loading the transfer form again fails, then it is shown and recorded twice`() =
+        runTest {
+            every { accountLister.list() } returns flow<Outcome<List<Account>>> { error("falla") }
+            val viewModel = buildViewModel(originAccountId = "src-1")
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CreateTransferUiState.UnexpectedFailure, viewModel.uiState.value)
+            verify(exactly = 2) { failureRecorder.record(any()) }
+        }
+
+    @Test
+    fun `given an expected failure, when loading the transfer form, then it shows as before and is not recorded`() =
+        runTest {
+            every { accountLister.list() } returns flowOf(Outcome.Failure(StorageError("DB error")))
+            val viewModel = buildViewModel(originAccountId = "src-1")
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(CreateTransferUiState.Error("Error al acceder a los datos"), viewModel.uiState.value)
+            verify(exactly = 0) { failureRecorder.record(any()) }
+        }
 }

@@ -18,4 +18,5 @@ sealed interface TransactionDetailUiState {
     ) : TransactionDetailUiState
     data object NotFound : TransactionDetailUiState
     data class Error(val message: String) : TransactionDetailUiState
+    data object UnexpectedFailure : TransactionDetailUiState
 }

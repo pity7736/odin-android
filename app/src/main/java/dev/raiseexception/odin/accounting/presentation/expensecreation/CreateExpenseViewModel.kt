@@ -1,7 +1,6 @@
 package dev.raiseexception.odin.accounting.presentation.expensecreation
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.AccountLister
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
@@ -12,19 +11,28 @@ import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.Category
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
+import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Tag
 import dev.raiseexception.odin.shared.domain.DomainError
+import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.presentation.RestartableLoad
 import dev.raiseexception.odin.shared.presentation.TagSelection
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureSignal
+import dev.raiseexception.odin.shared.presentation.launchObservation
+import dev.raiseexception.odin.shared.presentation.launchOperation
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -37,6 +45,7 @@ class CreateExpenseViewModel(
     private val accountFinder: AccountFinder,
     private val accountLister: AccountLister,
     private val tagLister: TagLister,
+    private val failureRecorder: FailureRecorder,
     private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -46,16 +55,23 @@ class CreateExpenseViewModel(
     private val navigationChannel = Channel<NavigationTarget>(Channel.BUFFERED)
     val navigationEvent: Flow<NavigationTarget> = this.navigationChannel.receiveAsFlow()
 
+    private val unexpectedFailure = UnexpectedFailureSignal(this.mutableUiState)
+    val unexpectedFailureEvent: Flow<Unit> = this.unexpectedFailure.event
+
+    private val restartableLoad = RestartableLoad { this.load() }
+
     init {
-        if (this.accountId != null) {
-            this.loadWithAccount()
-        } else {
-            this.loadWithoutAccount()
-        }
+        this.restartableLoad.start()
+    }
+
+    fun retry() {
+        this.mutableUiState.value = CreateExpenseUiState.Loading
+        this.restartableLoad.start()
     }
 
     fun save(amount: String, date: String, categoryInput: CategoryInput, description: String) {
-        if (this.mutableUiState.value is CreateExpenseUiState.Saving) return
+        val stateBeforeSaving = this.mutableUiState.value
+        if (stateBeforeSaving is CreateExpenseUiState.Saving) return
         val snapshot = this.currentSnapshot().withTypedTagAdded()
         val resolvedAccountId = this.accountId ?: snapshot.selectedAccountId
         if (resolvedAccountId == null) {
@@ -67,26 +83,37 @@ class CreateExpenseViewModel(
             return
         }
         this.mutableUiState.value = CreateExpenseUiState.Saving
-        this.viewModelScope.launch(this.ioDispatcher) {
-            val outcome = this@CreateExpenseViewModel.expenseCreator.create(
-                accountId = resolvedAccountId,
-                amount = amount,
-                date = date,
-                categoryInput = categoryInput,
-                description = description,
-                tagInputs = snapshot.tagSelection.inputs
-            )
-            when (outcome) {
-                is Outcome.Success -> {
-                    val target = if (this@CreateExpenseViewModel.accountId != null) {
-                        NavigationTarget.AccountDetail(this@CreateExpenseViewModel.accountId)
-                    } else {
-                        NavigationTarget.Back
-                    }
-                    navigationChannel.send(target)
+        this.launchOperation(
+            operation = SUBMIT_OPERATION,
+            recorder = this.failureRecorder,
+            work = {
+                withContext(this.ioDispatcher) {
+                    expenseCreator.create(
+                        accountId = resolvedAccountId,
+                        amount = amount,
+                        date = date,
+                        categoryInput = categoryInput,
+                        description = description,
+                        tagInputs = snapshot.tagSelection.inputs
+                    )
                 }
-                is Outcome.Failure -> mutableUiState.value = mapError(outcome.error, snapshot)
+            },
+            onResult = { outcome -> this.handleSave(outcome, snapshot) },
+            onUnexpectedFailure = { this.unexpectedFailure.restore(stateBeforeSaving) }
+        )
+    }
+
+    private suspend fun handleSave(outcome: Outcome<Expense>, snapshot: FormSnapshot) {
+        when (outcome) {
+            is Outcome.Success -> {
+                val target = if (this.accountId != null) {
+                    NavigationTarget.AccountDetail(this.accountId)
+                } else {
+                    NavigationTarget.Back
+                }
+                this.navigationChannel.send(target)
             }
+            is Outcome.Failure -> this.mutableUiState.value = this.mapError(outcome.error, snapshot)
         }
     }
 
@@ -132,58 +159,68 @@ class CreateExpenseViewModel(
         }
     }
 
-    private fun loadWithAccount() {
-        this.viewModelScope.launch(this.ioDispatcher) {
-            val categoriesOutcome = this@CreateExpenseViewModel.categoryLister
-                .list(CategoryType.EXPENSE, "").first()
-            val accountOutcome = this@CreateExpenseViewModel.accountFinder
-                .find(this@CreateExpenseViewModel.accountId!!).first()
-            val tagsOutcome = this@CreateExpenseViewModel.tagLister.list().first()
-            this@CreateExpenseViewModel.mutableUiState.value = when {
-                categoriesOutcome is Outcome.Failure ->
-                    CreateExpenseUiState.Error(categoriesOutcome.error.externalMessage)
-                accountOutcome is Outcome.Failure ->
-                    CreateExpenseUiState.Error(accountOutcome.error.externalMessage)
-                tagsOutcome is Outcome.Failure ->
-                    CreateExpenseUiState.Error(tagsOutcome.error.externalMessage)
-                else -> {
-                    val categories = (categoriesOutcome as Outcome.Success).value
-                    val account = (accountOutcome as Outcome.Success).value
-                    val createdAt = account.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
-                    CreateExpenseUiState.Idle(
-                        categories = categories,
-                        accountCreatedAt = createdAt,
-                        tags = (tagsOutcome as Outcome.Success).value
-                    )
-                }
+    private fun load(): Job =
+        this.launchObservation(
+            operation = LOAD_OPERATION,
+            recorder = this.failureRecorder,
+            flow = flow { emit(loadedState()) }.flowOn(this.ioDispatcher),
+            onEach = { loaded -> this.mutableUiState.value = loaded },
+            onUnexpectedFailure = { this.mutableUiState.value = CreateExpenseUiState.UnexpectedFailure }
+        )
+
+    private suspend fun loadedState(): CreateExpenseUiState {
+        val selectedAccountId = this.accountId
+        return if (selectedAccountId != null) {
+            this.loadWithAccount(selectedAccountId)
+        } else {
+            this.loadWithoutAccount()
+        }
+    }
+
+    private suspend fun loadWithAccount(selectedAccountId: String): CreateExpenseUiState {
+        val categoriesOutcome = this.categoryLister.list(CategoryType.EXPENSE, "").first()
+        val accountOutcome = this.accountFinder.find(selectedAccountId).first()
+        val tagsOutcome = this.tagLister.list().first()
+        return when {
+            categoriesOutcome is Outcome.Failure ->
+                CreateExpenseUiState.Error(categoriesOutcome.error.externalMessage)
+            accountOutcome is Outcome.Failure ->
+                CreateExpenseUiState.Error(accountOutcome.error.externalMessage)
+            tagsOutcome is Outcome.Failure ->
+                CreateExpenseUiState.Error(tagsOutcome.error.externalMessage)
+            else -> {
+                val categories = (categoriesOutcome as Outcome.Success).value
+                val account = (accountOutcome as Outcome.Success).value
+                val createdAt = account.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                CreateExpenseUiState.Idle(
+                    categories = categories,
+                    accountCreatedAt = createdAt,
+                    tags = (tagsOutcome as Outcome.Success).value
+                )
             }
         }
     }
 
-    private fun loadWithoutAccount() {
-        this.viewModelScope.launch(this.ioDispatcher) {
-            val categoriesOutcome = this@CreateExpenseViewModel.categoryLister
-                .list(CategoryType.EXPENSE, "").first()
-            val accountsOutcome = this@CreateExpenseViewModel.accountLister
-                .list().first()
-            val tagsOutcome = this@CreateExpenseViewModel.tagLister.list().first()
-            this@CreateExpenseViewModel.mutableUiState.value = when {
-                categoriesOutcome is Outcome.Failure ->
-                    CreateExpenseUiState.Error(categoriesOutcome.error.externalMessage)
-                accountsOutcome is Outcome.Failure ->
-                    CreateExpenseUiState.Error(accountsOutcome.error.externalMessage)
-                tagsOutcome is Outcome.Failure ->
-                    CreateExpenseUiState.Error(tagsOutcome.error.externalMessage)
-                else -> {
-                    val categories = (categoriesOutcome as Outcome.Success).value
-                    val accounts = (accountsOutcome as Outcome.Success).value
-                    CreateExpenseUiState.Idle(
-                        categories = categories,
-                        accountCreatedAt = null,
-                        accounts = accounts,
-                        tags = (tagsOutcome as Outcome.Success).value
-                    )
-                }
+    private suspend fun loadWithoutAccount(): CreateExpenseUiState {
+        val categoriesOutcome = this.categoryLister.list(CategoryType.EXPENSE, "").first()
+        val accountsOutcome = this.accountLister.list().first()
+        val tagsOutcome = this.tagLister.list().first()
+        return when {
+            categoriesOutcome is Outcome.Failure ->
+                CreateExpenseUiState.Error(categoriesOutcome.error.externalMessage)
+            accountsOutcome is Outcome.Failure ->
+                CreateExpenseUiState.Error(accountsOutcome.error.externalMessage)
+            tagsOutcome is Outcome.Failure ->
+                CreateExpenseUiState.Error(tagsOutcome.error.externalMessage)
+            else -> {
+                val categories = (categoriesOutcome as Outcome.Success).value
+                val accounts = (accountsOutcome as Outcome.Success).value
+                CreateExpenseUiState.Idle(
+                    categories = categories,
+                    accountCreatedAt = null,
+                    accounts = accounts,
+                    tags = (tagsOutcome as Outcome.Success).value
+                )
             }
         }
     }
@@ -249,6 +286,8 @@ class CreateExpenseViewModel(
     }
 
     companion object {
+        private const val LOAD_OPERATION = "expense-creation.load"
+        private const val SUBMIT_OPERATION = "expense-creation.submit"
         private val EPOCH_DATE = LocalDate(1970, 1, 1)
     }
 }
