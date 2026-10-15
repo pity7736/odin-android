@@ -43,7 +43,16 @@ fun AmountField(
         )
         OutlinedTextField(
             value = value,
-            onValueChange = { onValueChange(filterAmountInput(it, decimalSeparator, maxDecimals)) },
+            onValueChange = {
+                onValueChange(
+                    filterAmountInput(
+                        text = it,
+                        decimalSeparator = decimalSeparator,
+                        groupingSeparator = groupingSeparator,
+                        maxDecimals = maxDecimals,
+                    ),
+                )
+            },
             singleLine = true,
             isError = errorMessage != null,
             shape = RoundedCornerShape(10.dp),

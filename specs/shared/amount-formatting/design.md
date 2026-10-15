@@ -36,10 +36,25 @@ is presentation-only: the domain and storage never see the on-screen formatting.
   (including an unselected currency during account creation) and is left as a future
   feature this component is already built to support.
 - **The input filter is the guard.** It keeps digits and the first decimal separator
-  only, caps the decimal part at the maximum, and drops everything else (grouping
-  char, extra separators, signs, letters). Because malformed input can never be typed,
-  the domain's own "too many decimals" rule becomes an unreachable safety net rather
-  than a reachable path.
+  only, caps the decimal part at the maximum, and drops everything else (later
+  separators, signs, letters). Because malformed input can never be typed, the
+  domain's own "too many decimals" rule becomes an unreachable safety net rather than
+  a reachable path.
+- **A typed grouping separator starts the decimal part.** When no separator has been
+  accepted yet, the filter treats a typed grouping character exactly like the decimal
+  separator and stores it as the decimal separator; any later decimal or grouping
+  character is dropped. The keyboard app, not the app, decides which separator key a
+  decimal keypad enables — some enable only the dot, others only the comma — so both
+  must work. This is unambiguous because grouping characters exist only in the display
+  transformation and are never part of the field's text: a grouping character reaching
+  the filter is always user-typed. The rule follows the separator parameters, so it
+  holds for any default. Rejected: accepting only the decimal separator, or only the
+  dot — either one leaves the keyboards that offer only the other key unable to enter
+  decimals.
+- **The keyboard request is a decimal keypad.** The field asks for a decimal keypad
+  and does not depend on which separator key it enables. Rejected: a digits-only
+  keypad — many keyboards then offer no separator key at all; a text keyboard — it
+  shows letters on a money field that the filter would discard anyway.
 - **The display transformation groups only the integer part.** It splits the
   on-screen text on the decimal separator, groups the integer portion, and leaves the
   decimal portion untouched, with an offset mapping so the caret tracks the digit it
@@ -71,7 +86,8 @@ their submit path; those screens belong to their own features.
 
 ## Data Flow
 1. Keystroke → the field's value-change handler runs the input filter, producing the
-   accepted comma-form string; the screen stores it.
+   accepted comma-form string (a typed dot already turned into the decimal comma); the
+   screen stores it.
 2. The display transformation renders that string with the integer part grouped and
    the decimal separator kept; the caret is mapped so it does not jump.
 3. On submit, the screen converts the comma-form string to the dot form and passes it
@@ -87,6 +103,9 @@ N/A — no external interface. `AmountField` is a stateless input component with
   default; the app does not yet vary them by the selected currency/locale.
 - The display transformation requires the decimal and grouping separators to be
   distinct characters (the reverse offset mapping counts grouping characters).
+- Pasted text goes through the same filter as typed text, so a pasted amount with
+  grouping separators (e.g. "1.500.000") has its first dot read as the decimal
+  separator; the user sees the result on screen before saving.
 - Mid-typing, the on-screen text may hold a trailing decimal separator (e.g.
   "111.176,"); its conversion yields a trailing dot, which the domain's amount
   validation already handles.

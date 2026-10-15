@@ -7,6 +7,7 @@ const val DEFAULT_MAX_DECIMALS: Int = 2
 fun filterAmountInput(
     text: String,
     decimalSeparator: Char = DEFAULT_DECIMAL_SEPARATOR,
+    groupingSeparator: Char = DEFAULT_GROUPING_SEPARATOR,
     maxDecimals: Int = DEFAULT_MAX_DECIMALS,
 ): String {
     val accepted = StringBuilder()
@@ -19,8 +20,8 @@ fun filterAmountInput(
                 accepted.append(character)
                 decimalDigits++
             }
-            character == decimalSeparator && !decimalSeparatorSeen -> {
-                accepted.append(character)
+            (character == decimalSeparator || character == groupingSeparator) && !decimalSeparatorSeen -> {
+                accepted.append(decimalSeparator)
                 decimalSeparatorSeen = true
             }
         }

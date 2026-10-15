@@ -138,9 +138,9 @@ list.
   loss. `Account.create` carries a `@Suppress("LongParameterList")` annotation because the
   factory legitimately requires all its inputs; the suppress is scoped to that function alone.
 - **Balance is entered through the shared `AmountField`.** The balance call site
-  uses `AmountField` (from `shared/presentation`), which formats the amount as the
-  user types and accepts a comma decimal, identically to the income, expense, and
-  transfer amount fields. The durable design of that behavior lives in
+  uses `AmountField` (from `shared/presentation`), which formats and filters the
+  amount as the user types, identically to the income, expense, and transfer amount
+  fields. The durable design of that behavior lives in
   `specs/shared/amount-formatting/design.md`. It is presentation-only: the screen
   converts the on-screen text to the raw dot-decimal form before `onCreate`, so
   the ViewModel and domain receive an unchanged raw amount.

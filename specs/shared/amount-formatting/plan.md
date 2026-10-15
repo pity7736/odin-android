@@ -1,162 +1,120 @@
-# Work Order: Amount formatting while typing — fix comma decimals across all amount fields
+# Work Order: Amount formatting while typing — accept a dot as the decimal separator
 
-**Feature design:** `specs/shared/amount-formatting/design.md` (created at the hydrate gate — does not exist yet)
+**Feature design:** `specs/shared/amount-formatting/design.md` (the living source of truth)
 **Corresponds to Spec:** `specs/shared/amount-formatting/spec.md`
 
-> Work order for: **fixing the garbled decimal formatting on every amount field and
-> introducing a shared, parameterized amount input**. Disposable — overwritten by the
-> next change (git keeps the history). The living design will be in design.md; hydrate
-> it before this change merges, then freeze this file.
+> Work order for: **accepting a typed dot as the start of the decimal part, so
+> decimals can be entered on any keyboard**. Disposable — overwritten by the next
+> change (git keeps the history). The living design is in design.md; hydrate it
+> before this change merges, then freeze this file.
 
 ## Change
 
-**Observed:** on every amount field (account initial balance, income, expense, transfer),
-typing a decimal with a comma garbles the display — `111176,46` renders as `111.176.,46`.
+**Observed:** on a tester's phone (Samsung keyboard), the decimal keypad
+enables only the `.` key and shows `,` disabled. The amount filter drops every
+`.`, so the user cannot enter cents on any amount field (initial balance,
+income, expense, transfer). On a keyboard that enables `,` (e.g. HeliBoard) the
+bug does not show.
 
-**Root cause:** the single shared `ThousandSeparatorTransformation`
-(`shared/presentation/TextFormatter.kt`) groups the *entire* on-screen string into
-3-char chunks from the right, treating the decimal comma as just another character.
-Beyond the display, the domain parses the raw string with `BigDecimal(raw.trim())`
-(`Account.kt`), which cannot parse a comma decimal at all — so a comma amount also
-fails validation/storage. There is no shared amount input component, so nothing
-enforces consistent behavior across the four screens.
+**Root cause:** `AmountField` requests `KeyboardType.Decimal`, and each keyboard
+app decides which separator key to enable — the app cannot control it.
+`filterAmountInput` accepts only the configured decimal separator (`,`), so on a
+keyboard that offers only `.` there is no way to start the decimal part.
 
-**Fix (presentation only; domain untouched):**
-- The amount field's on-screen text holds the **comma** form (`111176,46`). It is
-  converted to the dot form (`111176.46`) before it reaches the domain, which keeps
-  parsing dot-decimals with `BigDecimal` unchanged.
-- A single shared, styled `AmountField` composable owns the keyboard type, the input
-  filter, and the display transformation. All four screens use it.
-- The input filter keeps digits and the first decimal separator; it drops everything
-  else (grouping char, extra separators, signs, letters). The decimal part is capped
-  at two digits — a further decimal digit is dropped.
-- The display transformation groups only the integer part (before the decimal
-  separator), keeps the decimal part as typed, and maps the caret correctly.
-- Separators are **parameters** (`decimalSeparator`, `groupingSeparator`) with a single
-  app-wide default (`,` decimal, `.` grouping). No hardcoded glyphs. No per-currency
-  behavior in this change.
+**Fix (presentation only; domain untouched):** in `filterAmountInput`, a typed
+grouping separator is treated exactly like the decimal separator: when it is the
+first separator, it starts the decimal part and is stored as the decimal
+separator; any later decimal or grouping separator is dropped. This is
+unambiguous because grouping separators exist only in the display
+transformation and are never part of the field's text, so a grouping character
+reaching the filter is always user-typed. The rule follows the separator
+parameters (no hardcoded `.`), so it holds for a future dot-decimal /
+comma-grouping default. `KeyboardType.Decimal` stays: a decimal keypad always
+offers at least one of the two keys, and both now work.
 
-**Spec scenarios satisfied:** all scenarios in
-`specs/shared/amount-formatting/spec.md` — whole-number grouping, comma decimal kept,
-step-by-step decimal typing, short numbers without separators, typed dot ignored,
-second comma ignored, other characters ignored, every field formats the same.
+**Spec scenarios satisfied:** "A typed dot starts the decimal part", "Decimals
+can be entered on any keyboard", "A second decimal separator is ignored", "Any
+character that is not a digit or the first decimal separator is ignored", and
+"Amount with decimals keeps the comma and groups the whole part" (dot-typed
+variant). All other scenarios are unchanged and their existing tests stay green.
 
 ## Architecture & Files (this change)
 ```
 app/src/main/java/dev/raiseexception/odin/shared/presentation/
-├── AmountInput.kt                          # CREATE  (filterAmountInput + amountInputToRaw + default separators)
-├── AmountVisualTransformation.kt           # CREATE  (parameterized transformation, replaces the old object)
-├── AmountField.kt                          # CREATE  (shared styled composable)
-└── TextFormatter.kt                        # MODIFY  (remove ThousandSeparatorTransformation; keep capitalizeFirst)
-
-app/src/main/java/dev/raiseexception/odin/accounting/presentation/
-├── accountcreation/CreateAccountScreen.kt          # MODIFY  (use AmountField; convert comma→dot in the submit lambda)
-├── incomecreation/CreateIncomeScreen.kt            # MODIFY  (use AmountField; convert comma→dot in the submit lambda)
-├── expensecreation/CreateExpenseScreen.kt          # MODIFY  (use AmountField; convert comma→dot in the submit lambda)
-└── transfercreation/CreateTransferScreen.kt        # MODIFY  (use AmountField; convert comma→dot in the submit lambda)
-
-# ViewModels are UNCHANGED: they still receive a raw amount String and pass it to their
-# creator. They never see a comma — the screen converts to dot form before calling them.
+├── AmountInput.kt          # MODIFY  filterAmountInput gains groupingSeparator; typed grouping char starts the decimal part
+└── AmountField.kt          # MODIFY  pass groupingSeparator to filterAmountInput
 
 app/src/test/java/dev/raiseexception/odin/shared/presentation/
-├── AmountInputTest.kt                      # CREATE  (JVM: filter + conversion)
-└── AmountVisualTransformationTest.kt       # CREATE  (JVM: formatted text + offset mapping)
+└── AmountInputTest.kt      # MODIFY  rewrite the "typed dot dropped" test; add reproduction tests
 
 app/src/androidTest/java/dev/raiseexception/odin/shared/presentation/
-└── AmountFieldTest.kt                      # CREATE  (instrumented: typing → display, ignored input)
-
-app/src/androidTest/java/dev/raiseexception/odin/accounting/presentation/
-├── accountcreation/CreateAccountScreenTest.kt       # MODIFY  (add comma-decimal case; keep integer case green)
-├── incomecreation/CreateIncomeScreenTest.kt         # MODIFY  (comma-decimal case, if a screen test exists)
-├── expensecreation/CreateExpenseScreenTest.kt       # MODIFY  (comma-decimal case, if a screen test exists)
-└── transfercreation/CreateTransferScreenTest.kt     # MODIFY  (comma-decimal case, if a screen test exists)
+└── AmountFieldTest.kt      # MODIFY  rewrite the "dot is ignored" test to "dot starts the decimal part"
 ```
 
 ## Key Types & Signatures
-
-`shared/presentation/AmountInput.kt`
-```
-const val DEFAULT_DECIMAL_SEPARATOR: Char = ','
-const val DEFAULT_GROUPING_SEPARATOR: Char = '.'
-const val DEFAULT_MAX_DECIMALS: Int = 2
-
+```kotlin
 fun filterAmountInput(
     text: String,
     decimalSeparator: Char = DEFAULT_DECIMAL_SEPARATOR,
-    maxDecimals: Int = DEFAULT_MAX_DECIMALS,
-): String
-// keeps digits and the FIRST decimalSeparator; caps the decimal part at
-// maxDecimals digits; drops all else
-
-fun amountInputToRaw(text: String, decimalSeparator: Char = DEFAULT_DECIMAL_SEPARATOR): String
-// comma→dot for the domain: text.replace(decimalSeparator, '.')
-```
-
-`shared/presentation/AmountVisualTransformation.kt`
-```
-class AmountVisualTransformation(
-    private val decimalSeparator: Char = DEFAULT_DECIMAL_SEPARATOR,
-    private val groupingSeparator: Char = DEFAULT_GROUPING_SEPARATOR,
-) : VisualTransformation
-// split on decimalSeparator; group integer part in 3s with groupingSeparator;
-// keep decimal part as-is; OffsetMapping accounts for inserted grouping chars
-// and the (unmoved) decimal separator, both directions.
-```
-
-`shared/presentation/AmountField.kt`
-```
-@Composable
-fun AmountField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    testTag: String,
-    errorMessage: String?,
-    decimalSeparator: Char = DEFAULT_DECIMAL_SEPARATOR,
     groupingSeparator: Char = DEFAULT_GROUPING_SEPARATOR,
     maxDecimals: Int = DEFAULT_MAX_DECIMALS,
-    modifier: Modifier = Modifier,
-)
-// same visual styling the screens use today (label + OutlinedTextField + FieldError);
-// KeyboardType.Decimal; onValueChange wrapped with filterAmountInput;
-// visualTransformation = AmountVisualTransformation(...)
+): String
 ```
-
-`AmountField` is **stateless**: the screen owns the comma-form `String` (single source of truth); `AmountField` applies the filter and transformation for display and reports edits back via `onValueChange`. The screen converts to dot form **once, in its submit lambda** — `amountInputToRaw(amount)` — before calling the ViewModel. ViewModels are unchanged and never see a comma. The `amountInputToRaw` logic lives in one shared function; the screens only call it.
+`filterAmountInput` has a single call site (`AmountField`), which is updated to
+pass `groupingSeparator` (it already receives it as a parameter).
 
 ## Implementation Phases (TDD)
 
-### Phase 1: Reproduction (Red — proves the reported bug)
-**Red:**
-- JVM `AmountVisualTransformationTest`: `given "111176,46" when filtered then displays "111.176,46"` — FAILS today (the current shared transformation yields `111.176.,46`).
-- Instrumented `CreateAccountScreenTest`: typing `111176,46` in the balance field displays `111.176,46` and the value handed to `onCreate` is `111176.46` — FAILS today.
-**Green:** none yet — these stay red until Phases 2–4.
+### Phase 1: Failing reproduction tests — `AmountInputTest` (JVM)
+**Red:** rewrite `given a typed dot when filtered then the dot is dropped`
+(asserted `"111.176"` → `"111176"`) into the new rule, and add one test per path
+the defect touches. All must FAIL against the current filter:
+- `123.5` → `123,5` — a dot starts the decimal part (the reported bug)
+- `123,5.` → `123,5` — a dot after a comma is dropped
+- `123.5,` → `123,5` — a comma after a dot is dropped
+- `123.4.5` → `123,45` — a second dot is dropped
+- `1.467` → `1,46` — the two-decimal cap applies after a dot
+- with `decimalSeparator = '.'`, `groupingSeparator = ','`: `123,5` → `123.5` —
+  the rule follows the parameters, not a hardcoded glyph
+- `amountInputToRaw(filterAmountInput("123.5"))` → `123.5` — the stored amount is
+  correct for a dot-typed decimal
 
-### Phase 2: Shared formatting units (`AmountInput`, `AmountVisualTransformation`)
-**Red (JVM):**
-- `AmountInputTest` — `filterAmountInput`: digits kept; first comma kept; a second comma dropped; a typed dot dropped; sign/letter dropped; a third decimal digit dropped (`"111176,467" → "111176,46"`); two decimals kept (`"111176,46"` unchanged); empty stays empty. `amountInputToRaw`: `"111176,46" → "111176.46"`, `"1500000" → "1500000"`.
-- `AmountVisualTransformationTest` — formatted text for `"1500000" → "1.500.000"`, `"111176,46" → "111.176,46"`, `"500" → "500"`, `"111176," → "111.176,"`, `"" → ""`; and `OffsetMapping` round-trips (originalToTransformed / transformedToOriginal) at boundaries including around the comma.
-**Green:** implement `AmountInput.kt` and `AmountVisualTransformation.kt` with parameterized separators and defaults. Remove `ThousandSeparatorTransformation` from `TextFormatter.kt` (keep `capitalizeFirst`). Phase 1's unit reproduction turns green.
+Keep every other existing test in `AmountInputTest` unchanged and green.
 
-### Phase 3: Shared `AmountField` composable
-**Red (instrumented `AmountFieldTest`):** typing `111176,46` shows `111.176,46`; typing a dot is ignored; typing a second comma is ignored; typing a third decimal digit is ignored; typing `1500000` shows `1.500.000`.
-**Green:** implement `AmountField.kt` reusing the screens' current field styling, `KeyboardType.Decimal`, filter in the value-change wrapper, and `AmountVisualTransformation`.
+**Green:** add `groupingSeparator` to `filterAmountInput`; the separator branch
+matches `decimalSeparator` or `groupingSeparator` while no separator has been
+seen, and always appends `decimalSeparator`.
 
-### Phase 4: Wire the four screens + convert before saving
-**Red (instrumented):** the Phase 1 account-creation reproduction, plus the analogous comma-decimal case for income, expense, and transfer screen tests where they exist (display formatted + `amountInputToRaw` value reaches the creator).
-**Green:** in each screen, replace the private amount field with `AmountField` and drop the `ThousandSeparatorTransformation` import; in each screen's submit lambda, call `amountInputToRaw(amount)` so the ViewModel receives the dot form. ViewModels are not touched. Phase 1's instrumented reproduction turns green.
+### Phase 2: Presentation — `AmountField`
+**Red:** in `AmountFieldTest` (instrumented), rewrite
+`given_amount_field_when_user_types_a_dot_then_the_dot_is_ignored` (typed
+`12.34`, asserted `1.234`) into
+`given_amount_field_when_user_types_a_dot_then_it_starts_the_decimal_part`:
+typing `12.34` displays `12,34`. Keep every other test unchanged. Compile the
+instrumented tests only (`./gradlew compileDebugAndroidTestKotlin`); do not run
+them — the user runs them.
 
-### Phase 5: Regression + gate
-**Red:** the existing `CreateAccountScreenTest` integer scenario (`1500000 → 1.500.000`, captured `1500000`) must still pass unchanged.
-**Green:** adjust only the capture point if the wiring moved it; run `./gradlew check` (tests + detekt + Kover) GREEN.
+**Green:** `AmountField` passes `groupingSeparator` to `filterAmountInput`
+(named arguments). `KeyboardType.Decimal` is unchanged.
+
+End with `./gradlew check` GREEN.
 
 ## Design decisions to hydrate into design.md
-- [x] Create `design.md` for this new shared feature from the template.
-- [x] Two representations: on-screen text holds the comma form; the dot form is what the domain/DB receive; `BigDecimal` never sees a comma. Rationale + rejected alternative (store dot form → ambiguous keystroke filter).
-- [x] Single shared `AmountField` composable enforces identical behavior across all amount fields; rejected alternative (shared helpers wired per screen → drift risk).
-- [x] `AmountField` is stateless (screen owns the comma-form string); comma→dot conversion happens once in each screen's submit via the shared `amountInputToRaw`, so ViewModels never see a comma. Rejected alternative (`AmountField` owns an internal buffer and reports dot form → dual-state sync, the classic hoisted-TextField pitfall, in the one component that most needs to be robust).
-- [x] Separators are parameters with one app-wide default; rejected alternative (hardcoded glyphs / live per-currency now → spec + edge-case expansion). Note: per-currency formatting is a future feature this component is built to support.
-- [x] Input filter rule: digits + first decimal separator only; everything else dropped; the decimal part is capped at `maxDecimals` (default 2), a parameter for consistency with the configurable separators. The domain's "too many decimals" rule remains as an unreachable safety net.
-- [x] Display transformation groups only the integer part and maps the caret; domain parsing stays on dot-decimal and is unchanged.
-- [x] `accounts/creation/spec.md` now references this shared spec instead of duplicating the formatting rule (single source of truth).
-- [x] Quality Pillars (all four) for the shared amount input.
+- [ ] Design Decisions & Rationale — "The input filter is the guard": a typed
+      grouping separator, when first, starts the decimal part and is stored as
+      the decimal separator; it is no longer listed among the dropped
+      characters. Rationale: keyboards decide which separator key a decimal
+      keypad enables; grouping chars never exist in the field's text, so a typed
+      one is unambiguous. Rejected: disabling one of the two keys (breaks the
+      keyboards that only offer it); changing the keyboard type (`Number` loses
+      the separator key, `Text` shows a full keyboard).
+- [ ] Design Decisions & Rationale — the keyboard request stays
+      `KeyboardType.Decimal`, and the app does not depend on which separator key
+      it enables.
+- [ ] Known Limitations — pasted text follows the typed-text rules, so a pasted
+      amount with dot thousand separators (e.g. `1.500.000`) is misread; the
+      user sees it before saving.
+- [ ] Sweep consumer `design.md` / `spec.md` files (accounts creation, income,
+      expense, transfer, expense update) for statements that the field "accepts
+      a comma decimal" only or ignores a dot; rewrite in the present tense or
+      point to the shared design.
