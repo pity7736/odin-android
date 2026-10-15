@@ -5,8 +5,9 @@
 ## Overview
 
 A read-only screen that displays all data for a single transaction (income or
-expense), and the entry point for editing an expense that is not one side of a
-transfer (see `specs/accounting/expense/update/design.md`). The screen observes a reactive stream from the transaction repository,
+expense), and the entry point for editing an expense or an income that is not
+one side of a transfer (see `specs/accounting/expense/update/design.md` and
+`specs/accounting/income/update/design.md`). The screen observes a reactive stream from the transaction repository,
 so any external change to the transaction, its category, or its account is
 reflected immediately. The screen is reachable from both the home screen and the
 account detail screen; the bottom bar has no tab selected since it does not
@@ -38,18 +39,19 @@ belong to a single tab.
 
 - **A single JOIN query at the DAO level resolves category and account names
   and transfer membership.** The DAO joins `transactions`, `categories`, and
-  `accounts`, and left-joins `transfers` on the expense side, in one query,
+  `accounts`, and left-joins `transfers` on either side (the transfer's expense
+  or its income), in one query,
   returning a `TransactionDetailEntity` (a data class with `@Embedded` and
   `@ColumnInfo`, not a Room `@Entity` table). This avoids three separate
   queries and the complexity of combining three reactive streams. Rejected:
   the use case combining flows from `TransactionRepository`,
   `CategoryRepository`, and `AccountRepository`.
 
-- **`TransactionDetail.isTransfer` records whether the transaction is the
-  expense side of a transfer.** It is read from the transfer link itself, not
-  inferred from the system Transfer category. The detail screen uses it to decide
-  whether an expense is editable, and the expense update use case reads the same
-  fact to refuse editing a transfer. Rejected: inferring it from the category
+- **`TransactionDetail.isTransfer` records whether the transaction is either
+  side of a transfer, card payments included.** It is read from the transfer
+  link itself, not inferred from the system Transfer category. The detail screen
+  uses it to decide whether a transaction is editable, and the expense and
+  income update use cases read the same fact to refuse editing a transfer. Rejected: inferring it from the category
   type (a proxy that breaks silently if the convention changes).
 
 - **`TransactionDetail.accountType` carries the account's type, and the
@@ -68,9 +70,10 @@ belong to a single tab.
   `TASKS.md`).
 
 - **`Content.isEditable` controls the "Editar" action.** The ViewModel sets it
-  for an expense that is not a transfer side; incomes and transfer expenses get
-  `false`. The click navigates directly to the expense edit destination with
-  single-top navigation, so a double tap cannot stack two edit screens; no
+  for any transaction that is not a transfer side; transfer sides and card
+  payments get `false`. The screen takes one callback per kind and the click
+  calls the income or the expense one according to `Content.isIncome`; each
+  navigates directly to its edit destination with single-top navigation, so a double tap cannot stack two edit screens; no
   ViewModel navigation channel is involved because no logic sits behind it.
 
 - **`TransactionLookupError.NotFound` is a dedicated domain error.** This
@@ -162,7 +165,7 @@ specs/accounting/transaction-details/
    `TransactionDao.findDetailById(id)`, which returns a
    `Flow<TransactionDetailEntity?>` from a JOIN across `transactions`,
    `categories`, and `accounts` (yielding the account's name and type), with a
-   left join on `transfers` that yields `isTransfer`.
+   left join on `transfers` (either side) that yields `isTransfer`.
 5. The repository maps: non-null entity →
    `Outcome.Success(entity.toDomain())` (using `toIncome()` or `toExpense()`
    based on the `type` column); null →
@@ -190,17 +193,14 @@ specs/accounting/transaction-details/
   (Spanish) message.
 
 Besides the bottom bar navigation callbacks, the screen sends one event: the
-"Editar" action (shown only when `Content.isEditable`), which opens the expense
-edit destination.
+"Editar" action (shown only when `Content.isEditable`), which opens the income
+or the expense edit destination according to the transaction's kind.
 
 ## Known Limitations
 
 - The not-found state is unreachable through the current UI because there is no
   way to delete a transaction. It exists as a defensive measure for when
   deletion or multi-device sync is added.
-- A purchase on a credit card, opened from the card's movements, offers
-  "Editar" like any other non-transfer expense. Lowering it after the card was
-  paid can leave the card with a negative debt (tracked in `TASKS.md`).
 
 ## Quality Pillars
 

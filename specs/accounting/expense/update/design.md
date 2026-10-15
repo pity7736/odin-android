@@ -9,7 +9,8 @@ opens a pre-filled form and changes its amount, date, category and description;
 the account is shown read-only. Field rules are those of expense creation, except
 the amount limits: the ceiling is what can be spent computed without the edited
 expense, and on a credit card the amount must also keep the debt at zero or
-above. Transfer expenses and incomes are not editable. On success the user
+above. Transfer expenses are not editable; incomes are edited through their own
+feature (`specs/accounting/income/update/design.md`). On success the user
 returns to the transaction details, which reflect the new values live.
 
 ## Design Decisions & Rationale
@@ -54,7 +55,8 @@ returns to the transaction details, which reflect the new values live.
 
 - **Transfer membership comes from the transfer link, read once through the
   transaction detail.** The transaction detail read joins the transfers table on
-  the expense side and exposes `TransactionDetail.isTransfer`. That one fact
+  either side and exposes `TransactionDetail.isTransfer` (see
+  `specs/accounting/transaction-details/design.md`). That one fact
   hides the edit action on the details and is enforced again in `ExpenseUpdater`,
   which refuses a transfer expense with `TransferNotEditable`. Rejected: inferring
   membership from the system Transfer category type (a proxy that silently breaks
@@ -83,10 +85,16 @@ returns to the transaction details, which reflect the new values live.
   rejected or failed edit keeps no newly typed category or tag (see
   `specs/technical/transaction-atomicity/design.md`).
 
-- **Category resolution is duplicated with `ExpenseCreator` for now.** The two
-  use cases map category problems to different error types and differ in whether
-  they short-circuit. Extracting a shared resolver would reshape expense creation,
-  so it is left for when creation's own short-circuit is fixed.
+- **Category resolution is the shared `CategoryResolver`, used by both
+  updaters.** It resolves an existing or a new category of the requested type and
+  reports a category problem as `CategoryResolution.Rejected` (with the message)
+  instead of failing, so the updaters can merge it with the domain's field
+  errors; only a storage problem is a failure, which each updater wraps in its
+  own `StorageFailure`. It runs inside the caller's transaction. The creators keep
+  their own resolution: they short-circuit on a category problem and map it to
+  different error types, and reshaping them belongs with fixing that
+  short-circuit (tracked in `TASKS.md`). Rejected: a copy of the resolution in
+  each updater (two identical copies that differ only by type drift apart).
 
 - **`ExpenseUpdateError` keeps the user-facing surface small.** Category
   problems are field errors inside `InvalidInput`, never a separate error state.
@@ -115,7 +123,9 @@ returns to the transaction details, which reflect the new values live.
 
 - **The form fields are shared composables.** Amount, date picker, category
   autocomplete, tag field, text field and field error live in `shared/presentation/` and are
-  used by both expense creation and edit. The date picker opens on the selected
+  used by both expense creation and edit. The edit form's own pieces (read-only
+  account, save action, save error, loading, not found) live in
+  `shared/presentation/EditFormParts.kt`, shared with income editing. The date picker opens on the selected
   date, so edit shows the expense's date and creation (which selects today) is
   unaffected.
 
@@ -138,13 +148,13 @@ app/src/main/java/dev/raiseexception/odin/
 │   │   ├── model/            # Account (editExpense), Expense, TransactionDetail (isTransfer)
 │   │   ├── ExpenseUpdateError (InvalidInput, TransferNotEditable, StorageFailure)
 │   │   └── repository/       # ExpenseRepository (port; update)
-│   ├── application/usecase/   # ExpenseUpdater; TransactionFinder, AccountFinder, CategoryCreator (reused)
+│   ├── application/usecase/   # ExpenseUpdater, CategoryResolver (shared with IncomeUpdater); TransactionFinder, AccountFinder (reused)
 │   ├── infrastructure/
 │   │   └── repository/       # expense repository adapter (update), transaction detail read (transfer join)
 │   └── presentation/
 │       ├── expenseedit/      # EditExpenseViewModel, EditExpenseUiState, EditExpenseScreen
 │       └── transactiondetail/ # Content.isEditable, "Editar" action
-├── shared/presentation/       # OdinField, FieldError, DatePickerField, CategoryAutocomplete, TagField, AmountField, Routes (expense edit)
+├── shared/presentation/       # OdinField, FieldError, DatePickerField, CategoryAutocomplete, TagField, AmountField, EditFormParts, Routes (expense edit)
 ├── MainActivity.kt            # edit destination; single-top navigation from details
 └── di/AppContainer.kt         # ExpenseUpdater + edit ViewModel factory
 
