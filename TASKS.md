@@ -98,6 +98,7 @@ Not yet assigned to a version.
 - [ ] Pagination for transaction lists with large volumes
 - [ ] Date range filtering for transaction lists
 - [ ] An expense of any age can be edited. Editing is meant for correcting typos or mistakes shortly after recording, yet nothing limits how far back an edited expense can be, so the user can rewrite movements from long ago and change the account's history from that date forward
+- [ ] An income or an expense recorded on the wrong account cannot be corrected. The account is locked when editing either one, and deleting is not possible, so the only option is to leave the wrong record in place
 
 ## Backlog
 
@@ -111,7 +112,7 @@ Not yet assigned to a version.
 - [ ] Submitting the income or expense creation form with multiple empty fields (e.g. empty amount and empty category) shows only the category error. `ExpenseCreator` and `IncomeCreator` resolve the category before calling `Account.createExpense()`/`Account.createIncome()`, so when category resolution fails it short-circuits before the domain validates the other fields. The spec says errors are shown next to each missing field simultaneously
 
 - [ ] Expected failures on forms are shown in different ways: the income, expense, and transfer forms replace the whole form with the error text and lose what the user typed, while the other forms show a line under the form that cannot be dismissed
-- [ ] The account and expense edit forms say the item does not exist when loading it fails for a storage reason. `EditAccountViewModel` and `EditExpenseViewModel` map every load failure to `NotFound`
+- [ ] The account, expense, and income edit forms say the item does not exist when loading it fails for a storage reason. `EditAccountViewModel`, `EditExpenseViewModel`, and `EditIncomeViewModel` map every load failure to `NotFound`
 - [ ] Login says "Contraseña incorrecta" when the encrypted database cannot be opened because its native library failed to load. `UserAuthenticator` maps every vault-unlock failure to invalid credentials, including the `UnsatisfiedLinkError` case returned by `DatabaseProvider.unlock()`
 
 ### Improvements / Refactorings
@@ -128,6 +129,7 @@ Not yet assigned to a version.
 - [ ] Form field composables are still duplicated as private copies even though shared versions of `OdinField`, `DatePickerField`, `FieldError`, and `CategoryAutocomplete` exist in `shared/presentation/`: `CreateIncomeScreen` (all four), `CreateTransferScreen` (`DatePickerField`, `FieldError`), `EditAccountScreen`, `CreateAccountScreen`, and `CreateCategoryScreen` (`OdinField`, `FieldError`). `LoadingContent` and `ErrorContent` are also duplicated across `CreateExpenseScreen`, `CreateIncomeScreen`, and `CreateTransferScreen`
 - [ ] `ExpenseCreator` and `IncomeCreator` read account balance outside the database transaction (`findById().first()` before `transactionRunner.run {}`). Two concurrent creations could both pass validation on stale balance. Move the read inside the transaction to guarantee consistency
 - [ ] Compose screen tests only run on an emulator (`src/androidTest`), which is slow and fragile: runs fail for emulator reasons unrelated to the code, and an implementation session once spent over an hour chasing such failures. As a result, implementers can only compile these tests, never run them, so screen-level spec scenarios go unverified until a manual run. Robolectric is already a test dependency and runs the Room tests on the JVM, but screen tests do not use it
+- [ ] An income's or an expense's description has no length limit, so a description of any length is saved, while account and category descriptions are limited to 500 characters
 - [ ] `RoomAccountRepository.getAll()` with transactions loads every transaction row into memory via `@Relation` just to compute balances. A SQL `SUM(amount) GROUP BY type` query would return balance directly without loading individual rows — matters when accounts accumulate hundreds of transactions
 
 ## Unlikely situations

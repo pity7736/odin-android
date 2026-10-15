@@ -53,6 +53,7 @@ fun TransactionDetailScreen(
     onNavigateToCategories: () -> Unit,
     onNavigateToReports: () -> Unit,
     onEditExpense: () -> Unit,
+    onEditIncome: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -82,7 +83,7 @@ fun TransactionDetailScreen(
             )
             is TransactionDetailUiState.Content -> TransactionDetailContent(
                 uiState = uiState,
-                onEditExpense = onEditExpense,
+                onEdit = if (uiState.isIncome) onEditIncome else onEditExpense,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -116,13 +117,13 @@ private fun TransactionDetailLoading(modifier: Modifier = Modifier) {
 @Composable
 private fun TransactionDetailContent(
     uiState: TransactionDetailUiState.Content,
-    onEditExpense: () -> Unit,
+    onEdit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier.padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
-        TransactionHeaderCard(uiState = uiState, onEditExpense = onEditExpense)
+        TransactionHeaderCard(uiState = uiState, onEdit = onEdit)
         Spacer(modifier = Modifier.height(16.dp))
         TransactionInfoSection(uiState = uiState)
     }
@@ -131,7 +132,7 @@ private fun TransactionDetailContent(
 @Composable
 private fun TransactionHeaderCard(
     uiState: TransactionDetailUiState.Content,
-    onEditExpense: () -> Unit,
+    onEdit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -162,8 +163,8 @@ private fun TransactionHeaderCard(
                     style = MaterialTheme.typography.labelLarge,
                     color = Slate400,
                     modifier = Modifier
-                        .clickable(onClick = onEditExpense)
-                        .testTag("edit_expense_button"),
+                        .clickable(onClick = onEdit)
+                        .testTag("edit_transaction_button"),
                 )
             }
         }

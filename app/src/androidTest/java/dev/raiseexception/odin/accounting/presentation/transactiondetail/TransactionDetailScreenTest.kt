@@ -38,6 +38,7 @@ class TransactionDetailScreenTest {
                 onNavigateToCategories = {},
                 onNavigateToReports = {},
                 onEditExpense = {},
+                onEditIncome = {},
             )
         }
         composeTestRule.onNodeWithText("+$1.000,00").assertIsDisplayed()
@@ -70,6 +71,7 @@ class TransactionDetailScreenTest {
                 onNavigateToCategories = {},
                 onNavigateToReports = {},
                 onEditExpense = {},
+                onEditIncome = {},
             )
         }
         composeTestRule.onNodeWithText("-$500,00").assertIsDisplayed()
@@ -102,6 +104,7 @@ class TransactionDetailScreenTest {
                 onNavigateToCategories = {},
                 onNavigateToReports = {},
                 onEditExpense = {},
+                onEditIncome = {},
             )
         }
         composeTestRule.onNodeWithText("+$1.000,00").assertIsDisplayed()
@@ -119,6 +122,7 @@ class TransactionDetailScreenTest {
                 onNavigateToCategories = {},
                 onNavigateToReports = {},
                 onEditExpense = {},
+                onEditIncome = {},
             )
         }
         composeTestRule.onNodeWithTag("loading_indicator").assertIsDisplayed()
@@ -135,6 +139,7 @@ class TransactionDetailScreenTest {
                 onNavigateToCategories = {},
                 onNavigateToReports = {},
                 onEditExpense = {},
+                onEditIncome = {},
             )
         }
         composeTestRule.onNodeWithText("Transacción no encontrada").assertIsDisplayed()
@@ -151,6 +156,7 @@ class TransactionDetailScreenTest {
                 onNavigateToCategories = {},
                 onNavigateToReports = {},
                 onEditExpense = {},
+                onEditIncome = {},
             )
         }
         composeTestRule.onNodeWithText("Error al acceder a los datos").assertIsDisplayed()
@@ -159,6 +165,7 @@ class TransactionDetailScreenTest {
     @Test
     fun given_editable_content_when_shown_then_the_editar_action_is_displayed_and_clicking_it_calls_on_edit_expense() {
         var editClicks = 0
+        var incomeEditClicks = 0
         composeTestRule.setContent {
             TransactionDetailScreen(
                 onRetry = {},
@@ -168,12 +175,54 @@ class TransactionDetailScreenTest {
                 onNavigateToCategories = {},
                 onNavigateToReports = {},
                 onEditExpense = { editClicks++ },
+                onEditIncome = { incomeEditClicks++ },
             )
         }
-        composeTestRule.onNodeWithTag("edit_expense_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("edit_transaction_button").assertIsDisplayed()
         composeTestRule.onNodeWithText("Editar").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("edit_expense_button").performClick()
+        composeTestRule.onNodeWithTag("edit_transaction_button").performClick()
         assertEquals(1, editClicks)
+        assertEquals(0, incomeEditClicks)
+    }
+
+    @Test
+    fun given_editable_income_content_when_clicking_editar_then_on_edit_income_is_called() {
+        var expenseEditClicks = 0
+        var incomeEditClicks = 0
+        composeTestRule.setContent {
+            TransactionDetailScreen(
+                onRetry = {},
+                uiState = incomeContent(isEditable = true),
+                onNavigateToHome = {},
+                onNavigateToAccounts = {},
+                onNavigateToCategories = {},
+                onNavigateToReports = {},
+                onEditExpense = { expenseEditClicks++ },
+                onEditIncome = { incomeEditClicks++ },
+            )
+        }
+        composeTestRule.onNodeWithText("Editar").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("edit_transaction_button").performClick()
+        assertEquals(1, incomeEditClicks)
+        assertEquals(0, expenseEditClicks)
+    }
+
+    @Test
+    fun given_non_editable_income_content_when_shown_then_no_editar_action_is_displayed() {
+        composeTestRule.setContent {
+            TransactionDetailScreen(
+                onRetry = {},
+                uiState = incomeContent(isEditable = false),
+                onNavigateToHome = {},
+                onNavigateToAccounts = {},
+                onNavigateToCategories = {},
+                onNavigateToReports = {},
+                onEditExpense = {},
+                onEditIncome = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("edit_transaction_button").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Editar").assertDoesNotExist()
     }
 
     @Test
@@ -187,9 +236,10 @@ class TransactionDetailScreenTest {
                 onNavigateToCategories = {},
                 onNavigateToReports = {},
                 onEditExpense = {},
+                onEditIncome = {},
             )
         }
-        composeTestRule.onNodeWithTag("edit_expense_button").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("edit_transaction_button").assertDoesNotExist()
         composeTestRule.onNodeWithText("Editar").assertDoesNotExist()
     }
 
@@ -214,6 +264,7 @@ class TransactionDetailScreenTest {
                 onNavigateToCategories = {},
                 onNavigateToReports = {},
                 onEditExpense = {},
+                onEditIncome = {},
             )
         }
         composeTestRule.onNodeWithText("Pago").assertIsDisplayed()
@@ -231,6 +282,7 @@ class TransactionDetailScreenTest {
                 onNavigateToCategories = {},
                 onNavigateToReports = {},
                 onEditExpense = {},
+                onEditIncome = {},
             )
         }
         composeTestRule.onNodeWithText("ETIQUETAS").assertIsDisplayed()
@@ -249,11 +301,24 @@ class TransactionDetailScreenTest {
                 onNavigateToCategories = {},
                 onNavigateToReports = {},
                 onEditExpense = {},
+                onEditIncome = {},
             )
         }
         composeTestRule.onNodeWithText("ETIQUETAS").assertDoesNotExist()
         composeTestRule.onNodeWithTag("tags_chips").assertDoesNotExist()
     }
+
+    private fun incomeContent(isEditable: Boolean) = TransactionDetailUiState.Content(
+        formattedAmount = "+$1.000,00",
+        amountColor = IncomeGreen,
+        formattedDate = "14 de septiembre de 2026",
+        categoryName = "Salario",
+        accountName = "Ahorros",
+        description = "Pago mensual",
+        isIncome = true,
+        typeLabel = "Ingreso",
+        isEditable = isEditable,
+    )
 
     private fun expenseContent(isEditable: Boolean) = TransactionDetailUiState.Content(
         formattedAmount = "-$500,00",
@@ -278,6 +343,7 @@ class TransactionDetailScreenTest {
                 onNavigateToCategories = {},
                 onNavigateToReports = {},
                 onEditExpense = {},
+                onEditIncome = {},
             )
         }
         composeTestRule.onNodeWithTag("unexpected_failure_content").assertIsDisplayed()

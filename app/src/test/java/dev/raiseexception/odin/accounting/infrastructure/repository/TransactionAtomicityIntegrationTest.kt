@@ -46,6 +46,9 @@ class TransactionAtomicityIntegrationTest {
     private val failingIncomeRepository = object : IncomeRepository {
         override suspend fun add(income: Income): Outcome<Unit> =
             Outcome.Failure(StorageError("Simulated income storage failure"))
+
+        override suspend fun update(income: Income): Outcome<Unit> =
+            Outcome.Failure(StorageError("Simulated income storage failure"))
     }
     private lateinit var database: OdinDatabase
     private lateinit var accountRepository: RoomAccountRepository

@@ -161,6 +161,48 @@ class AccountFundingTest {
     }
 
     @Test
+    fun `given 0 and an expense of 80000, when editing an income to 80000, then no error`() {
+        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS)
+
+        assertNull(funding.validateEditedIncomeAmount(BigDecimal("80000"), emptyList(), listOf(this.expense("80000"))))
+    }
+
+    @Test
+    fun `given 0 and an expense of 80000, when editing an income to one cent less, then saldo error`() {
+        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS)
+
+        assertEquals(
+            "El saldo de la cuenta no puede quedar negativo.",
+            funding.validateEditedIncomeAmount(BigDecimal("79999.99"), emptyList(), listOf(this.expense("80000")))
+        )
+    }
+
+    @Test
+    fun `given 0 and an expense of 80000, when editing an income to 150000, then no error`() {
+        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS)
+
+        assertNull(funding.validateEditedIncomeAmount(BigDecimal("150000"), emptyList(), listOf(this.expense("80000"))))
+    }
+
+    @Test
+    fun `given a card with a debt of 500000 without the income, when editing it to 500000, then no error`() {
+        val funding = this.millionCredit()
+        val expenses = listOf(this.expense("500000"))
+
+        assertNull(funding.validateEditedIncomeAmount(BigDecimal("500000"), emptyList(), expenses))
+    }
+
+    @Test
+    fun `given a card with a debt of 500000 without the income, when editing it to 500001, then debt error`() {
+        val funding = this.millionCredit()
+
+        assertEquals(
+            "La deuda no puede quedar negativa.",
+            funding.validateEditedIncomeAmount(BigDecimal("500001"), emptyList(), listOf(this.expense("500000")))
+        )
+    }
+
+    @Test
     fun `given a money account, when asking what can be spent, then balance and a saldo message`() {
         val funding = AccountFunding.Funds(this.pesos("1000000.00"), MoneyAccountKind.SAVINGS)
         val expenses = listOf(this.expense("200000"))

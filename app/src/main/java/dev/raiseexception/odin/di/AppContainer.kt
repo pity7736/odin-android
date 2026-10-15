@@ -16,9 +16,11 @@ import dev.raiseexception.odin.accounting.application.usecase.AccountUpdater
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
 import dev.raiseexception.odin.accounting.application.usecase.CategoryFinder
 import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
+import dev.raiseexception.odin.accounting.application.usecase.CategoryResolver
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseUpdater
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
+import dev.raiseexception.odin.accounting.application.usecase.IncomeUpdater
 import dev.raiseexception.odin.accounting.application.usecase.SpendingLister
 import dev.raiseexception.odin.accounting.application.usecase.TagLister
 import dev.raiseexception.odin.accounting.application.usecase.TagResolver
@@ -49,6 +51,7 @@ import dev.raiseexception.odin.accounting.presentation.categorydetail.CategoryDe
 import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExpenseViewModel
 import dev.raiseexception.odin.accounting.presentation.expenseedit.EditExpenseViewModel
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeViewModel
+import dev.raiseexception.odin.accounting.presentation.incomeedit.EditIncomeViewModel
 import dev.raiseexception.odin.accounting.presentation.transactiondetail.TransactionDetailViewModel
 import dev.raiseexception.odin.accounting.presentation.transfercreation.CreateTransferViewModel
 import dev.raiseexception.odin.accounts.application.usecase.UserAuthenticator
@@ -136,6 +139,7 @@ class AppContainer(
         RoomCategoryRepository(databaseProvider.requireDatabase().categoryDao())
     }
     private val categoryCreator by lazy { CategoryCreator(categoryRepository) }
+    private val categoryResolver by lazy { CategoryResolver(categoryRepository, categoryCreator) }
     private val categoryFinder by lazy { CategoryFinder(categoryRepository) }
     private val categoryLister by lazy { CategoryLister(categoryRepository) }
     private val incomeRepository: IncomeRepository by lazy {
@@ -191,10 +195,18 @@ class AppContainer(
             transactionFinder = transactionFinder,
             accountFinder = accountFinder,
             expenseRepository = expenseRepository,
-            categoryRepository = categoryRepository,
-            categoryCreator = categoryCreator,
+            categoryResolver = categoryResolver,
             tagResolver = tagResolver,
             tagRepository = tagRepository,
+            transactionRunner = transactionRunner
+        )
+    }
+    private val incomeUpdater by lazy {
+        IncomeUpdater(
+            transactionFinder = transactionFinder,
+            accountFinder = accountFinder,
+            incomeRepository = incomeRepository,
+            categoryResolver = categoryResolver,
             transactionRunner = transactionRunner
         )
     }
@@ -272,6 +284,21 @@ class AppContainer(
                     categoryLister = categoryLister,
                     expenseUpdater = expenseUpdater,
                     tagLister = tagLister,
+                    failureRecorder = this@AppContainer.failureRecorder,
+                    ioDispatcher = ioDispatcher
+                )
+            }
+        }
+
+    fun editIncomeViewModelFactory(incomeId: String): ViewModelProvider.Factory =
+        viewModelFactory {
+            initializer {
+                EditIncomeViewModel(
+                    incomeId = incomeId,
+                    transactionFinder = transactionFinder,
+                    accountFinder = accountFinder,
+                    categoryLister = categoryLister,
+                    incomeUpdater = incomeUpdater,
                     failureRecorder = this@AppContainer.failureRecorder,
                     ioDispatcher = ioDispatcher
                 )

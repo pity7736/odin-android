@@ -30,9 +30,9 @@ through the whole history.
 ## Acceptance Criteria
 
 ### Where this applies
-- This behavior applies to recording an expense, editing an expense, recording a
-  transfer, and recording a credit card payment, for money accounts and credit
-  cards alike. Each of those features follows these rules in addition to its
+- This behavior applies to recording an expense, editing an expense, editing an
+  income, recording a transfer, and recording a credit card payment, for money
+  accounts and credit cards alike. Each of those features follows these rules in addition to its
   own.
 
 ### The rule
@@ -47,16 +47,16 @@ through the whole history.
 - For a transfer between money accounts, only the source account is checked: the
   destination account only gains money.
 - For a credit card payment, both the source account and the card are checked.
-- When an expense is edited, both its new amount and its new date are taken into
-  account; changing only the date can also break the history.
+- When an expense or an income is edited, both its new amount and its new date
+  are taken into account; changing only the date can also break the history.
 
 ### Movements on the same day
 - Movements on the same day are checked one after another in the order they were
   recorded, which is the same order the account's movement list shows them in.
 - A movement being recorded comes after every movement already recorded on its
   date.
-- An edited expense keeps its place among the movements of its day according to
-  when it was first recorded, even when its date changes.
+- An edited expense or income keeps its place among the movements of its day
+  according to when it was first recorded, even when its date changes.
 
 ### What the user sees when a movement is rejected
 - The movement is not saved and nothing changes in any account.
@@ -223,8 +223,8 @@ Dates in these scenarios are in the current year unless a year is given.
 ## Out of Scope
 - Changing an account's initial balance: it can only be changed while the
   account has no movements, so there is no history to break.
-- Editing or deleting incomes: not possible yet. When it becomes possible, it
-  must follow these same rules.
+- Deleting incomes: not possible yet. When it becomes possible, it must follow
+  these same rules.
 - Limiting how long ago an expense can be to still be edited (tracked in the
   task list).
 - Keeping a stored record of an account's figures at past dates.

@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
+import dev.raiseexception.odin.accounting.application.usecase.CategoryResolver
 import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseUpdater
@@ -76,8 +77,7 @@ class ExpenseTagsIntegrationTest {
             transactionFinder = transactionFinder,
             accountFinder = accountFinder,
             expenseRepository = expenseRepository,
-            categoryRepository = categoryRepository,
-            categoryCreator = categoryCreator,
+            categoryResolver = CategoryResolver(categoryRepository, categoryCreator),
             tagResolver = tagResolver,
             tagRepository = tagRepository,
             transactionRunner = transactionRunner
@@ -86,8 +86,7 @@ class ExpenseTagsIntegrationTest {
             transactionFinder = transactionFinder,
             accountFinder = accountFinder,
             expenseRepository = expenseRepository,
-            categoryRepository = categoryRepository,
-            categoryCreator = categoryCreator,
+            categoryResolver = CategoryResolver(categoryRepository, categoryCreator),
             tagResolver = TagResolver(failingCleanupTagRepository),
             tagRepository = failingCleanupTagRepository,
             transactionRunner = transactionRunner

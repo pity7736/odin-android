@@ -23,7 +23,7 @@ interface TransactionDao {
         FROM transactions t
         JOIN categories c ON t.categoryId = c.id
         JOIN accounts a ON t.accountId = a.id
-        LEFT JOIN transfers tr ON tr.expenseId = t.id
+        LEFT JOIN transfers tr ON tr.expenseId = t.id OR tr.incomeId = t.id
         WHERE t.id = :id
         """
     )

@@ -10,10 +10,11 @@ day from the account's opening figure, with the candidate movement applied, and
 rejects the operation with a date error naming the first date on which the
 figure becomes invalid. What counts as invalid belongs to the account's funding:
 a money account's balance below zero, or a card's debt below zero or above its
-limit. The check runs inside `Account.createExpense`, `Account.editExpense` and
-`Account.createIncome`, so it covers recording and editing expenses, transfers
-(the source's expense leg) and card payments (the card's income leg) without any
-change to `Transfer` or the use cases.
+limit. The check runs inside `Account.createExpense`, `Account.editExpense`,
+`Account.createIncome` and `Account.editIncome`, so it covers recording and
+editing expenses, editing incomes, transfers (the source's expense leg) and card
+payments (the card's income leg) without any change to `Transfer` or the use
+cases.
 
 ## Design Decisions & Rationale
 
@@ -39,16 +40,18 @@ change to `Transfer` or the use cases.
   the funding kind, which goes against the funding delegation in
   `specs/technical/account-funding/design.md`.
 - **The whole history is checked, not only the dates from the movement onward.**
-  Editing an expense to a later date removes it from the days between the old
-  date and the new one, and that can break a day before the new date. Walking the
+  Moving an expense or an income to another date changes the days between the
+  old date and the new one, and that can break a day before the new date (an
+  income moved after the expense it was paying for). Walking the
   whole history covers this with no special case. Dates the movement does not
   touch keep the same figures. This relies on the stored history already being
   valid.
 - **A movement being recorded is placed last on its day by position, never by
   comparing its recording time.** The stored movements are sorted, and the new
   one is inserted right after the last stored movement dated on or before its
-  date (`placeLastOnItsDay`). An edited expense keeps its original `createdAt` and
-  is sorted with the rest, so it keeps its place among the day's movements.
+  date (`placeLastOnItsDay`). An edited expense or income keeps its original
+  `createdAt` and is sorted with the rest, so it keeps its place among the day's
+  movements.
   Rejected: appending the new movement and sorting everything by `createdAt`. A
   recording time equal to, or earlier than, a stored movement's (a frozen test
   clock, or a device clock moved back) would move the new movement ahead of
@@ -56,7 +59,8 @@ change to `Transfer` or the use cases.
 - **The amount checks against today run first; the history check runs only when
   the amount and the date have no error.** An amount that already breaks today's
   figure is reported only next to the amount (`overSpendMessage`,
-  `validateIncomingAmount`, `validateEditedExpenseAmount`), and changing the date
+  `validateIncomingAmount`, `validateEditedExpenseAmount`,
+  `validateEditedIncomeAmount`), and changing the date
   could not fix it. The history error goes in `dateError`, which every form
   already shows next to the date field.
 - **A card payment reports the source account's errors first.** `Transfer.create`
@@ -84,7 +88,8 @@ app/src/main/java/dev/raiseexception/odin/
 └── accounting/domain/model/
     ├── AccountFunding.kt              # openingFigure, historyBreachMessage
     └── Account.kt                     # historyError, placeLastOnItsDay; called by
-                                       # createExpense, editExpense, createIncome
+                                       # createExpense, editExpense, createIncome,
+                                       # editIncome
 
 app/src/test/java/dev/raiseexception/odin/
 ├── shared/domain/SpanishDateTest.kt
@@ -95,6 +100,7 @@ app/src/test/java/dev/raiseexception/odin/
 └── accounting/application/usecase/
     ├── ExpenseCreatorTest.kt
     ├── ExpenseUpdaterTest.kt
+    ├── IncomeUpdaterTest.kt
     └── TransferCreatorTest.kt
 
 specs/shared/backdated-movements/
@@ -106,14 +112,15 @@ specs/shared/backdated-movements/
 ## Data Flow
 
 1. A form sends its fields to its use case (`ExpenseCreator`, `ExpenseUpdater`,
-   `TransferCreator`). Each use case already loads the account or accounts with
+   `IncomeUpdater`, `TransferCreator`). Each use case already loads the account or accounts with
    `AccountCriteria(includeIncomes = true, includeExpenses = true)`, so the full
    history is in memory.
-2. `Account.createExpense` / `editExpense` / `createIncome` parse and validate the
+2. `Account.createExpense` / `editExpense` / `createIncome` / `editIncome` parse
+   and validate the
    amount and the date as before. When neither has an error, they build the
    candidate movement and call `historyError` with the stored movements and the
-   candidate (new movement placed last on its day; edited expense replacing the
-   original).
+   candidate (new movement placed last on its day; edited expense or income
+   replacing the original).
 3. `historyError` walks the movements from `funding.openingFigure()` and returns
    the first `historyBreachMessage` together with its date, or `null`.
 4. The result becomes the operation's `dateError`. On any error nothing is added

@@ -20,6 +20,8 @@ sealed interface AccountFunding {
 
     fun validateEditedExpenseAmount(amount: BigDecimal, incomes: List<Income>, otherExpenses: List<Expense>): String?
 
+    fun validateEditedIncomeAmount(amount: BigDecimal, otherIncomes: List<Income>, expenses: List<Expense>): String?
+
     fun movementEffect(transaction: Transaction): BigDecimal
 
     fun openingFigure(): BigDecimal
@@ -45,6 +47,16 @@ sealed interface AccountFunding {
             incomes: List<Income>,
             otherExpenses: List<Expense>
         ): String? = null
+
+        override fun validateEditedIncomeAmount(
+            amount: BigDecimal,
+            otherIncomes: List<Income>,
+            expenses: List<Expense>
+        ): String? = if (this.balance(otherIncomes, expenses).amount.add(amount).signum() < 0) {
+            "El saldo de la cuenta no puede quedar negativo."
+        } else {
+            null
+        }
 
         override fun movementEffect(transaction: Transaction): BigDecimal = if (transaction is Income) {
             transaction.amount.amount
@@ -84,6 +96,16 @@ sealed interface AccountFunding {
             incomes: List<Income>,
             otherExpenses: List<Expense>
         ): String? = if (this.currentDebt(incomes, otherExpenses).amount.add(amount).signum() < 0) {
+            "La deuda no puede quedar negativa."
+        } else {
+            null
+        }
+
+        override fun validateEditedIncomeAmount(
+            amount: BigDecimal,
+            otherIncomes: List<Income>,
+            expenses: List<Expense>
+        ): String? = if (this.currentDebt(otherIncomes, expenses).amount.subtract(amount).signum() < 0) {
             "La deuda no puede quedar negativa."
         } else {
             null

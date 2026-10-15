@@ -11,6 +11,7 @@ object Routes {
     const val INCOME_CREATE = "income_create?accountId={accountId}"
     const val EXPENSE_CREATE = "expense_create?accountId={accountId}"
     const val EXPENSE_EDIT = "expense_edit/{expenseId}"
+    const val INCOME_EDIT = "income_edit/{incomeId}"
     const val CATEGORIES = "categories"
     const val CATEGORY_CREATE = "category_create"
     const val CATEGORY_DETAIL = "category_detail/{categoryId}"
@@ -29,6 +30,8 @@ object Routes {
         if (accountId != null) "expense_create?accountId=$accountId" else "expense_create"
 
     fun expenseEdit(expenseId: String) = "expense_edit/$expenseId"
+
+    fun incomeEdit(incomeId: String) = "income_edit/$incomeId"
 
     fun transferCreate(accountId: String? = null): String =
         if (accountId != null) "transfer_create?accountId=$accountId" else "transfer_create"

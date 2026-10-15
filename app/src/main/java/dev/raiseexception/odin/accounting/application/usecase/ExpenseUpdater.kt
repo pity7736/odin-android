@@ -1,7 +1,5 @@
 package dev.raiseexception.odin.accounting.application.usecase
 
-import dev.raiseexception.odin.accounting.domain.CategoryCreationError
-import dev.raiseexception.odin.accounting.domain.CategoryLookupError
 import dev.raiseexception.odin.accounting.domain.ExpenseUpdateError
 import dev.raiseexception.odin.accounting.domain.TagResolutionError
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
@@ -10,7 +8,6 @@ import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.TagInput
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
-import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
 import dev.raiseexception.odin.accounting.domain.repository.ExpenseRepository
 import dev.raiseexception.odin.accounting.domain.repository.TagRepository
 import dev.raiseexception.odin.shared.domain.DomainError
@@ -24,8 +21,7 @@ class ExpenseUpdater(
     private val transactionFinder: TransactionFinder,
     private val accountFinder: AccountFinder,
     private val expenseRepository: ExpenseRepository,
-    private val categoryRepository: CategoryRepository,
-    private val categoryCreator: CategoryCreator,
+    private val categoryResolver: CategoryResolver,
     private val tagResolver: TagResolver,
     private val tagRepository: TagRepository,
     private val transactionRunner: TransactionRunner,
@@ -93,9 +89,11 @@ class ExpenseUpdater(
     }
 
     private suspend fun resolveInputs(categoryInput: CategoryInput, tagInputs: List<TagInput>): Outcome<Resolutions> {
-        val categoryResolution = when (val categoryOutcome = this.resolveCategory(categoryInput)) {
+        val categoryResolution = when (
+            val categoryOutcome = this.categoryResolver.resolve(categoryInput, CategoryType.EXPENSE)
+        ) {
             is Outcome.Success -> categoryOutcome.value
-            is Outcome.Failure -> return categoryOutcome
+            is Outcome.Failure -> return this.storageFailure(categoryOutcome.error)
         }
         return when (val tagOutcome = this.tagResolver.resolve(tagInputs)) {
             is Outcome.Success -> Outcome.Success(
@@ -122,37 +120,6 @@ class ExpenseUpdater(
                 )
             )
             else -> this.persist((editOutcome as Outcome.Success).value)
-        }
-
-    private suspend fun resolveCategory(categoryInput: CategoryInput): Outcome<CategoryResolution> =
-        when (categoryInput) {
-            is CategoryInput.Existing -> this.resolveExistingCategory(categoryInput.categoryId)
-            is CategoryInput.New -> this.resolveNewCategory(categoryInput.categoryName)
-        }
-
-    private suspend fun resolveExistingCategory(categoryId: String): Outcome<CategoryResolution> =
-        when (val lookupOutcome = this.categoryRepository.findById(categoryId).first()) {
-            is Outcome.Failure -> if (lookupOutcome.error is CategoryLookupError.NotFound) {
-                Outcome.Success(CategoryResolution.Rejected("La categoría seleccionada no existe."))
-            } else {
-                this.storageFailure(lookupOutcome.error)
-            }
-            is Outcome.Success -> if (lookupOutcome.value.type == CategoryType.EXPENSE) {
-                Outcome.Success(CategoryResolution.Resolved(lookupOutcome.value.id))
-            } else {
-                Outcome.Success(CategoryResolution.Rejected("La categoría seleccionada no es de tipo gasto."))
-            }
-        }
-
-    private suspend fun resolveNewCategory(categoryName: String): Outcome<CategoryResolution> =
-        when (val creationOutcome = this.categoryCreator.create(categoryName, CategoryType.EXPENSE, "", null)) {
-            is Outcome.Success -> Outcome.Success(CategoryResolution.Resolved(creationOutcome.value.id))
-            is Outcome.Failure -> when (val error = creationOutcome.error) {
-                is CategoryCreationError.InvalidInput -> Outcome.Success(CategoryResolution.Rejected(error.nameError))
-                is CategoryCreationError.DuplicateName ->
-                    Outcome.Success(CategoryResolution.Rejected(error.externalMessage))
-                else -> this.storageFailure(error)
-            }
         }
 
     private fun withResolutionError(editFailure: Outcome.Failure, resolutions: Resolutions): Outcome.Failure {
@@ -187,11 +154,6 @@ class ExpenseUpdater(
 
     private fun storageFailure(error: DomainError): Outcome.Failure =
         Outcome.Failure(ExpenseUpdateError.StorageFailure(internalMessage = error.internalMessage))
-
-    private sealed interface CategoryResolution {
-        data class Resolved(val categoryId: String) : CategoryResolution
-        data class Rejected(val categoryError: String?) : CategoryResolution
-    }
 
     private data class Resolutions(val categoryResolution: CategoryResolution, val tagResolution: TagResolution) {
         val categoryId: String

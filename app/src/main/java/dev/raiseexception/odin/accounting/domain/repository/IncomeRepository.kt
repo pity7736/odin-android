@@ -5,4 +5,5 @@ import dev.raiseexception.odin.shared.domain.Outcome
 
 interface IncomeRepository {
     suspend fun add(income: Income): Outcome<Unit>
+    suspend fun update(income: Income): Outcome<Unit>
 }
