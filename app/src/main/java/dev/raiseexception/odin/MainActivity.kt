@@ -46,6 +46,8 @@ import dev.raiseexception.odin.accounting.presentation.expenseedit.EditExpenseSc
 import dev.raiseexception.odin.accounting.presentation.expenseedit.EditExpenseViewModel
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeScreen
 import dev.raiseexception.odin.accounting.presentation.incomecreation.CreateIncomeViewModel
+import dev.raiseexception.odin.accounting.presentation.incomeedit.EditIncomeScreen
+import dev.raiseexception.odin.accounting.presentation.incomeedit.EditIncomeViewModel
 import dev.raiseexception.odin.accounting.presentation.transactiondetail.TransactionDetailScreen
 import dev.raiseexception.odin.accounting.presentation.transactiondetail.TransactionDetailViewModel
 import dev.raiseexception.odin.accounting.presentation.transfercreation.CreateTransferScreen
@@ -118,6 +120,10 @@ private fun AppNavHost(startRoute: String) {
             composable(Routes.EXPENSE_EDIT) { backStackEntry ->
                 val expenseId = backStackEntry.arguments?.getString("expenseId") ?: ""
                 EditExpenseDestination(expenseId, navController)
+            }
+            composable(Routes.INCOME_EDIT) { backStackEntry ->
+                val incomeId = backStackEntry.arguments?.getString("incomeId") ?: ""
+                EditIncomeDestination(incomeId, navController)
             }
             composable(Routes.ACCOUNTS) {
                 AccountsListDestination(navController)
@@ -538,6 +544,7 @@ private fun TransactionDetailDestination(transactionId: String, navController: N
             }
         },
         onEditExpense = { navController.navigate(Routes.expenseEdit(transactionId)) { launchSingleTop = true } },
+        onEditIncome = { navController.navigate(Routes.incomeEdit(transactionId)) { launchSingleTop = true } },
     )
 }
 
@@ -560,6 +567,24 @@ private fun EditExpenseDestination(expenseId: String, navController: NavHostCont
         onAddTag = editExpenseViewModel::addTag,
         onTagPicked = editExpenseViewModel::pickTag,
         onTagRemoved = editExpenseViewModel::removeTag
+    )
+}
+
+@Composable
+private fun EditIncomeDestination(incomeId: String, navController: NavHostController) {
+    val application = LocalContext.current.applicationContext as OdinApplication
+    val editIncomeViewModel: EditIncomeViewModel = viewModel(
+        factory = application.appContainer.editIncomeViewModelFactory(incomeId)
+    )
+    val uiState by editIncomeViewModel.uiState.collectAsStateWithLifecycle()
+    EditIncomeScreen(
+        uiState = uiState,
+        unexpectedFailureEvent = editIncomeViewModel.unexpectedFailureEvent,
+        onRetry = editIncomeViewModel::retry,
+        onSave = editIncomeViewModel::save,
+        navigationEvent = editIncomeViewModel.navigationEvent,
+        onSaved = { navController.popBackStack() },
+        onCancel = { navController.popBackStack() }
     )
 }
 

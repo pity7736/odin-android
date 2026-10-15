@@ -42,8 +42,8 @@ recorded, so that I can fix mistakes and keep track of where my money goes.
   `specs/shared/backdated-movements/spec.md`.
 - Expenses that are one side of a transfer cannot be edited; their transaction
   details offer no way to edit them.
-- Incomes cannot be edited through this feature; their transaction details offer
-  no way to edit them.
+- Incomes are edited through their own feature (see
+  `specs/accounting/income/update/spec.md`).
 - Saving with no changes is allowed and simply keeps the expense as it is.
 - After the expense is saved successfully, the user is returned to that
   expense's transaction details, now showing the updated information.
@@ -169,11 +169,6 @@ recorded, so that I can fix mistakes and keep track of where my money goes.
 - When the details are shown
 - Then no way to edit the expense is offered
 
-### An income cannot be edited
-- Given the user is viewing the transaction details of an income
-- When the details are shown
-- Then no way to edit the income is offered
-
 ### Editing an expense that no longer exists
 - Given the user opens the edit for an expense that no longer exists
 - When the edit finishes loading
@@ -191,7 +186,7 @@ recorded, so that I can fix mistakes and keep track of where my money goes.
 ## Out of Scope
 - Moving an expense to a different account.
 - Editing the expense side of a transfer (its own feature).
-- Editing incomes (its own feature).
+- Editing incomes (see `specs/accounting/income/update/spec.md`).
 - Deleting an expense.
 - A credit card holding a balance in the user's favor.
 - Correcting a card payment (payments cannot be edited).

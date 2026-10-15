@@ -69,6 +69,6 @@ the full information about any income or expense I have recorded.
 
 ## Out of Scope
 
-- Editing an income or a transfer.
+- Editing a transfer.
 - Deleting a transaction.
 - Navigating to the related category or account from this view.

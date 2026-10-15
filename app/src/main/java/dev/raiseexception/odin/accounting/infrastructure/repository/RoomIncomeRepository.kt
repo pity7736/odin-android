@@ -17,4 +17,12 @@ class RoomIncomeRepository(
         } catch (e: SQLiteException) {
             Outcome.Failure(StorageError(e.message ?: "Failed to add income"))
         }
+
+    override suspend fun update(income: Income): Outcome<Unit> =
+        try {
+            this.transactionDao.update(income.toEntity())
+            Outcome.Success(Unit)
+        } catch (e: SQLiteException) {
+            Outcome.Failure(StorageError(e.message ?: "Failed to update income"))
+        }
 }

@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.accounting.domain.model.AccountType
-import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.TransactionDetail
 import dev.raiseexception.odin.shared.domain.FailureRecorder
@@ -79,7 +78,7 @@ class TransactionDetailViewModel(
             description = transaction.description,
             isIncome = isIncome,
             typeLabel = this.typeLabel(detail),
-            isEditable = transaction is Expense && !detail.isTransfer,
+            isEditable = !detail.isTransfer,
             tagNames = detail.tags.map { it.name },
         )
     }

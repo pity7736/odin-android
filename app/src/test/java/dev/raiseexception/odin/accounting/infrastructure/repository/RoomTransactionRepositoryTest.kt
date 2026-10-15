@@ -76,6 +76,32 @@ class RoomTransactionRepositoryTest {
     }
 
     @Test
+    fun `given the income side of a transfer, when finding it, then isTransfer is true`() = runTest {
+        seedAccountsAndCategories()
+        database.transactionDao().insert(transaction("exp-1", "EXPENSE", "acc-savings", "cat-transfer"))
+        database.transactionDao().insert(transaction("inc-1", "INCOME", "acc-cash", "cat-transfer"))
+        database.transferDao().insert(
+            TransferEntity(id = "tr-1", expenseId = "exp-1", incomeId = "inc-1", createdAt = "2026-08-01T10:00:00Z")
+        )
+        val result = repository.findById("inc-1").first()
+        assertTrue(result is Outcome.Success)
+        assertEquals(true, (result as Outcome.Success).value.isTransfer)
+    }
+
+    @Test
+    fun `given the income side of a card payment, when finding it, then isTransfer is true`() = runTest {
+        seedAccountsAndCategories()
+        database.transactionDao().insert(transaction("exp-1", "EXPENSE", "acc-savings", "cat-transfer"))
+        database.transactionDao().insert(transaction("inc-1", "INCOME", "acc-visa", "cat-transfer"))
+        database.transferDao().insert(
+            TransferEntity(id = "tr-1", expenseId = "exp-1", incomeId = "inc-1", createdAt = "2026-08-01T10:00:00Z")
+        )
+        val result = repository.findById("inc-1").first()
+        assertTrue(result is Outcome.Success)
+        assertEquals(true, (result as Outcome.Success).value.isTransfer)
+    }
+
+    @Test
     fun `given an income on a credit card, when finding it, then the account type is credit card`() = runTest {
         seedAccountsAndCategories()
         database.transactionDao().insert(transaction("inc-1", "INCOME", "acc-visa", "cat-transfer"))

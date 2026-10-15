@@ -207,16 +207,35 @@ class TransactionDetailViewModelTest {
     }
 
     @Test
-    fun `given an income, when loaded, then Content isEditable is false`() = runTest {
+    fun `given a plain income, when loaded, then Content isEditable is true`() = runTest {
         every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(incomeDetail()))
         val viewModel = buildViewModel()
         viewModel.uiState.test {
             assertEquals(TransactionDetailUiState.Loading, awaitItem())
             testDispatcher.scheduler.advanceUntilIdle()
             val state = awaitItem() as TransactionDetailUiState.Content
-            assertEquals(false, state.isEditable)
+            assertEquals(true, state.isEditable)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun `given the income side of a transfer, when loaded, then Content isEditable is false`() = runTest {
+        every { transactionFinder.find(transactionId) } returns flowOf(
+            Outcome.Success(incomeDetail().copy(isTransfer = true))
+        )
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(false, (viewModel.uiState.value as TransactionDetailUiState.Content).isEditable)
+    }
+
+    @Test
+    fun `given a payment received by a credit card, when loaded, then Content isEditable is false`() = runTest {
+        val detail = incomeDetail().copy(accountName = "Visa", isTransfer = true, accountType = AccountType.CREDIT_CARD)
+        every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(detail))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(false, (viewModel.uiState.value as TransactionDetailUiState.Content).isEditable)
     }
 
     @Test

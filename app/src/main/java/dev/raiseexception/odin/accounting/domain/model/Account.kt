@@ -6,6 +6,7 @@ import dev.raiseexception.odin.accounting.domain.AccountUpdateError
 import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
 import dev.raiseexception.odin.accounting.domain.ExpenseUpdateError
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
+import dev.raiseexception.odin.accounting.domain.IncomeUpdateError
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.formatSpanishDayAndMonth
@@ -191,6 +192,59 @@ class Account private constructor(
             )
         }
         this._expenses[expenseIndex] = candidate!!
+        return Outcome.Success(candidate)
+    }
+
+    fun editIncome(
+        incomeId: String,
+        amount: String,
+        date: String,
+        categoryId: String,
+        description: String,
+        clock: Clock = Clock.System
+    ): Outcome<Income> {
+        val incomeIndex = this._incomes.indexOfFirst { it.id == incomeId }
+        if (incomeIndex < 0) {
+            return Outcome.Failure(
+                TransactionLookupError.NotFound(
+                    internalMessage = "Income with id $incomeId not found in account ${this.id}",
+                    externalMessage = "Transacción no encontrada"
+                )
+            )
+        }
+        val original = this._incomes[incomeIndex]
+        val otherIncomes = this._incomes.filterIndexed { index, _ -> index != incomeIndex }
+        val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val parsedAmount = parseAmount(amount)
+        val amountError = validateAmount(amount, parsedAmount)
+            ?: parsedAmount?.let { this.funding.validateEditedIncomeAmount(it, otherIncomes, this._expenses) }
+        val (parsedDate, dateValidationError) = parseAndValidateDate(date, today)
+        val candidate = if (amountError == null && parsedDate != null) {
+            Income(
+                id = original.id,
+                accountId = original.accountId,
+                amount = Money.of(parsedAmount!!, this.currency),
+                date = parsedDate,
+                categoryId = categoryId,
+                description = description.trim(),
+                createdAt = original.createdAt
+            )
+        } else {
+            null
+        }
+        val dateError = dateValidationError
+            ?: candidate?.let { this.historyError(otherIncomes + it + this._expenses, null, today) }
+        val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
+        if (anyError(amountError, dateError, categoryError)) {
+            return Outcome.Failure(
+                IncomeUpdateError.InvalidInput(
+                    amountError = amountError,
+                    dateError = dateError,
+                    categoryError = categoryError
+                )
+            )
+        }
+        this._incomes[incomeIndex] = candidate!!
         return Outcome.Success(candidate)
     }
 
