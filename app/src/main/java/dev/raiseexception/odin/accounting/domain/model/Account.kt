@@ -240,12 +240,12 @@ class Account private constructor(
     }
 
     fun deleteIncome(incomeId: String, clock: Clock = Clock.System): Outcome<Unit> =
-        this.deleteFrom(this._incomes, "Income", incomeId, clock) { remainingIncomes ->
+        this.deleteTransaction(this._incomes, "Income", incomeId, clock) { remainingIncomes ->
             remainingIncomes + this._expenses
         }
 
     fun deleteExpense(expenseId: String, clock: Clock = Clock.System): Outcome<Unit> =
-        this.deleteFrom(this._expenses, "Expense", expenseId, clock) { remainingExpenses ->
+        this.deleteTransaction(this._expenses, "Expense", expenseId, clock) { remainingExpenses ->
             this._incomes + remainingExpenses
         }
 
@@ -294,7 +294,7 @@ class Account private constructor(
 
     fun hasTransactions(): Boolean = this._incomes.isNotEmpty() || this._expenses.isNotEmpty()
 
-    private fun <T : Transaction> deleteFrom(
+    private fun <T : Transaction> deleteTransaction(
         movements: MutableList<T>,
         kind: String,
         transactionId: String,
