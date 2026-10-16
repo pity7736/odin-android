@@ -135,11 +135,26 @@ class HomeScreenTest {
         this.composeTestRule.onNodeWithText("DEUDA").assertDoesNotExist()
     }
 
-    private fun setScreen(uiState: HomeUiState, onAccountSelected: (String) -> Unit = {}) {
+    @Test
+    fun given_a_notice_when_displayed_then_shows_it_and_reports_it_shown() {
+        var shownNotices = 0
+        this.setScreen(HomeUiState.Loading, notice = "Gasto eliminado", onNoticeShown = { shownNotices++ })
+        this.composeTestRule.onNodeWithText("Gasto eliminado").assertIsDisplayed()
+        assertEquals(1, shownNotices)
+    }
+
+    private fun setScreen(
+        uiState: HomeUiState,
+        onAccountSelected: (String) -> Unit = {},
+        notice: String? = null,
+        onNoticeShown: () -> Unit = {}
+    ) {
         this.composeTestRule.setContent {
             HomeScreen(
                 onRetry = {},
                 uiState = uiState,
+                notice = notice,
+                onNoticeShown = onNoticeShown,
                 navigationEvent = emptyFlow(),
                 onAccountSelected = onAccountSelected,
                 onTransactionSelected = {},

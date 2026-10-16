@@ -7,6 +7,7 @@ import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
 import dev.raiseexception.odin.accounting.domain.ExpenseUpdateError
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
 import dev.raiseexception.odin.accounting.domain.IncomeUpdateError
+import dev.raiseexception.odin.accounting.domain.TransactionDeletionError
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.formatSpanishDayAndMonth
@@ -147,12 +148,7 @@ class Account private constructor(
     ): Outcome<Expense> {
         val expenseIndex = this._expenses.indexOfFirst { it.id == expenseId }
         if (expenseIndex < 0) {
-            return Outcome.Failure(
-                TransactionLookupError.NotFound(
-                    internalMessage = "Expense with id $expenseId not found in account ${this.id}",
-                    externalMessage = "Transacción no encontrada"
-                )
-            )
+            return Outcome.Failure(this.notFound("Expense", expenseId))
         }
         val original = this._expenses[expenseIndex]
         val otherExpenses = this._expenses.filterIndexed { index, _ -> index != expenseIndex }
@@ -205,12 +201,7 @@ class Account private constructor(
     ): Outcome<Income> {
         val incomeIndex = this._incomes.indexOfFirst { it.id == incomeId }
         if (incomeIndex < 0) {
-            return Outcome.Failure(
-                TransactionLookupError.NotFound(
-                    internalMessage = "Income with id $incomeId not found in account ${this.id}",
-                    externalMessage = "Transacción no encontrada"
-                )
-            )
+            return Outcome.Failure(this.notFound("Income", incomeId))
         }
         val original = this._incomes[incomeIndex]
         val otherIncomes = this._incomes.filterIndexed { index, _ -> index != incomeIndex }
@@ -247,6 +238,16 @@ class Account private constructor(
         this._incomes[incomeIndex] = candidate!!
         return Outcome.Success(candidate)
     }
+
+    fun deleteIncome(incomeId: String, clock: Clock = Clock.System): Outcome<Unit> =
+        this.deleteFrom(this._incomes, "Income", incomeId, clock) { remainingIncomes ->
+            remainingIncomes + this._expenses
+        }
+
+    fun deleteExpense(expenseId: String, clock: Clock = Clock.System): Outcome<Unit> =
+        this.deleteFrom(this._expenses, "Expense", expenseId, clock) { remainingExpenses ->
+            this._incomes + remainingExpenses
+        }
 
     @Suppress("LongParameterList")
     fun edit(
@@ -292,6 +293,33 @@ class Account private constructor(
     }
 
     fun hasTransactions(): Boolean = this._incomes.isNotEmpty() || this._expenses.isNotEmpty()
+
+    private fun <T : Transaction> deleteFrom(
+        movements: MutableList<T>,
+        kind: String,
+        transactionId: String,
+        clock: Clock,
+        historyWithout: (List<T>) -> List<Transaction>
+    ): Outcome<Unit> {
+        val movementIndex = movements.indexOfFirst { it.id == transactionId }
+        if (movementIndex < 0) {
+            return Outcome.Failure(this.notFound(kind, transactionId))
+        }
+        val remaining = movements.filterIndexed { index, _ -> index != movementIndex }
+        val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val breach = this.historyError(historyWithout(remaining), null, today)
+        if (breach != null) {
+            return Outcome.Failure(TransactionDeletionError.HistoryBreach(breach))
+        }
+        movements.removeAt(movementIndex)
+        return Outcome.Success(Unit)
+    }
+
+    private fun notFound(kind: String, transactionId: String): TransactionLookupError.NotFound =
+        TransactionLookupError.NotFound(
+            internalMessage = "$kind with id $transactionId not found in account ${this.id}",
+            externalMessage = "Transacción no encontrada"
+        )
 
     private fun parseAmount(rawAmount: String): BigDecimal? = try {
         val parsed = BigDecimal(rawAmount.trim())

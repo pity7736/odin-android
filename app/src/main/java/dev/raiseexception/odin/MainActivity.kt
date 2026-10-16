@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -22,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -63,6 +65,7 @@ import dev.raiseexception.odin.home.presentation.home.HomeViewModel
 import dev.raiseexception.odin.reporting.presentation.spendingreport.SpendingReportScreen
 import dev.raiseexception.odin.reporting.presentation.spendingreport.SpendingReportViewModel
 import dev.raiseexception.odin.shared.presentation.Routes
+import dev.raiseexception.odin.shared.presentation.SCREEN_NOTICE_KEY
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
 import dev.raiseexception.odin.ui.theme.OdinTheme
 
@@ -110,8 +113,8 @@ private fun AppNavHost(startRoute: String) {
             composable(Routes.LOGIN) {
                 LoginDestination(navController)
             }
-            composable(Routes.HOME) {
-                HomeDestination(navController)
+            composable(Routes.HOME) { backStackEntry ->
+                HomeDestination(backStackEntry, navController)
             }
             composable(Routes.TRANSACTION_DETAIL) { backStackEntry ->
                 val transactionId = backStackEntry.arguments?.getString("transactionId") ?: ""
@@ -133,7 +136,7 @@ private fun AppNavHost(startRoute: String) {
             }
             composable(Routes.ACCOUNT_DETAIL) { backStackEntry ->
                 val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
-                AccountDetailDestination(accountId, navController)
+                AccountDetailDestination(accountId, backStackEntry, navController)
             }
             composable(Routes.ACCOUNT_EDIT) { backStackEntry ->
                 val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
@@ -291,14 +294,22 @@ private fun CreateAccountDestination(navController: NavHostController) {
 }
 
 @Composable
-private fun AccountDetailDestination(accountId: String, navController: NavHostController) {
+private fun AccountDetailDestination(
+    accountId: String,
+    backStackEntry: NavBackStackEntry,
+    navController: NavHostController
+) {
     val application = LocalContext.current.applicationContext as OdinApplication
     val accountDetailViewModel: AccountDetailViewModel = viewModel(
         factory = application.appContainer.accountDetailViewModelFactory(accountId)
     )
     val uiState by accountDetailViewModel.uiState.collectAsStateWithLifecycle()
+    val notice by backStackEntry.savedStateHandle.getStateFlow<String?>(SCREEN_NOTICE_KEY, null)
+        .collectAsStateWithLifecycle()
     AccountDetailScreen(
         uiState = uiState,
+        notice = notice,
+        onNoticeShown = { backStackEntry.savedStateHandle[SCREEN_NOTICE_KEY] = null },
         onRetry = accountDetailViewModel::retry,
         navigationEvent = accountDetailViewModel.navigationEvent,
         onCreateIncome = {
@@ -440,14 +451,18 @@ private fun CreateCategoryDestination(navController: NavHostController) {
 }
 
 @Composable
-private fun HomeDestination(navController: NavHostController) {
+private fun HomeDestination(backStackEntry: NavBackStackEntry, navController: NavHostController) {
     val application = LocalContext.current.applicationContext as OdinApplication
     val homeViewModel: HomeViewModel = viewModel {
         application.appContainer.homeViewModel()
     }
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
+    val notice by backStackEntry.savedStateHandle.getStateFlow<String?>(SCREEN_NOTICE_KEY, null)
+        .collectAsStateWithLifecycle()
     HomeScreen(
         uiState = uiState,
+        notice = notice,
+        onNoticeShown = { backStackEntry.savedStateHandle[SCREEN_NOTICE_KEY] = null },
         onRetry = homeViewModel::retry,
         navigationEvent = homeViewModel.navigationEvent,
         onAccountSelected = homeViewModel::onAccountSelected,
@@ -520,9 +535,18 @@ private fun TransactionDetailDestination(transactionId: String, navController: N
         factory = application.appContainer.transactionDetailViewModelFactory(transactionId)
     )
     val uiState by transactionDetailViewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(transactionDetailViewModel) {
+        transactionDetailViewModel.deletedEvent.collect { message ->
+            navController.previousBackStackEntry?.savedStateHandle?.set(SCREEN_NOTICE_KEY, message)
+            navController.popBackStack()
+        }
+    }
     TransactionDetailScreen(
         uiState = uiState,
         onRetry = transactionDetailViewModel::retry,
+        onDelete = transactionDetailViewModel::delete,
+        deletionMessageEvent = transactionDetailViewModel.deletionMessageEvent,
+        unexpectedFailureEvent = transactionDetailViewModel.unexpectedFailureEvent,
         onNavigateToHome = {
             navController.navigate(Routes.HOME) {
                 popUpTo(Routes.HOME) { inclusive = true }

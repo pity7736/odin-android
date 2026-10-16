@@ -237,16 +237,28 @@ class AccountDetailScreenTest {
         tagIds = emptyList()
     )
 
+    @Test
+    fun given_a_notice_when_displayed_then_shows_it_and_reports_it_shown() {
+        var shownNotices = 0
+        this.setScreen(AccountDetailUiState.Loading, notice = "Ingreso eliminado", onNoticeShown = { shownNotices++ })
+        this.composeTestRule.onNodeWithText("Ingreso eliminado").assertIsDisplayed()
+        assertEquals(1, shownNotices)
+    }
+
     private fun setScreen(
         uiState: AccountDetailUiState,
         onCreateExpense: () -> Unit = {},
         onCreateTransfer: () -> Unit = {},
-        onTransactionSelected: (String) -> Unit = {}
+        onTransactionSelected: (String) -> Unit = {},
+        notice: String? = null,
+        onNoticeShown: () -> Unit = {}
     ) {
         this.composeTestRule.setContent {
             AccountDetailScreen(
                 onRetry = {},
                 uiState = uiState,
+                notice = notice,
+                onNoticeShown = onNoticeShown,
                 navigationEvent = emptyFlow(),
                 onCreateIncome = {},
                 onCreateExpense = onCreateExpense,

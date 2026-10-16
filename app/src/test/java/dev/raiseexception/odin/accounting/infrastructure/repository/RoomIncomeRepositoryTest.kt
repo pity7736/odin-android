@@ -112,6 +112,38 @@ class RoomIncomeRepositoryTest {
         assertEquals("disk I/O error", result.error.internalMessage)
     }
 
+    @Test
+    fun `given two stored incomes, when deleting one, then only its row is removed`() = runTest {
+        database.accountDao().insert(AccountBuilder().id("acc-1").build().toEntity())
+        database.categoryDao().insert(incomeCategory("cat-1", "Salario"))
+        repository.add(income(amount = "2000.00", date = "2026-08-01", categoryId = "cat-1", description = "Pago"))
+        repository.add(
+            Income.restore(
+                id = "inc-2",
+                accountId = "acc-1",
+                amount = Money.of(BigDecimal("300.00"), Currency.COP),
+                date = LocalDate.parse("2026-08-02"),
+                categoryId = "cat-1",
+                description = "Bono",
+                createdAt = Instant.parse("2026-08-02T10:00:00Z")
+            )
+        )
+        val result = repository.delete("inc-1")
+        assertTrue(result is Outcome.Success)
+        val accountWithTransactions = database.accountDao().findByIdWithTransactions("acc-1").first()!!
+        assertEquals(listOf("inc-2"), accountWithTransactions.transactions.map { it.transaction.id })
+    }
+
+    @Test
+    fun `given the storage fails, when deleting an income, then fails with a storage error`() = runTest {
+        val failingTransactionDao = mockk<TransactionDao>()
+        coEvery { failingTransactionDao.deleteById(any()) } throws SQLiteException("disk I/O error")
+        val failingRepository = RoomIncomeRepository(failingTransactionDao)
+        val result = failingRepository.delete("inc-1")
+        assertTrue((result as Outcome.Failure).error is StorageError)
+        assertEquals("disk I/O error", result.error.internalMessage)
+    }
+
     private fun income(amount: String, date: String, categoryId: String, description: String): Income =
         Income.restore(
             id = "inc-1",

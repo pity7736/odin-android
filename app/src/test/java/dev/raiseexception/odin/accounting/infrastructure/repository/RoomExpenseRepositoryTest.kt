@@ -13,6 +13,7 @@ import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.StorageError
 import dev.raiseexception.odin.testutil.AccountBuilder
 import dev.raiseexception.odin.testutil.ExpenseBuilder
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.first
@@ -169,6 +170,37 @@ class RoomExpenseRepositoryTest {
         repository.add(expense(listOf("tag-comida")))
         repository.update(expense(emptyList()))
         assertTrue(storedTagIds().isEmpty())
+    }
+
+    @Test
+    fun `given a tagged expense, when deleting it, then its row and its tag links are removed`() = runTest {
+        seedAccountCategoryAndTags()
+        repository.add(expense(listOf("tag-nala", "tag-comida")))
+        val result = repository.delete("exp-1")
+        assertTrue(result is Outcome.Success)
+        val accountWithTransactions = database.accountDao().findByIdWithTransactions("acc-1").first()!!
+        assertTrue(accountWithTransactions.transactions.isEmpty())
+        assertTrue(database.tagDao().findByExpenseId("exp-1").first().isEmpty())
+    }
+
+    @Test
+    fun `given an untagged expense, when deleting it, then its row is removed`() = runTest {
+        seedAccountCategoryAndTags()
+        repository.add(expense(emptyList()))
+        val result = repository.delete("exp-1")
+        assertTrue(result is Outcome.Success)
+        val accountWithTransactions = database.accountDao().findByIdWithTransactions("acc-1").first()!!
+        assertTrue(accountWithTransactions.transactions.isEmpty())
+    }
+
+    @Test
+    fun `given the storage fails, when deleting an expense, then fails with a storage error`() = runTest {
+        val failingExpenseTagDao = mockk<ExpenseTagDao>()
+        coEvery { failingExpenseTagDao.deleteByExpenseId(any()) } throws SQLiteException("disk I/O error")
+        val failingRepository = RoomExpenseRepository(database.transactionDao(), failingExpenseTagDao)
+        val result = failingRepository.delete("exp-1")
+        assertTrue((result as Outcome.Failure).error is StorageError)
+        assertEquals("disk I/O error", result.error.internalMessage)
     }
 
     private suspend fun seedAccountCategoryAndTags() {

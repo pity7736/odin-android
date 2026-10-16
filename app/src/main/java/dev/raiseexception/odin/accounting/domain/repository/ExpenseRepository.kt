@@ -8,5 +8,6 @@ import kotlinx.datetime.LocalDate
 interface ExpenseRepository {
     suspend fun add(expense: Expense): Outcome<Unit>
     suspend fun update(expense: Expense): Outcome<Unit>
+    suspend fun delete(expenseId: String): Outcome<Unit>
     fun findSpendingBetween(start: LocalDate, end: LocalDate): Flow<Outcome<List<Expense>>>
 }

@@ -33,6 +33,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -61,6 +62,7 @@ import dev.raiseexception.odin.shared.presentation.OdinBottomBar
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
 import dev.raiseexception.odin.shared.presentation.capitalizeFirst
 import dev.raiseexception.odin.shared.presentation.formatMoney
+import dev.raiseexception.odin.shared.presentation.rememberScreenNoticeHostState
 import dev.raiseexception.odin.ui.theme.ExpenseBadge
 import dev.raiseexception.odin.ui.theme.ExpenseDark
 import dev.raiseexception.odin.ui.theme.ExpenseRed
@@ -99,6 +101,8 @@ fun HomeScreen(
     onNavigateToCategories: () -> Unit,
     onNavigateToReports: () -> Unit,
     onRetry: () -> Unit,
+    notice: String? = null,
+    onNoticeShown: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(Unit) {
@@ -114,8 +118,10 @@ fun HomeScreen(
         }
     }
     var fabExpanded by remember { mutableStateOf(false) }
+    val noticeHostState = rememberScreenNoticeHostState(notice, onNoticeShown)
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(hostState = noticeHostState) },
         bottomBar = {
             OdinBottomBar(
                 selectedTab = BottomBarTab.HOME,
