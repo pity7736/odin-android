@@ -206,8 +206,9 @@ specs/accounting/expense/update/
 
 - **Not-found on save surfaces as the general save error.** An expense deleted
   between opening the form and saving shows "Transacción no encontrada" as the
-  save error rather than the not-found screen. Unreachable until expense deletion
-  or multi-device sync exists.
+  save error rather than the not-found screen. Unreachable on one device, where
+  the edit form and the delete action on the transaction details are never on
+  screen together; reachable only through multi-device sync.
 - **The account read happens outside the transaction.** The account and its
   movements are loaded before `TransactionRunner.run`, so a concurrent write
   could make the ceiling stale. Acceptable for the single-user, single-device

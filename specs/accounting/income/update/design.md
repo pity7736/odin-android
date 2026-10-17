@@ -171,7 +171,9 @@ specs/accounting/income/update/
 ## Known Limitations
 
 - **An income deleted while its form is open is reported as saved.** The update
-  by primary key changes no row and still reports success. Unreachable until income deletion or multi-device sync exists.
+  by primary key changes no row and still reports success. Unreachable on one
+  device, where the edit form and the delete action on the transaction details
+  are never on screen together; reachable only through multi-device sync.
 - **A storage failure while loading the form shows "Transacción no encontrada".**
   The load folds every failure into `NotFound` (tracked in `TASKS.md` with the
   account and expense edit forms).

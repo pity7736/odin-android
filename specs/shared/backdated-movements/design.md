@@ -31,6 +31,13 @@ cases.
   figure that the check accepted. Rejected: checking each day's total at the end of the day. Movements
   carry no time of day, and the list would still show a negative running figure
   on a row in the middle of the day.
+- **Deleting a movement replays the history without it.** `Account.deleteIncome`
+  and `Account.deleteExpense` call `historyError` with the remaining movements and
+  no new movement, and report a breach as `TransactionDeletionError.HistoryBreach`
+  carrying the same message. The funding decides which deletions can break the
+  history: removing an income can push a money account below zero, removing a
+  card expense can push a card's debt below zero (see
+  `specs/accounting/transaction-deletion/design.md`).
 - **Each funding owns what an invalid figure is; `Account` owns the walk and the
   date.** `AccountFunding.openingFigure()` is where the walk starts (the initial
   balance for `Funds`, the initial debt for `Credit`). `historyBreachMessage(figure)`
@@ -89,7 +96,7 @@ app/src/main/java/dev/raiseexception/odin/
     ├── AccountFunding.kt              # openingFigure, historyBreachMessage
     └── Account.kt                     # historyError, placeLastOnItsDay; called by
                                        # createExpense, editExpense, createIncome,
-                                       # editIncome
+                                       # editIncome, deleteIncome, deleteExpense
 
 app/src/test/java/dev/raiseexception/odin/
 ├── shared/domain/SpanishDateTest.kt
@@ -101,6 +108,7 @@ app/src/test/java/dev/raiseexception/odin/
     ├── ExpenseCreatorTest.kt
     ├── ExpenseUpdaterTest.kt
     ├── IncomeUpdaterTest.kt
+    ├── TransactionDeleterTest.kt
     └── TransferCreatorTest.kt
 
 specs/shared/backdated-movements/
@@ -126,12 +134,18 @@ specs/shared/backdated-movements/
 4. The result becomes the operation's `dateError`. On any error nothing is added
    to the account. The use cases forward the domain failure unchanged and save
    nothing. The ViewModels already map `dateError` onto the date field.
+5. Deleting follows the same walk: `TransactionDeleter` loads the account with
+   its movements, and `Account.deleteIncome` / `deleteExpense` call
+   `historyError` with the remaining movements. A breach becomes
+   `TransactionDeletionError.HistoryBreach`; nothing is removed or deleted.
 
 ## Screen & States / Backend Interaction
 
 N/A — no new screen state. The message travels in the existing `dateError` of
 `ExpenseCreationError.InvalidInput`, `ExpenseUpdateError.InvalidInput`,
-`IncomeCreationError.InvalidInput` and `TransferCreationError.InvalidInput`.
+`IncomeCreationError.InvalidInput` and `TransferCreationError.InvalidInput`, and,
+for a deletion, as the external message of `TransactionDeletionError.HistoryBreach`,
+shown in the transaction details' message dialog.
 
 ## Known Limitations
 
