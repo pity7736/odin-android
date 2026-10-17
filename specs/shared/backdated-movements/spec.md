@@ -31,9 +31,9 @@ through the whole history.
 
 ### Where this applies
 - This behavior applies to recording an expense, editing an expense, editing an
-  income, recording a transfer, and recording a credit card payment, for money
-  accounts and credit cards alike. Each of those features follows these rules in addition to its
-  own.
+  income, deleting an expense, deleting an income, recording a transfer, and
+  recording a credit card payment, for money accounts and credit cards alike.
+  Each of those features follows these rules in addition to its own.
 
 ### The rule
 - After recording or editing a movement, the account's figures must be valid on
@@ -60,8 +60,8 @@ through the whole history.
 
 ### What the user sees when a movement is rejected
 - The movement is not saved and nothing changes in any account.
-- An error is shown next to the date, naming the first date on which the history
-  would break:
+- An error is shown next to the date, or, when deleting a movement, as a message
+  on its details, naming the first date on which the history would break:
   - For a money account whose balance would go below zero: "El saldo de la
     cuenta quedaría negativo el [fecha]."
   - For a credit card whose debt would go above its credit limit: "La deuda de
@@ -223,8 +223,6 @@ Dates in these scenarios are in the current year unless a year is given.
 ## Out of Scope
 - Changing an account's initial balance: it can only be changed while the
   account has no movements, so there is no history to break.
-- Deleting incomes: not possible yet. When it becomes possible, it must follow
-  these same rules.
 - Limiting how long ago an expense can be to still be edited (tracked in the
   task list).
 - Keeping a stored record of an account's figures at past dates.

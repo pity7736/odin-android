@@ -67,9 +67,11 @@ one expense references it.
   resolution into each use case (category resolution already shows that
   duplication).
 
-- **A tag that no expense references is deleted.** `ExpenseUpdater`
-  runs a global "delete tags with no link" cleanup after replacing the expense's
-  links, inside the same transaction, so a tag still used elsewhere survives.
+- **A tag that no expense references is deleted.** `ExpenseUpdater` and
+  `TransactionDeleter` run a global "delete tags with no link" cleanup after
+  replacing or removing the expense's links, inside the same transaction, so a
+  tag still used elsewhere survives (see
+  `specs/accounting/transaction-deletion/design.md`).
   Rejected: keeping unused rows hidden from suggestions (a hidden row would still
   hold its normalized name and silently impose its old spelling on a retyped
   name).
@@ -164,6 +166,8 @@ specs/accounting/expense-tags/
    `editExpense`, which deduplicates and enforces the limit.
 4. `ExpenseRepository` writes the expense and replaces its links; the updater
    then deletes unused tags. Any failure rolls the whole transaction back.
+   Deleting an expense removes its links before its row, and `TransactionDeleter`
+   then deletes unused tags the same way.
 
 **Reading**
 - Account loads map each expense with its tag ids.

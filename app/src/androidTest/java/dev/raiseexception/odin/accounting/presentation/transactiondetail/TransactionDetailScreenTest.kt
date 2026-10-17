@@ -1,13 +1,18 @@
 package dev.raiseexception.odin.accounting.presentation.transactiondetail
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.IncomeGreen
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -22,6 +27,9 @@ class TransactionDetailScreenTest {
         composeTestRule.setContent {
             TransactionDetailScreen(
                 onRetry = {},
+                onDelete = {},
+                deletionMessageEvent = emptyFlow(),
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = TransactionDetailUiState.Content(
                     formattedAmount = "+$1.000,00",
                     amountColor = IncomeGreen,
@@ -55,6 +63,9 @@ class TransactionDetailScreenTest {
         composeTestRule.setContent {
             TransactionDetailScreen(
                 onRetry = {},
+                onDelete = {},
+                deletionMessageEvent = emptyFlow(),
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = TransactionDetailUiState.Content(
                     formattedAmount = "-$500,00",
                     amountColor = ExpenseRed,
@@ -88,6 +99,9 @@ class TransactionDetailScreenTest {
         composeTestRule.setContent {
             TransactionDetailScreen(
                 onRetry = {},
+                onDelete = {},
+                deletionMessageEvent = emptyFlow(),
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = TransactionDetailUiState.Content(
                     formattedAmount = "+$1.000,00",
                     amountColor = IncomeGreen,
@@ -116,6 +130,9 @@ class TransactionDetailScreenTest {
         composeTestRule.setContent {
             TransactionDetailScreen(
                 onRetry = {},
+                onDelete = {},
+                deletionMessageEvent = emptyFlow(),
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = TransactionDetailUiState.Loading,
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -133,6 +150,9 @@ class TransactionDetailScreenTest {
         composeTestRule.setContent {
             TransactionDetailScreen(
                 onRetry = {},
+                onDelete = {},
+                deletionMessageEvent = emptyFlow(),
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = TransactionDetailUiState.NotFound,
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -150,6 +170,9 @@ class TransactionDetailScreenTest {
         composeTestRule.setContent {
             TransactionDetailScreen(
                 onRetry = {},
+                onDelete = {},
+                deletionMessageEvent = emptyFlow(),
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = TransactionDetailUiState.Error(message = "Error al acceder a los datos"),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -169,6 +192,9 @@ class TransactionDetailScreenTest {
         composeTestRule.setContent {
             TransactionDetailScreen(
                 onRetry = {},
+                onDelete = {},
+                deletionMessageEvent = emptyFlow(),
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = expenseContent(isEditable = true),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -179,7 +205,7 @@ class TransactionDetailScreenTest {
             )
         }
         composeTestRule.onNodeWithTag("edit_transaction_button").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Editar").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Editar").assertIsDisplayed()
         composeTestRule.onNodeWithTag("edit_transaction_button").performClick()
         assertEquals(1, editClicks)
         assertEquals(0, incomeEditClicks)
@@ -192,6 +218,9 @@ class TransactionDetailScreenTest {
         composeTestRule.setContent {
             TransactionDetailScreen(
                 onRetry = {},
+                onDelete = {},
+                deletionMessageEvent = emptyFlow(),
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = incomeContent(isEditable = true),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -201,7 +230,7 @@ class TransactionDetailScreenTest {
                 onEditIncome = { incomeEditClicks++ },
             )
         }
-        composeTestRule.onNodeWithText("Editar").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Editar").assertIsDisplayed()
         composeTestRule.onNodeWithTag("edit_transaction_button").performClick()
         assertEquals(1, incomeEditClicks)
         assertEquals(0, expenseEditClicks)
@@ -212,6 +241,9 @@ class TransactionDetailScreenTest {
         composeTestRule.setContent {
             TransactionDetailScreen(
                 onRetry = {},
+                onDelete = {},
+                deletionMessageEvent = emptyFlow(),
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = incomeContent(isEditable = false),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -222,7 +254,7 @@ class TransactionDetailScreenTest {
             )
         }
         composeTestRule.onNodeWithTag("edit_transaction_button").assertDoesNotExist()
-        composeTestRule.onNodeWithText("Editar").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("Editar").assertDoesNotExist()
     }
 
     @Test
@@ -230,6 +262,9 @@ class TransactionDetailScreenTest {
         composeTestRule.setContent {
             TransactionDetailScreen(
                 onRetry = {},
+                onDelete = {},
+                deletionMessageEvent = emptyFlow(),
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = expenseContent(isEditable = false),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -240,7 +275,7 @@ class TransactionDetailScreenTest {
             )
         }
         composeTestRule.onNodeWithTag("edit_transaction_button").assertDoesNotExist()
-        composeTestRule.onNodeWithText("Editar").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("Editar").assertDoesNotExist()
     }
 
     @Test
@@ -248,6 +283,9 @@ class TransactionDetailScreenTest {
         composeTestRule.setContent {
             TransactionDetailScreen(
                 onRetry = {},
+                onDelete = {},
+                deletionMessageEvent = emptyFlow(),
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = TransactionDetailUiState.Content(
                     formattedAmount = "+$300.000,00",
                     amountColor = IncomeGreen,
@@ -276,6 +314,9 @@ class TransactionDetailScreenTest {
         composeTestRule.setContent {
             TransactionDetailScreen(
                 onRetry = {},
+                onDelete = {},
+                deletionMessageEvent = emptyFlow(),
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = expenseContent(isEditable = true).copy(tagNames = listOf("Comida", "Nala")),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -295,6 +336,9 @@ class TransactionDetailScreenTest {
         composeTestRule.setContent {
             TransactionDetailScreen(
                 onRetry = {},
+                onDelete = {},
+                deletionMessageEvent = emptyFlow(),
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = expenseContent(isEditable = true),
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},
@@ -306,6 +350,113 @@ class TransactionDetailScreenTest {
         }
         composeTestRule.onNodeWithText("ETIQUETAS").assertDoesNotExist()
         composeTestRule.onNodeWithTag("tags_chips").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_editable_content_when_shown_then_the_edit_and_delete_icons_are_displayed() {
+        setDetailContent(expenseContent(isEditable = true))
+        composeTestRule.onNodeWithTag("edit_transaction_button").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("delete_transaction_button").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Eliminar").assertIsDisplayed()
+    }
+
+    @Test
+    fun given_non_editable_content_when_shown_then_neither_the_edit_nor_the_delete_icon_is_displayed() {
+        setDetailContent(expenseContent(isEditable = false))
+        composeTestRule.onNodeWithTag("edit_transaction_button").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("delete_transaction_button").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("Eliminar").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_an_expense_when_tapping_delete_then_asks_to_confirm_deleting_the_expense() {
+        setDetailContent(expenseContent(isEditable = true))
+        composeTestRule.onNodeWithTag("delete_transaction_button").performClick()
+        composeTestRule.onNodeWithTag("delete_confirmation_dialog").assertIsDisplayed()
+        composeTestRule.onNodeWithText("¿Eliminar este gasto? Esta acción no se puede deshacer.").assertIsDisplayed()
+    }
+
+    @Test
+    fun given_an_income_when_tapping_delete_then_asks_to_confirm_deleting_the_income() {
+        setDetailContent(incomeContent(isEditable = true))
+        composeTestRule.onNodeWithTag("delete_transaction_button").performClick()
+        composeTestRule.onNodeWithText("¿Eliminar este ingreso? Esta acción no se puede deshacer.").assertIsDisplayed()
+    }
+
+    @Test
+    fun given_the_confirmation_when_tapping_cancelar_then_it_closes_without_deleting() {
+        var deleteRequests = 0
+        setDetailContent(expenseContent(isEditable = true), onDelete = { deleteRequests++ })
+        composeTestRule.onNodeWithTag("delete_transaction_button").performClick()
+        composeTestRule.onNodeWithTag("delete_confirmation_cancel").performClick()
+        composeTestRule.onNodeWithTag("delete_confirmation_dialog").assertDoesNotExist()
+        assertEquals(0, deleteRequests)
+    }
+
+    @Test
+    fun given_the_confirmation_when_tapping_eliminar_then_on_delete_is_called() {
+        var deleteRequests = 0
+        setDetailContent(expenseContent(isEditable = true), onDelete = { deleteRequests++ })
+        composeTestRule.onNodeWithTag("delete_transaction_button").performClick()
+        composeTestRule.onNodeWithTag("delete_confirmation_confirm").performClick()
+        composeTestRule.onNodeWithTag("delete_confirmation_dialog").assertDoesNotExist()
+        assertEquals(1, deleteRequests)
+    }
+
+    @Test
+    fun given_a_deletion_in_progress_when_shown_then_the_edit_and_delete_icons_are_disabled() {
+        setDetailContent(expenseContent(isEditable = true).copy(isDeleting = true))
+        composeTestRule.onNodeWithTag("edit_transaction_button").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("delete_transaction_button").assertIsNotEnabled()
+    }
+
+    @Test
+    fun given_a_deletion_message_when_shown_then_entendido_closes_it() {
+        val message = "El saldo de la cuenta quedaría negativo el 8 de marzo."
+        setDetailContent(expenseContent(isEditable = true), deletionMessageEvent = flowOf(message))
+        composeTestRule.onNodeWithTag("deletion_message_dialog").assertIsDisplayed()
+        composeTestRule.onNodeWithText(message).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Entendido").performClick()
+        composeTestRule.onNodeWithTag("deletion_message_dialog").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_a_deletion_in_progress_when_tapping_the_bottom_bar_then_does_not_leave() {
+        var homeNavigations = 0
+        setDetailContent(expenseContent(isEditable = true).copy(isDeleting = true), onNavigateToHome = { homeNavigations++ })
+        composeTestRule.onNodeWithTag("nav_home").performClick()
+        assertEquals(0, homeNavigations)
+    }
+
+    @Test
+    fun given_no_deletion_in_progress_when_tapping_the_bottom_bar_then_leaves() {
+        var homeNavigations = 0
+        setDetailContent(expenseContent(isEditable = true), onNavigateToHome = { homeNavigations++ })
+        composeTestRule.onNodeWithTag("nav_home").performClick()
+        assertEquals(1, homeNavigations)
+    }
+
+    private fun setDetailContent(
+        uiState: TransactionDetailUiState,
+        onDelete: () -> Unit = {},
+        deletionMessageEvent: Flow<String> = emptyFlow(),
+        onNavigateToHome: () -> Unit = {}
+    ) {
+        composeTestRule.setContent {
+            TransactionDetailScreen(
+                onRetry = {},
+                onDelete = onDelete,
+                deletionMessageEvent = deletionMessageEvent,
+                unexpectedFailureEvent = emptyFlow(),
+                uiState = uiState,
+                onNavigateToHome = onNavigateToHome,
+                onNavigateToAccounts = {},
+                onNavigateToCategories = {},
+                onNavigateToReports = {},
+                onEditExpense = {},
+                onEditIncome = {},
+            )
+        }
     }
 
     private fun incomeContent(isEditable: Boolean) = TransactionDetailUiState.Content(
@@ -337,6 +488,9 @@ class TransactionDetailScreenTest {
         composeTestRule.setContent {
             TransactionDetailScreen(
                 onRetry = {},
+                onDelete = {},
+                deletionMessageEvent = emptyFlow(),
+                unexpectedFailureEvent = emptyFlow(),
                 uiState = TransactionDetailUiState.UnexpectedFailure,
                 onNavigateToHome = {},
                 onNavigateToAccounts = {},

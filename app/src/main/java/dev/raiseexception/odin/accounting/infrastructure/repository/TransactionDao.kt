@@ -16,6 +16,9 @@ interface TransactionDao {
     @Update
     suspend fun update(transaction: TransactionEntity)
 
+    @Query("DELETE FROM transactions WHERE id = :id")
+    suspend fun deleteById(id: String)
+
     @Query(
         """
         SELECT t.*, c.name AS categoryName, a.name AS accountName, tr.id IS NOT NULL AS isTransfer,

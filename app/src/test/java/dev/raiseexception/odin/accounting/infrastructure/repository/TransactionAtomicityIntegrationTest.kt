@@ -49,6 +49,9 @@ class TransactionAtomicityIntegrationTest {
 
         override suspend fun update(income: Income): Outcome<Unit> =
             Outcome.Failure(StorageError("Simulated income storage failure"))
+
+        override suspend fun delete(incomeId: String): Outcome<Unit> =
+            Outcome.Failure(StorageError("Simulated income storage failure"))
     }
     private lateinit var database: OdinDatabase
     private lateinit var accountRepository: RoomAccountRepository

@@ -1,7 +1,9 @@
 package dev.raiseexception.odin.accounting.presentation.transactiondetail
 
 import app.cash.turbine.test
+import dev.raiseexception.odin.accounting.application.usecase.TransactionDeleter
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
+import dev.raiseexception.odin.accounting.domain.TransactionDeletionError
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
@@ -15,12 +17,15 @@ import dev.raiseexception.odin.shared.domain.StorageError
 import dev.raiseexception.odin.testutil.TagBuilder
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.IncomeGreen
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -41,6 +46,7 @@ import kotlin.time.Duration.Companion.seconds
 class TransactionDetailViewModelTest {
 
     private val transactionFinder = mockk<TransactionFinder>()
+    private val transactionDeleter = mockk<TransactionDeleter>()
     private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
     private val transactionId = "test-tx-id"
@@ -56,7 +62,13 @@ class TransactionDetailViewModelTest {
     }
 
     private fun buildViewModel() =
-        TransactionDetailViewModel(transactionId, transactionFinder, failureRecorder, testDispatcher)
+        TransactionDetailViewModel(
+            transactionId,
+            transactionFinder,
+            transactionDeleter,
+            failureRecorder,
+            testDispatcher
+        )
 
     @Test
     fun `given a loading state, when the view model initializes, then emits loading`() = runTest {
@@ -418,4 +430,169 @@ class TransactionDetailViewModelTest {
             assertEquals(TransactionDetailUiState.UnexpectedFailure, viewModel.uiState.value)
             verify(exactly = 1) { failureRecorder.record(any()) }
         }
+
+    @Test
+    fun `given an expense, when deleting it, then it is deleting, stops watching, and announces Gasto eliminado`() =
+        runTest {
+            val detailFlow = MutableStateFlow<Outcome<TransactionDetail>>(Outcome.Success(expenseDetail()))
+            every { transactionFinder.find(transactionId) } returns detailFlow
+            coEvery { transactionDeleter.delete(transactionId) } returns Outcome.Success(Unit)
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.deletedEvent.test {
+                viewModel.delete()
+                assertEquals(true, (viewModel.uiState.value as TransactionDetailUiState.Content).isDeleting)
+                testDispatcher.scheduler.advanceUntilIdle()
+                assertEquals("Gasto eliminado", awaitItem())
+                detailFlow.value = Outcome.Failure(TransactionLookupError.NotFound("Not found", "No existe"))
+                testDispatcher.scheduler.advanceUntilIdle()
+                assertEquals(true, (viewModel.uiState.value as TransactionDetailUiState.Content).isDeleting)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `given an income, when deleting it, then announces Ingreso eliminado`() = runTest {
+        every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(incomeDetail()))
+        coEvery { transactionDeleter.delete(transactionId) } returns Outcome.Success(Unit)
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.deletedEvent.test {
+            viewModel.delete()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals("Ingreso eliminado", awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `given a deletion that breaks the history, when deleting, then shows the message and resumes watching`() =
+        runTest {
+            val detailFlow = MutableStateFlow<Outcome<TransactionDetail>>(Outcome.Success(incomeDetail()))
+            every { transactionFinder.find(transactionId) } returns detailFlow
+            coEvery { transactionDeleter.delete(transactionId) } returns Outcome.Failure(
+                TransactionDeletionError.HistoryBreach("El saldo de la cuenta quedaría negativo el 8 de marzo.")
+            )
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.deletionMessageEvent.test {
+                viewModel.delete()
+                testDispatcher.scheduler.advanceUntilIdle()
+                assertEquals("El saldo de la cuenta quedaría negativo el 8 de marzo.", awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals(false, (viewModel.uiState.value as TransactionDetailUiState.Content).isDeleting)
+            assertWatchingResumes(viewModel, detailFlow)
+        }
+
+    @Test
+    fun `given the deletion fails in storage, when deleting, then shows the storage message and resumes watching`() =
+        runTest {
+            val detailFlow = MutableStateFlow<Outcome<TransactionDetail>>(Outcome.Success(expenseDetail()))
+            every { transactionFinder.find(transactionId) } returns detailFlow
+            coEvery { transactionDeleter.delete(transactionId) } returns Outcome.Failure(
+                TransactionDeletionError.StorageFailure(
+                    internalMessage = "disk I/O error",
+                    externalMessage = "No se pudo eliminar el gasto. Inténtalo de nuevo."
+                )
+            )
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.deletionMessageEvent.test {
+                viewModel.delete()
+                testDispatcher.scheduler.advanceUntilIdle()
+                assertEquals("No se pudo eliminar el gasto. Inténtalo de nuevo.", awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals(false, (viewModel.uiState.value as TransactionDetailUiState.Content).isDeleting)
+            assertWatchingResumes(viewModel, detailFlow)
+        }
+
+    @Test
+    fun `given deleting throws, when deleting, then signals the unexpected failure, restores and resumes watching`() =
+        runTest {
+            val detailFlow = MutableStateFlow<Outcome<TransactionDetail>>(Outcome.Success(expenseDetail()))
+            every { transactionFinder.find(transactionId) } returns detailFlow
+            coEvery { transactionDeleter.delete(transactionId) } throws IllegalStateException("falla")
+            val viewModel = buildViewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            viewModel.unexpectedFailureEvent.test {
+                viewModel.delete()
+                testDispatcher.scheduler.advanceUntilIdle()
+                awaitItem()
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals(false, (viewModel.uiState.value as TransactionDetailUiState.Content).isDeleting)
+            verify(exactly = 1) { failureRecorder.record(any()) }
+            assertWatchingResumes(viewModel, detailFlow)
+        }
+
+    @Test
+    fun `given a deletion in progress, when deleting again, then the second request is ignored`() = runTest {
+        every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(expenseDetail()))
+        coEvery { transactionDeleter.delete(transactionId) } returns Outcome.Success(Unit)
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.delete()
+        viewModel.delete()
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 1) { transactionDeleter.delete(transactionId) }
+    }
+
+    @Test
+    fun `given a transfer side, when deleting, then nothing happens`() = runTest {
+        every { transactionFinder.find(transactionId) } returns
+            flowOf(Outcome.Success(expenseDetail().copy(isTransfer = true)))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        val stateBefore = viewModel.uiState.value
+        viewModel.delete()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(stateBefore, viewModel.uiState.value)
+        coVerify(exactly = 0) { transactionDeleter.delete(any()) }
+    }
+
+    @Test
+    fun `given the movement is still loading, when deleting, then nothing happens`() = runTest {
+        every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(expenseDetail()))
+        val viewModel = buildViewModel()
+        viewModel.delete()
+        assertEquals(TransactionDetailUiState.Loading, viewModel.uiState.value)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 0) { transactionDeleter.delete(any()) }
+    }
+
+    @Test
+    fun `given the movement was not found, when deleting, then nothing happens`() = runTest {
+        every { transactionFinder.find(transactionId) } returns
+            flowOf(Outcome.Failure(TransactionLookupError.NotFound("Not found", "No existe")))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.delete()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(TransactionDetailUiState.NotFound, viewModel.uiState.value)
+        coVerify(exactly = 0) { transactionDeleter.delete(any()) }
+    }
+
+    @Test
+    fun `given the movement failed to load, when deleting, then nothing happens`() = runTest {
+        every { transactionFinder.find(transactionId) } returns
+            flowOf(Outcome.Failure(StorageError("Database error", "Error al acceder a los datos")))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.delete()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(TransactionDetailUiState.Error("Error al acceder a los datos"), viewModel.uiState.value)
+        coVerify(exactly = 0) { transactionDeleter.delete(any()) }
+    }
+
+    private fun assertWatchingResumes(
+        viewModel: TransactionDetailViewModel,
+        detailFlow: MutableStateFlow<Outcome<TransactionDetail>>
+    ) {
+        val current = (detailFlow.value as Outcome.Success).value
+        detailFlow.value = Outcome.Success(current.copy(categoryName = "Categoría nueva"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("Categoría nueva", (viewModel.uiState.value as TransactionDetailUiState.Content).categoryName)
+    }
 }

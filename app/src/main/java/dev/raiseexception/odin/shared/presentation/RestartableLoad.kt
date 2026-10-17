@@ -10,4 +10,9 @@ class RestartableLoad(private val launchLoad: () -> Job) {
         this.currentLoad?.cancel()
         this.currentLoad = this.launchLoad()
     }
+
+    fun stop() {
+        this.currentLoad?.cancel()
+        this.currentLoad = null
+    }
 }

@@ -25,4 +25,12 @@ class RoomIncomeRepository(
         } catch (e: SQLiteException) {
             Outcome.Failure(StorageError(e.message ?: "Failed to update income"))
         }
+
+    override suspend fun delete(incomeId: String): Outcome<Unit> =
+        try {
+            this.transactionDao.deleteById(incomeId)
+            Outcome.Success(Unit)
+        } catch (e: SQLiteException) {
+            Outcome.Failure(StorageError(e.message ?: "Failed to delete income"))
+        }
 }

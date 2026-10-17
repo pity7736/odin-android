@@ -1,8 +1,8 @@
 package dev.raiseexception.odin.accounting.presentation.transactiondetail
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,12 +19,22 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.raiseexception.odin.shared.presentation.OdinBottomBar
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
+import dev.raiseexception.odin.shared.presentation.UnexpectedFailureDialogHost
 import dev.raiseexception.odin.ui.theme.ExpenseBadge
 import dev.raiseexception.odin.ui.theme.ExpenseDark
 import dev.raiseexception.odin.ui.theme.IncomeBadge
@@ -43,6 +54,7 @@ import dev.raiseexception.odin.ui.theme.Slate50
 import dev.raiseexception.odin.ui.theme.Slate600
 import dev.raiseexception.odin.ui.theme.Slate800
 import dev.raiseexception.odin.ui.theme.SoraFamily
+import kotlinx.coroutines.flow.Flow
 
 @Suppress("LongParameterList")
 @Composable
@@ -54,18 +66,25 @@ fun TransactionDetailScreen(
     onNavigateToReports: () -> Unit,
     onEditExpense: () -> Unit,
     onEditIncome: () -> Unit,
+    onDelete: () -> Unit,
+    deletionMessageEvent: Flow<String>,
+    unexpectedFailureEvent: Flow<Unit>,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isDeleting = (uiState as? TransactionDetailUiState.Content)?.isDeleting == true
+    BackHandler(enabled = isDeleting) {}
+    UnexpectedFailureDialogHost(unexpectedFailureEvent)
+    DeletionMessageDialogHost(deletionMessageEvent)
     Scaffold(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
             OdinBottomBar(
                 selectedTab = null,
-                onNavigateToHome = onNavigateToHome,
-                onNavigateToAccounts = onNavigateToAccounts,
-                onNavigateToCategories = onNavigateToCategories,
-                onNavigateToReports = onNavigateToReports,
+                onNavigateToHome = { if (!isDeleting) onNavigateToHome() },
+                onNavigateToAccounts = { if (!isDeleting) onNavigateToAccounts() },
+                onNavigateToCategories = { if (!isDeleting) onNavigateToCategories() },
+                onNavigateToReports = { if (!isDeleting) onNavigateToReports() },
             )
         },
     ) { innerPadding ->
@@ -84,6 +103,7 @@ fun TransactionDetailScreen(
             is TransactionDetailUiState.Content -> TransactionDetailContent(
                 uiState = uiState,
                 onEdit = if (uiState.isIncome) onEditIncome else onEditExpense,
+                onDelete = onDelete,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -105,6 +125,29 @@ fun TransactionDetailScreen(
 }
 
 @Composable
+private fun DeletionMessageDialogHost(deletionMessageEvent: Flow<String>) {
+    var message by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(deletionMessageEvent) {
+        deletionMessageEvent.collect { message = it }
+    }
+    message?.let { shownMessage ->
+        AlertDialog(
+            onDismissRequest = { message = null },
+            confirmButton = {
+                TextButton(
+                    onClick = { message = null },
+                    modifier = Modifier.testTag("deletion_message_dismiss"),
+                ) {
+                    Text(text = "Entendido")
+                }
+            },
+            text = { Text(text = shownMessage) },
+            modifier = Modifier.testTag("deletion_message_dialog"),
+        )
+    }
+}
+
+@Composable
 private fun TransactionDetailLoading(modifier: Modifier = Modifier) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         CircularProgressIndicator(
@@ -118,21 +161,58 @@ private fun TransactionDetailLoading(modifier: Modifier = Modifier) {
 private fun TransactionDetailContent(
     uiState: TransactionDetailUiState.Content,
     onEdit: () -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showsDeleteConfirmation by rememberSaveable { mutableStateOf(false) }
     Column(
         modifier = modifier.padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
-        TransactionHeaderCard(uiState = uiState, onEdit = onEdit)
+        TransactionHeaderCard(
+            uiState = uiState,
+            onEdit = onEdit,
+            onDeleteRequest = { showsDeleteConfirmation = true },
+        )
         Spacer(modifier = Modifier.height(16.dp))
         TransactionInfoSection(uiState = uiState)
     }
+    if (showsDeleteConfirmation) {
+        DeleteConfirmationDialog(
+            isIncome = uiState.isIncome,
+            onConfirm = {
+                showsDeleteConfirmation = false
+                onDelete()
+            },
+            onCancel = { showsDeleteConfirmation = false },
+        )
+    }
+}
+
+@Composable
+private fun DeleteConfirmationDialog(isIncome: Boolean, onConfirm: () -> Unit, onCancel: () -> Unit) {
+    val question = if (isIncome) "¿Eliminar este ingreso?" else "¿Eliminar este gasto?"
+    AlertDialog(
+        onDismissRequest = onCancel,
+        confirmButton = {
+            TextButton(onClick = onConfirm, modifier = Modifier.testTag("delete_confirmation_confirm")) {
+                Text(text = "Eliminar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel, modifier = Modifier.testTag("delete_confirmation_cancel")) {
+                Text(text = "Cancelar")
+            }
+        },
+        text = { Text(text = "$question Esta acción no se puede deshacer.") },
+        modifier = Modifier.testTag("delete_confirmation_dialog"),
+    )
 }
 
 @Composable
 private fun TransactionHeaderCard(
     uiState: TransactionDetailUiState.Content,
     onEdit: () -> Unit,
+    onDeleteRequest: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -158,14 +238,20 @@ private fun TransactionHeaderCard(
                     .testTag("amount_text"),
             )
             if (uiState.isEditable) {
-                Text(
-                    text = "Editar",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Slate400,
-                    modifier = Modifier
-                        .clickable(onClick = onEdit)
-                        .testTag("edit_transaction_button"),
-                )
+                IconButton(
+                    onClick = onEdit,
+                    enabled = !uiState.isDeleting,
+                    modifier = Modifier.testTag("edit_transaction_button"),
+                ) {
+                    Icon(imageVector = Icons.Filled.Edit, contentDescription = "Editar", tint = Slate400)
+                }
+                IconButton(
+                    onClick = onDeleteRequest,
+                    enabled = !uiState.isDeleting,
+                    modifier = Modifier.testTag("delete_transaction_button"),
+                ) {
+                    Icon(imageVector = Icons.Outlined.Delete, contentDescription = "Eliminar", tint = Slate400)
+                }
             }
         }
         Text(

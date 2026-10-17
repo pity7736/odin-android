@@ -6,6 +6,7 @@ import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
 import dev.raiseexception.odin.accounting.domain.ExpenseUpdateError
 import dev.raiseexception.odin.accounting.domain.IncomeCreationError
 import dev.raiseexception.odin.accounting.domain.IncomeUpdateError
+import dev.raiseexception.odin.accounting.domain.TransactionDeletionError
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
@@ -2454,6 +2455,240 @@ class AccountBackdatedMovementsTest {
         val error = (result as Outcome.Failure).error
         assertTrue(error is IncomeCreationError.InvalidInput)
         return error as IncomeCreationError.InvalidInput
+    }
+
+    private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)
+}
+
+class AccountDeleteTransactionTest {
+
+    private val fixedInstant = Instant.parse("2026-08-29T12:00:00Z")
+    private val fixedClock = object : Clock {
+        override fun now(): Instant = fixedInstant
+    }
+
+    @Test
+    fun `given a balance of 500000 and an expense of 30000, when deleting the expense, then balance is 530000`() {
+        val lunch = this.expense("expense-lunch", "30000", "2026-03-05")
+        val savingsAccount = this.savingsAccount(initialBalance = "530000", expenses = listOf(lunch))
+
+        val result = savingsAccount.deleteExpense(lunch.id, this.fixedClock)
+
+        assertEquals(Outcome.Success(Unit), result)
+        assertTrue(savingsAccount.expenses.isEmpty())
+        assertEquals(this.pesos("530000"), savingsAccount.balance)
+    }
+
+    @Test
+    fun `given an account of 1000000 and an income of 2000000, when deleting the income, then balance is 1000000`() {
+        val salary = this.income("income-salary", "2000000", "2026-03-05")
+        val savingsAccount = this.savingsAccount(initialBalance = "1000000", incomes = listOf(salary))
+
+        val result = savingsAccount.deleteIncome(salary.id, this.fixedClock)
+
+        assertEquals(Outcome.Success(Unit), result)
+        assertTrue(savingsAccount.incomes.isEmpty())
+        assertEquals(this.pesos("1000000"), savingsAccount.balance)
+    }
+
+    @Test
+    fun `given a card with a debt of 300000 from two expenses, when deleting the 100000 one, then debt is 200000`() {
+        val smallPurchase = this.expense("expense-small", "100000", "2026-03-05")
+        val largePurchase = this.expense("expense-large", "200000", "2026-03-06")
+        val visaCard = this.millionCard(expenses = listOf(smallPurchase, largePurchase))
+        val availableBefore = (visaCard.funding as AccountFunding.Credit).availableCredit(
+            visaCard.incomes,
+            visaCard.expenses
+        )
+
+        val result = visaCard.deleteExpense(smallPurchase.id, this.fixedClock)
+
+        assertEquals(Outcome.Success(Unit), result)
+        assertEquals(listOf(largePurchase), visaCard.expenses)
+        assertEquals(this.pesos("200000"), visaCard.balance)
+        val availableAfter = (visaCard.funding as AccountFunding.Credit).availableCredit(
+            visaCard.incomes,
+            visaCard.expenses
+        )
+        assertEquals(availableBefore.amount.add(BigDecimal("100000")), availableAfter.amount)
+    }
+
+    @Test
+    fun `given an income paying a March 8 expense, when deleting the income, then a history breach naming March 8`() {
+        val payday = this.income("income-payday", "1000000", "2026-03-05")
+        val rent = this.expense("expense-rent", "800000", "2026-03-08")
+        val savingsAccount = this.savingsAccount(incomes = listOf(payday), expenses = listOf(rent))
+
+        val result = savingsAccount.deleteIncome(payday.id, this.fixedClock)
+
+        val error = this.historyBreach(result)
+        assertEquals("El saldo de la cuenta quedaría negativo el 8 de marzo.", error.externalMessage)
+        assertEquals("Deleting the transaction breaks the account history", error.internalMessage)
+        assertEquals(listOf(payday), savingsAccount.incomes)
+        assertEquals(listOf(rent), savingsAccount.expenses)
+        assertEquals(this.pesos("200000"), savingsAccount.balance)
+    }
+
+    @Test
+    fun `given a card expense covered by a March 8 payment, when deleting it, then a history breach naming March 8`() {
+        val purchase = this.expense("expense-purchase", "500000", "2026-03-05")
+        val payment = this.income("income-payment", "500000", "2026-03-08")
+        val visaCard = this.millionCard(expenses = listOf(purchase), payments = listOf(payment))
+
+        val result = visaCard.deleteExpense(purchase.id, this.fixedClock)
+
+        val error = this.historyBreach(result)
+        assertEquals("La deuda de la tarjeta quedaría negativa el 8 de marzo.", error.externalMessage)
+        assertEquals(listOf(purchase), visaCard.expenses)
+        assertEquals(listOf(payment), visaCard.incomes)
+        assertEquals(this.pesos("0"), visaCard.balance)
+    }
+
+    @Test
+    fun `given two wrong incomes paying a March 8 expense, when deleting either alone, then both are rejected`() {
+        val firstWrongIncome = this.income("income-wrong-first", "500000", "2026-03-05")
+        val secondWrongIncome = this.income("income-wrong-second", "500000", "2026-03-05")
+        val savingsAccount = this.savingsAccount(
+            incomes = listOf(firstWrongIncome, secondWrongIncome),
+            expenses = listOf(this.expense("expense-rent", "800000", "2026-03-08"))
+        )
+
+        val firstResult = savingsAccount.deleteIncome(firstWrongIncome.id, this.fixedClock)
+        val secondResult = savingsAccount.deleteIncome(secondWrongIncome.id, this.fixedClock)
+
+        this.historyBreach(firstResult)
+        this.historyBreach(secondResult)
+        assertEquals(listOf(firstWrongIncome, secondWrongIncome), savingsAccount.incomes)
+    }
+
+    @Test
+    fun `given two wrong incomes, when recording the real one and deleting both, then balance is 200000`() {
+        val firstWrongIncome = this.income("income-wrong-first", "500000", "2026-03-05")
+        val secondWrongIncome = this.income("income-wrong-second", "500000", "2026-03-05")
+        val savingsAccount = this.savingsAccount(
+            incomes = listOf(firstWrongIncome, secondWrongIncome),
+            expenses = listOf(this.expense("expense-rent", "800000", "2026-03-08"))
+        )
+        savingsAccount.createIncome(
+            amount = "1000000",
+            date = "2026-03-05",
+            categoryId = "cat-income",
+            description = "",
+            clock = this.fixedClock
+        )
+
+        val firstResult = savingsAccount.deleteIncome(firstWrongIncome.id, this.fixedClock)
+        val secondResult = savingsAccount.deleteIncome(secondWrongIncome.id, this.fixedClock)
+
+        assertEquals(Outcome.Success(Unit), firstResult)
+        assertEquals(Outcome.Success(Unit), secondResult)
+        assertEquals(listOf(this.pesos("1000000")), savingsAccount.incomes.map { it.amount })
+        assertEquals(this.pesos("200000"), savingsAccount.balance)
+    }
+
+    @Test
+    fun `given an id not in the account, when deleting an income, then fails with TransactionLookupError NotFound`() {
+        val savingsAccount = this.savingsAccount(incomes = listOf(this.income("income-salary", "100000", "2026-03-05")))
+
+        val result = savingsAccount.deleteIncome("missing-income", this.fixedClock)
+
+        this.assertNotFound(result)
+        assertEquals(1, savingsAccount.incomes.size)
+    }
+
+    @Test
+    fun `given an id not in the account, when deleting an expense, then fails with TransactionLookupError NotFound`() {
+        val savingsAccount = this.savingsAccount(
+            initialBalance = "100000",
+            expenses = listOf(this.expense("expense-lunch", "30000", "2026-03-05"))
+        )
+
+        val result = savingsAccount.deleteExpense("missing-expense", this.fixedClock)
+
+        this.assertNotFound(result)
+        assertEquals(1, savingsAccount.expenses.size)
+    }
+
+    @Test
+    fun `given an expense id, when deleting it as an income, then fails with TransactionLookupError NotFound`() {
+        val lunch = this.expense("expense-lunch", "30000", "2026-03-05")
+        val savingsAccount = this.savingsAccount(initialBalance = "100000", expenses = listOf(lunch))
+
+        val result = savingsAccount.deleteIncome(lunch.id, this.fixedClock)
+
+        this.assertNotFound(result)
+        assertEquals(listOf(lunch), savingsAccount.expenses)
+    }
+
+    @Test
+    fun `given an income id, when deleting it as an expense, then fails with TransactionLookupError NotFound`() {
+        val salary = this.income("income-salary", "100000", "2026-03-05")
+        val savingsAccount = this.savingsAccount(incomes = listOf(salary))
+
+        val result = savingsAccount.deleteExpense(salary.id, this.fixedClock)
+
+        this.assertNotFound(result)
+        assertEquals(listOf(salary), savingsAccount.incomes)
+    }
+
+    private fun savingsAccount(
+        initialBalance: String = "0",
+        incomes: List<Income> = emptyList(),
+        expenses: List<Expense> = emptyList()
+    ): Account = AccountBuilder()
+        .id("acc-1")
+        .name("Ahorros")
+        .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+        .initialBalance(this.pesos(initialBalance))
+        .incomes(incomes)
+        .expenses(expenses)
+        .build()
+
+    private fun millionCard(
+        expenses: List<Expense> = emptyList(),
+        payments: List<Income> = emptyList()
+    ): Account = AccountBuilder()
+        .id("acc-1")
+        .name("Visa")
+        .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+        .creditCard(creditLimit = this.pesos("1000000"), initialDebt = this.pesos("0"))
+        .expenses(expenses)
+        .incomes(payments)
+        .build()
+
+    private fun income(id: String, amount: String, date: String): Income = Income.restore(
+        id = id,
+        accountId = "acc-1",
+        amount = this.pesos(amount),
+        date = LocalDate.parse(date),
+        categoryId = "cat-income",
+        description = "",
+        createdAt = Instant.parse("${date}T12:00:00Z")
+    )
+
+    private fun expense(id: String, amount: String, date: String): Expense = Expense.restore(
+        id = id,
+        accountId = "acc-1",
+        amount = this.pesos(amount),
+        date = LocalDate.parse(date),
+        categoryId = "cat-1",
+        description = "",
+        createdAt = Instant.parse("${date}T12:00:00Z"),
+        tagIds = emptyList()
+    )
+
+    private fun historyBreach(result: Outcome<Unit>): TransactionDeletionError.HistoryBreach {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is TransactionDeletionError.HistoryBreach)
+        return error as TransactionDeletionError.HistoryBreach
+    }
+
+    private fun assertNotFound(result: Outcome<Unit>) {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is TransactionLookupError.NotFound)
+        assertEquals("Transacción no encontrada", error.externalMessage)
     }
 
     private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)

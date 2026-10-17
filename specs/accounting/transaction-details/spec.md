@@ -28,6 +28,9 @@ the full information about any income or expense I have recorded.
   not one side of a transfer, the user can open the edit for that expense (see
   `specs/accounting/expense/update/spec.md`); no other transaction offers a way
   to edit it.
+- From the details of an income or an expense that is not one side of a transfer
+  or of a credit card payment, the user can delete it (see
+  `specs/accounting/transaction-deletion/spec.md`).
 
 ## Expected Behavior
 
@@ -70,5 +73,4 @@ the full information about any income or expense I have recorded.
 ## Out of Scope
 
 - Editing a transfer.
-- Deleting a transaction.
 - Navigating to the related category or account from this view.

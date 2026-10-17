@@ -34,6 +34,15 @@ class RoomExpenseRepository(
             Outcome.Failure(StorageError(e.message ?: "Failed to update expense"))
         }
 
+    override suspend fun delete(expenseId: String): Outcome<Unit> =
+        try {
+            this.expenseTagDao.deleteByExpenseId(expenseId)
+            this.transactionDao.deleteById(expenseId)
+            Outcome.Success(Unit)
+        } catch (e: SQLiteException) {
+            Outcome.Failure(StorageError(e.message ?: "Failed to delete expense"))
+        }
+
     override fun findSpendingBetween(start: LocalDate, end: LocalDate): Flow<Outcome<List<Expense>>> =
         this.transactionDao.findSpendingBetween(start.toString(), end.toString())
             .map<_, Outcome<List<Expense>>> { rows ->

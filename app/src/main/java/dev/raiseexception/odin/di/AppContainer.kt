@@ -24,6 +24,7 @@ import dev.raiseexception.odin.accounting.application.usecase.IncomeUpdater
 import dev.raiseexception.odin.accounting.application.usecase.SpendingLister
 import dev.raiseexception.odin.accounting.application.usecase.TagLister
 import dev.raiseexception.odin.accounting.application.usecase.TagResolver
+import dev.raiseexception.odin.accounting.application.usecase.TransactionDeleter
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
 import dev.raiseexception.odin.accounting.application.usecase.TransferCreator
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
@@ -210,6 +211,16 @@ class AppContainer(
             transactionRunner = transactionRunner
         )
     }
+    private val transactionDeleter by lazy {
+        TransactionDeleter(
+            transactionFinder = transactionFinder,
+            accountFinder = accountFinder,
+            incomeRepository = incomeRepository,
+            expenseRepository = expenseRepository,
+            tagRepository = tagRepository,
+            transactionRunner = transactionRunner
+        )
+    }
     private val transferCreator by lazy {
         TransferCreator(
             accountRepository = accountRepository,
@@ -334,6 +345,7 @@ class AppContainer(
                 TransactionDetailViewModel(
                     transactionId,
                     transactionFinder,
+                    transactionDeleter,
                     this@AppContainer.failureRecorder,
                     ioDispatcher
                 )

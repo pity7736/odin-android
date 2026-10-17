@@ -5,9 +5,10 @@
 ## Overview
 
 A read-only screen that displays all data for a single transaction (income or
-expense), and the entry point for editing an expense or an income that is not
-one side of a transfer (see `specs/accounting/expense/update/design.md` and
-`specs/accounting/income/update/design.md`). The screen observes a reactive stream from the transaction repository,
+expense), and the entry point for editing or deleting an expense or an income
+that is not one side of a transfer (see `specs/accounting/expense/update/design.md`,
+`specs/accounting/income/update/design.md` and
+`specs/accounting/transaction-deletion/design.md`). The screen observes a reactive stream from the transaction repository,
 so any external change to the transaction, its category, or its account is
 reflected immediately. The screen is reachable from both the home screen and the
 account detail screen; the bottom bar has no tab selected since it does not
@@ -69,12 +70,19 @@ belong to a single tab.
   funding; nothing in the domain keeps the two in agreement (tracked in
   `TASKS.md`).
 
-- **`Content.isEditable` controls the "Editar" action.** The ViewModel sets it
-  for any transaction that is not a transfer side; transfer sides and card
-  payments get `false`. The screen takes one callback per kind and the click
-  calls the income or the expense one according to `Content.isIncome`; each
-  navigates directly to its edit destination with single-top navigation, so a double tap cannot stack two edit screens; no
-  ViewModel navigation channel is involved because no logic sits behind it.
+- **`Content.isEditable` controls the edit and delete actions.** Both are icons
+  in the header row, a pencil (described "Editar") and a trash can (described
+  "Eliminar"), shown for any transaction that is not a transfer side; transfer
+  sides and card payments get `false`. The screen takes one edit callback per
+  kind and the pencil calls the income or the expense one according to
+  `Content.isIncome`; each navigates directly to its edit destination with
+  single-top navigation, so a double tap cannot stack two edit screens; no
+  ViewModel navigation channel is involved because no logic sits behind it. The
+  trash can opens a confirmation and then calls the ViewModel's `delete()`; the
+  deletion's behavior (watch stopped while deleting, blocked leaving, message
+  dialog, note on the previous screen) is described in
+  `specs/accounting/transaction-deletion/design.md`. Rejected: text labels for
+  both actions (two labels squeeze long amounts).
 
 - **`TransactionLookupError.NotFound` is a dedicated domain error.** This
   mirrors `CategoryLookupError.NotFound` and `AccountLookupError.NotFound`,
@@ -131,8 +139,8 @@ app/src/main/java/dev/raiseexception/odin/accounting/
     │   └── AccountDetailScreen.kt            # onTransactionSelected callback
     └── transactiondetail/
         ├── TransactionDetailUiState.kt
-        ├── TransactionDetailViewModel.kt
-        └── TransactionDetailScreen.kt
+        ├── TransactionDetailViewModel.kt     # also delete()
+        └── TransactionDetailScreen.kt        # also the delete confirmation and message dialogs
 
 app/src/test/java/dev/raiseexception/odin/accounting/
 ├── application/usecase/
@@ -184,23 +192,25 @@ specs/accounting/transaction-details/
 - **`Loading`** — initial state while the repository emits.
 - **`Content`** — transaction found. Holds formatted amount (with sign prefix),
   amount color, formatted date, category name, account name, description,
-  whether it is income, the type label ("Ingreso", "Gasto" or "Pago"), and
-  whether it is editable. All values are
+  whether it is income, the type label ("Ingreso", "Gasto" or "Pago"), whether
+  it is editable, and whether a deletion is in progress. All values are
   display-ready strings, colors, or flags.
 - **`NotFound`** — the transaction ID does not exist. Shows "Transacción no
   encontrada".
 - **`Error`** — unexpected failure (storage error). Shows the error's external
   (Spanish) message.
 
-Besides the bottom bar navigation callbacks, the screen sends one event: the
-"Editar" action (shown only when `Content.isEditable`), which opens the income
-or the expense edit destination according to the transaction's kind.
+Besides the bottom bar navigation callbacks, the screen sends two events, both
+shown only when `Content.isEditable`: the pencil, which opens the income or the
+expense edit destination according to the transaction's kind, and the trash can,
+which deletes the transaction after confirmation. While a deletion is in
+progress both icons are disabled and back and the bottom bar do nothing.
 
 ## Known Limitations
 
-- The not-found state is unreachable through the current UI because there is no
-  way to delete a transaction. It exists as a defensive measure for when
-  deletion or multi-device sync is added.
+- The not-found state is unreachable through the current UI: the screen stops
+  watching the transaction while deleting it and leaves after a successful
+  deletion. It exists as a defensive measure for multi-device sync.
 
 ## Quality Pillars
 

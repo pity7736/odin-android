@@ -25,4 +25,22 @@ class RestartableLoadTest {
         assertTrue(launchedJobs.first().isCancelled)
         assertTrue(launchedJobs.last().isActive)
     }
+
+    @Test
+    fun `given a running load, when stopping, then the load is cancelled`() {
+        load.start()
+        load.stop()
+        assertEquals(1, launchedJobs.size)
+        assertTrue(launchedJobs.single().isCancelled)
+    }
+
+    @Test
+    fun `given a stopped load, when starting, then a new load is launched`() {
+        load.start()
+        load.stop()
+        load.start()
+        assertEquals(2, launchedJobs.size)
+        assertTrue(launchedJobs.first().isCancelled)
+        assertTrue(launchedJobs.last().isActive)
+    }
 }
