@@ -41,6 +41,9 @@ start managing my personal finances privately and securely.
   appear as a general message.
 - When something goes wrong, the user sees a clear, non-technical error message
   explaining what happened.
+- A failed setup leaves nothing behind. The user can try again, with or without
+  closing the app first, as if the failed attempt never happened, and then log in
+  with the password of the successful attempt.
 
 ## Expected Behavior
 
@@ -101,6 +104,24 @@ start managing my personal finances privately and securely.
 - Then they see a message telling them something went wrong and to try again
   later
 - And the vault is not created
+
+### Trying again after a failed setup, without closing the app
+
+- Given a new user whose registration just failed
+- When they submit a valid password again without closing the app and the setup
+  succeeds
+- Then their vault is created and they are redirected to the home area
+- And after closing and reopening the app, they can log in with the password of
+  the successful attempt and see their data
+
+### Trying again after a failed setup, after closing the app
+
+- Given a new user whose registration failed
+- And who closed and reopened the app
+- When they submit a valid password again
+- Then their vault is created and they are redirected to the home area
+- And after closing and reopening the app, they can log in with the password of
+  the successful attempt and see their data
 
 ### User already registered
 

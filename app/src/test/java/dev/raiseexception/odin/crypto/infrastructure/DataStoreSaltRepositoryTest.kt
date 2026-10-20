@@ -67,16 +67,4 @@ class DataStoreSaltRepositoryTest {
 
         assertTrue(result)
     }
-
-    @Test
-    fun `given a salt stored, when delete called, then exists returns false`() = runTest {
-        val repository = createRepository()
-        val salt = ByteArray(SALT_SIZE) { it.toByte() }
-        repository.save(salt)
-
-        repository.delete()
-
-        assertFalse(repository.exists())
-        assertTrue(repository.get() is Outcome.Failure)
-    }
 }

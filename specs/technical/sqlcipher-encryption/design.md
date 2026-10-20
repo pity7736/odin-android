@@ -33,6 +33,26 @@ it is needed to open.
   any repository holding a stale reference. SQLite (and SQLCipher) are designed
   for long-lived connections; the OS cleans up when the process dies.
 
+- **`DatabaseProvider.discard()` is the one close outside normal operation.**
+  Registration calls it to throw away a vault that belongs to no completed
+  registration: before unlocking, and after any failure that follows. It closes
+  the open database, clears the reference, and deletes `odin_db` with its
+  companion files. It succeeds when there is nothing to discard and fails only
+  when the file still exists afterwards. It is never called once a salt exists,
+  so it never touches a registered user's data. Rejected: re-keying the open
+  database on retry (`PRAGMA rekey`) — it cannot help after a restart, when the
+  first attempt's key is gone and the file cannot be opened at all.
+
+- **Repositories used before the registration commit point resolve their DAO
+  per call.** `DeferredUserRepository` and `DeferredCategoryRepository` build
+  their Room repository from `requireDatabase()` on every call, so after a
+  `discard()` and a new `unlock()` they reach the live database. Room caches DAO
+  instances per database, so this costs one small allocation per call. Any
+  repository a future registration step uses must follow the same rule. The rest
+  of the graph, used only after registration or login, keeps `by lazy` DAOs.
+  Rejected: `by lazy` for these two, which keeps the closed instance after a
+  discard.
+
 - **`DatabaseProvider.unlock()` is idempotent.** If the database is already
   open, `unlock()` returns `Success` immediately. Registration opens the
   database; login reuses it. This avoids the stale-DAO problem entirely.
@@ -40,7 +60,10 @@ it is needed to open.
 - **`VaultUnlocker` is a domain port in `shared/domain/`.** Use cases
   (`UserRegistrar`, `UserAuthenticator`) depend on the interface, not on
   `DatabaseProvider`. This keeps the domain layer free of infrastructure
-  concerns. `DatabaseProvider` implements it.
+  concerns. `DatabaseProvider` implements it. Both operations, `unlock` and
+  `discard`, are `suspend`: they open, close, or delete files, and
+  `DatabaseProvider` runs them on an injected I/O dispatcher, so callers never
+  block a CPU thread on them.
 
 - **`SaltRepository` is a domain port in `crypto/domain/repository/`.** The salt
   is a cryptographic artifact owned by the crypto module's domain. The adapter
@@ -56,7 +79,9 @@ it is needed to open.
   presence of a salt means a user has registered. `UserRegistrar` checks
   `saltRepository.exists()` instead of `userRepository.exists()` because the
   salt is readable before the database opens. `StartupViewModel` uses the same
-  check to route to login vs registration.
+  check to route to login vs registration. The salt is written once, as the last
+  step of registration, and never deleted: its presence means a registration
+  completed (see `specs/accounts/user-creation/design.md`).
 
 - **`User` model no longer carries `salt`.** Salt moved to DataStore; the domain
   model holds only `(id, wrappedMasterKey)`. `UserEntity` dropped the `salt`
@@ -99,7 +124,11 @@ app/src/main/java/dev/raiseexception/odin/
 │       └── VaultUnlocker.kt                        # port interface
 ├── persistence/
 │   ├── OdinDatabase.kt                             # users table: salt column removed
-│   └── DatabaseProvider.kt                         # opens SQLCipher DB, implements VaultUnlocker
+│   └── DatabaseProvider.kt                         # opens and discards SQLCipher DB, implements VaultUnlocker
+├── accounting/
+│   └── infrastructure/
+│       └── repository/
+│           └── DeferredCategoryRepository.kt       # DAO resolved per call
 ├── accounts/
 │   ├── domain/
 │   │   └── model/
@@ -111,7 +140,8 @@ app/src/main/java/dev/raiseexception/odin/
 │   ├── infrastructure/
 │   │   └── repository/
 │   │       ├── UserEntity.kt                       # salt column removed
-│   │       └── RoomUserRepository.kt               # salt removed from queries
+│   │       ├── RoomUserRepository.kt               # salt removed from queries
+│   │       └── DeferredUserRepository.kt           # DAO resolved per call
 │   └── presentation/
 │       └── startup/
 │           └── StartupViewModel.kt                 # depends on SaltRepository
@@ -128,8 +158,15 @@ app/src/test/java/dev/raiseexception/odin/
 │   ├── application/usecase/
 │   │   ├── UserRegistrarTest.kt                    # updated mocks
 │   │   └── UserAuthenticatorTest.kt                # updated mocks
+│   ├── integrationtests/
+│   │   └── DeferredUserRepositoryTest.kt           # Robolectric, discard + reopen
 │   └── presentation/startup/
 │       └── StartupViewModelTest.kt                 # mocks SaltRepository
+└── accounting/infrastructure/repository/
+    └── DeferredCategoryRepositoryTest.kt           # Robolectric, discard + reopen
+
+app/src/androidTest/java/dev/raiseexception/odin/accounts/
+└── RegistrationRetryTest.kt                        # real SQLCipher, failed attempt + retry + login
 ```
 
 ## Storage Layout
@@ -145,13 +182,17 @@ app/src/test/java/dev/raiseexception/odin/
 **Registration:**
 1. Check `saltRepository.exists()` — if true, reject as already registered
 2. Validate password
-3. Generate salt → save to DataStore via `saltRepository.save()`
-4. Derive keys (Argon2id) from password + salt
-5. `vaultUnlocker.unlock(encryptionKey)` → opens encrypted database
+3. Generate salt in memory, derive keys (Argon2id) from password + salt
+4. `vaultUnlocker.discard()` → closes and deletes any leftover database
+5. `vaultUnlocker.unlock(encryptionKey)` → opens a new encrypted database
 6. Generate master key → wrap with encryption key
-7. Save `User(id, wrappedMasterKey)` to Room
-8. Store master key in `MasterKeyRepository`
-9. Wipe encryption key and plaintext master key
+7. Save `User(id, wrappedMasterKey)` to Room, run the post-registration step
+8. Save salt to DataStore via `saltRepository.save()` — the commit point
+9. Store master key in `MasterKeyRepository`
+10. Wipe encryption key and plaintext master key
+
+Any returned failure in steps 5–8 calls `vaultUnlocker.discard()` before the
+error is returned; no salt exists, so the next start routes to registration.
 
 **Login:**
 1. Reject blank password
@@ -178,7 +219,8 @@ app/src/test/java/dev/raiseexception/odin/
 - **`fallbackToDestructiveMigration` during development.** Schema changes wipe
   the database. Must be replaced with proper migrations before MVP.
 
-- **No database close/reopen support.** `DatabaseProvider` opens the database
-  once. If a future feature needs to close and reopen (e.g. password change
-  re-keying), all `by lazy` repositories that cache DAOs must be refactored to
-  handle invalidation. This is not needed now.
+- **No database close/reopen support after registration.** Only the user and
+  category repositories resolve their DAO per call; the rest of the graph caches
+  DAOs `by lazy`. A feature that closes and reopens the database after the user
+  is in (e.g. locking on background, password change re-keying) must move those
+  repositories to per-call resolution first.

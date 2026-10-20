@@ -1,184 +1,190 @@
-# Work Order: User Creation — Room persistence for user data
+# Work Order: User Creation — complete rollback of a failed registration
 
 **Feature design:** `specs/accounts/user-creation/design.md` (the living source of truth)
 **Corresponds to Spec:** `specs/accounts/user-creation/spec.md`
 
-> Work order for: **swap the in-memory user store for a Room-backed SQLite repository**.
+> Work order for: **a failed registration leaves nothing behind (bug fix)**.
 > Disposable — overwritten by the next change (git keeps the history). The living
 > design is in design.md; hydrate it before this change merges, then freeze this file.
 
 ## Change
 
-User data (id, salt, wrappedMasterKey) is currently lost every time the app
-process dies because it is held in memory. This change introduces a Room SQLite
-adapter that persists the user record to disk. The `UserRepository` port, the
-domain model, the application layer, and all presentation code are unchanged —
-only the infrastructure adapter and the DI wiring change.
+**Observed (from code reading, not yet seen on a device):** a registration that
+fails after the vault is unlocked leaves state behind, because the salt (the
+"registered" marker) is saved first and the rollback only deletes it.
+
+- Retry without restarting: `DatabaseProvider.unlock` returns `Success` because
+  the first attempt's database is still open, so the retry writes the user into
+  a file encrypted with the first attempt's key while salt B is saved. On the
+  next cold start login derives key B, the file does not open, and the user sees
+  "Contraseña incorrecta" with the right password. Data is unrecoverable.
+- Retry after restarting: `odin_db` still exists, encrypted with the first
+  attempt's key, so `unlock` with the new key fails and registration is blocked
+  for good.
+- Process death or a thrown exception mid-registration: the rollback never runs,
+  the salt stays, and startup routes to login for a registration that never
+  completed.
+- A failed attempt also leaves its plaintext master key in `MasterKeyRepository`.
+
+**Expected:** a failed setup leaves nothing behind; the user can try again, with
+or without closing the app, and then log in with the successful attempt's password.
+
+**Root cause:** registration writes its commit marker (the salt) before the work
+is done, and relies on an after-the-fact rollback that cannot undo the database
+and cannot run on process death.
+
+**Fix — the salt is the commit point.** Invariant: *a salt exists if and only if a
+registration completed.* New order:
+1. Salt exists → `AlreadyRegistered` (unchanged)
+2. Validate password and confirmation (unchanged)
+3. Generate salt **in memory only**, derive keys
+4. **Discard any leftover vault** (close the open database, delete `odin_db`)
+5. Unlock (open the database with the encryption key)
+6. Generate master key, wrap it
+7. Save the user
+8. Post-registration (create the Transfer category)
+9. **Save the salt** — commit point
+10. Store the master key in `MasterKeyRepository`, wipe keys
+
+Any returned failure in steps 4–9 discards the vault and wipes the keys. There is
+no salt to delete because it is saved only at step 9. A crash or throw before step
+9 leaves no salt, so the next start routes to registration and step 4 cleans up.
+
+The user and category repositories (the only ones touched before the commit
+point) resolve their DAO from `DatabaseProvider` on every call, so a discarded
+database never leaves them pointing at a closed instance.
 
 **Spec scenarios satisfied:**
-- Successful registration — vault data is now durable across restarts
-- Local storage fails — maps real Room write failures to `RegistrationError.StorageFailure`
+- `user-creation`: Trying again after a failed setup, without closing the app
+- `user-creation`: Trying again after a failed setup, after closing the app
+- `user-creation`: Data protection setup fails; Local storage fails (vault not created — now including the database)
+- `post-user-registration`: Transfer category creation fails (registration fails, nothing left behind)
 
 ## Architecture & Files (this change)
 
 ```
-app/src/main/java/dev/raiseexception/odin/accounts/
-└── infrastructure/
-    └── repository/
-        ├── UserEntity.kt                                         # CREATE
-        ├── UserDao.kt                                            # CREATE
-        └── RoomUserRepository.kt                                 # CREATE
-
 app/src/main/java/dev/raiseexception/odin/
+├── shared/domain/
+│   └── VaultUnlocker.kt                                # MODIFY  + discard()
+├── crypto/
+│   ├── domain/repository/SaltRepository.kt             # MODIFY  − delete() (no caller left)
+│   └── infrastructure/DataStoreSaltRepository.kt       # MODIFY  − delete()
+├── accounts/
+│   ├── application/usecase/UserRegistrar.kt            # MODIFY  new order, discard on failure
+│   └── infrastructure/repository/
+│       └── DeferredUserRepository.kt                   # CREATE  moved out of AppContainer, DAO per call
+├── accounting/infrastructure/repository/
+│   └── DeferredCategoryRepository.kt                   # CREATE  DAO per call
 ├── persistence/
-│   └── OdinDatabase.kt                                          # CREATE
+│   └── DatabaseProvider.kt                             # MODIFY  implements discard()
 └── di/
-    └── AppContainer.kt                                           # MODIFY
+    └── AppContainer.kt                                 # MODIFY  use the two Deferred repositories
 
-gradle/libs.versions.toml                                         # MODIFY
-app/build.gradle.kts                                              # MODIFY
+app/src/test/java/dev/raiseexception/odin/
+├── accounts/application/usecase/UserRegistrarTest.kt   # MODIFY
+├── accounts/integrationtests/DeferredUserRepositoryTest.kt          # CREATE (Robolectric)
+├── accounting/infrastructure/repository/DeferredCategoryRepositoryTest.kt  # CREATE (Robolectric)
+├── crypto/infrastructure/DataStoreSaltRepositoryTest.kt             # MODIFY  − delete test
+└── persistence/DatabaseProviderTest.kt                 # MODIFY
 
-app/src/test/java/dev/raiseexception/odin/accounts/
-└── integrationtests/
-    └── RoomUserRepositoryTest.kt                                 # CREATE
+app/src/androidTest/java/dev/raiseexception/odin/accounts/
+└── RegistrationRetryTest.kt                            # CREATE  real SQLCipher, end to end
 ```
 
 ## Key Types & Signatures
 
-### UserEntity
-
 ```kotlin
-@Entity(tableName = "users")
-data class UserEntity(
-    @PrimaryKey val id: String,
-    val salt: ByteArray,
-    val wrappedMasterKey: ByteArray,
-)
-```
-
-With extension functions in the same file:
-- `UserEntity.toDomain(): User`
-- `User.toEntity(): UserEntity`
-
-### UserDao
-
-```kotlin
-@Dao
-interface UserDao {
-    @Insert(onConflict = OnConflictStrategy.ABORT)
-    suspend fun insert(entity: UserEntity)
-
-    @Query("SELECT EXISTS(SELECT 1 FROM users LIMIT 1)")
-    suspend fun exists(): Boolean
-
-    @Query("SELECT * FROM users LIMIT 1")
-    suspend fun get(): UserEntity?
+interface VaultUnlocker {
+    fun unlock(encryptionKey: ByteArray): Outcome<Unit>
+    fun discard(): Outcome<Unit>
 }
 ```
 
-### OdinDatabase
-
-```kotlin
-@Database(entities = [UserEntity::class], version = 1, exportSchema = false)
-abstract class OdinDatabase : RoomDatabase() {
-    abstract fun userDao(): UserDao
-}
-```
-
-Lives at `dev.raiseexception.odin.persistence` — outside any feature package — because it is a cross-cutting concern that will register entities from every feature. Built once in `AppContainer` via `Room.databaseBuilder(context, OdinDatabase::class.java, "odin_db").build()`.
-`AppContainer` must receive `Context` (application context) to build the database — add it as a constructor parameter if not already present.
-
-### RoomUserRepository
-
-```kotlin
-class RoomUserRepository(
-    private val userDao: UserDao,
-) : UserRepository {
-    override suspend fun add(user: User): Outcome<Unit>
-    override suspend fun exists(): Boolean
-    override suspend fun get(): Outcome<User>
-}
-```
-
-- `add`: check `exists()` first; if true return `Outcome.Failure(RegistrationError.StorageFailure(...))`; otherwise insert via DAO, catching any exception and mapping to `StorageFailure`.
-- `exists`: return `userDao.exists()`.
-- `get`: call `userDao.get()`; if null return `Outcome.Failure(LoginError.UserNotFound)`; otherwise map entity to domain and return `Outcome.Success`.
-
-### RoomUserRepositoryTest setup
-
-```kotlin
-@RunWith(RobolectricTestRunner::class)
-class RoomUserRepositoryTest {
-    private lateinit var database: OdinDatabase
-    private lateinit var repository: RoomUserRepository
-
-    @Before
-    fun setUp() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        database = Room.inMemoryDatabaseBuilder(context, OdinDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
-        repository = RoomUserRepository(database.userDao())
-    }
-
-    @After
-    fun tearDown() {
-        database.close()
-    }
-}
-```
+- `DatabaseProvider.discard()`: closes the open database (if any), sets the
+  reference to `null`, deletes the `odin_db` file and its companions
+  (`context.deleteDatabase`). Succeeds when there is nothing to discard. Returns
+  `Outcome.Failure(StorageError)` only when the file still exists afterwards.
+  Idempotent.
+- `SaltRepository`: `delete()` is removed (its only caller was the old rollback).
+- `DeferredUserRepository(databaseProvider: DatabaseProvider) : UserRepository` —
+  every method builds `RoomUserRepository(databaseProvider.requireDatabase().userDao())`
+  at call time; no `lazy`.
+- `DeferredCategoryRepository(databaseProvider: DatabaseProvider) : CategoryRepository` —
+  same approach over `RoomCategoryRepository`. Flow-returning methods delegate at
+  call time.
+- `UserRegistrar` constructor is unchanged. Failure mapping:
+  - `deriveKeys` fails → `CryptoFailure` (vault not touched yet; no discard)
+  - step 4 `discard` fails → `StorageFailure`
+  - `unlock` / `wrapMasterKey` fail → `CryptoFailure`, vault discarded
+  - `userRepository.add` fails → the returned failure, vault discarded
+  - post-registration fails → `StorageFailure`, vault discarded
+  - `saltRepository.save` fails → the returned failure, vault discarded
+  - The result of the failure-path `discard()` does not change the returned
+    error (the original failure is what the user sees; step 4 of the next
+    attempt retries the cleanup).
+  - `encryptionKey` and `masterKey` are zeroed on every path, including thrown
+    exceptions (`try/finally`).
 
 ## Implementation Phases (TDD)
 
-### Phase 1: Build setup — Room + KSP
+### Phase 1: reproduction tests (Red — all must fail before any fix)
 
-**Red:** No tests — build configuration only.
+**Red — `UserRegistrarTest` (JVM, MockK):**
+- `given valid input, when registering, then the leftover vault is discarded before the vault is unlocked` (order: `discard` before `unlock`)
+- `given valid input, when registering, then the salt is saved after the post-registration step succeeds` (order: `userRepository.add` → post-registration → `saltRepository.save`)
+- `given valid input, when registering, then the master key is stored after the salt is saved`
+- `given unlock fails, when registering, then the vault is discarded and the salt is never saved`
+- `given wrapMasterKey fails, when registering, then the vault is discarded and the salt is never saved`
+- `given saving the user fails, when registering, then the vault is discarded and the salt is never saved`
+- `given the post-registration step fails, when registering, then the vault is discarded, the salt is never saved, and the master key is never stored`
+- `given saving the salt fails, when registering, then the vault is discarded and the master key is never stored`
+- `given deriveKeys fails, when registering, then the vault is not touched and the salt is never saved`
+- `given discarding the leftover vault fails, when registering, then returns storage failure and the vault is not unlocked`
+- `given the post-registration step fails, when registering, then the encryption key and master key are wiped`
 
-**Green:**
-1. Add to `gradle/libs.versions.toml`:
-   - `[versions]`: `ksp`, `room`
-   - `[libraries]`: `androidx-room-runtime`, `androidx-room-ktx`, `androidx-room-compiler`
-   - `[plugins]`: `ksp`
-2. Apply KSP plugin and add Room dependencies in `app/build.gradle.kts`.
-3. Verify `./gradlew assembleDebug` compiles clean.
+**Red — `DatabaseProviderTest` (Robolectric, null factory):**
+- `given an unlocked database, when discard called, then requireDatabase throws`
+- `given an unlocked database, when discard called, then the database file no longer exists`
+- `given a row written and the vault discarded, when unlock called again, then the database is empty`
+- `given nothing unlocked and no file, when discard called, then returns success`
 
-### Phase 2: Infrastructure — Entity, DAO, Database, Repository
+**Red — `DeferredUserRepositoryTest` / `DeferredCategoryRepositoryTest` (Robolectric, real `DatabaseProvider` with null factory):**
+- `given the vault discarded and unlocked again, when adding, then the record is stored in the new database` (call the repository once before the discard so a cached DAO would be stale)
 
-**Red:** Write `RoomUserRepositoryTest` in `src/test/.../accounts/integrationtests/`:
+**Red — `RegistrationRetryTest` (instrumented, real SQLCipher, real `BouncyCastleVaultCrypto`, real `DataStoreSaltRepository`, Deferred repositories):**
+- `given_a_failed_registration_when_retrying_without_restarting_then_login_with_the_retry_password_succeeds` — post-registration fails on the first call only; retry with a different password; simulate a cold start with a new `DatabaseProvider` (same context) and new repositories; `UserAuthenticator.authenticate` with the retry password succeeds and the Transfer category is present.
+- `given_a_failed_registration_when_retrying_after_restarting_then_login_with_the_retry_password_succeeds` — same, but a new `DatabaseProvider` before the retry too.
+- `@Before`/`@After` delete `odin_db` and clear the salt DataStore. Method names use underscores (DEX restriction). **Implementer compiles it only (`./gradlew compileDebugAndroidTestKotlin`); the user runs it** on a test emulator — it wipes that device's app data.
 
-- `given empty database, when exists called, then returns false`
-- `given empty database, when get called, then returns UserNotFound`
-- `given empty database, when add called with user, then returns success`
-- `given user in database, when exists called, then returns true`
-- `given user in database, when get called, then returns the same user`
-- `given user in database, when add called again, then returns StorageFailure`
+**Replaced existing tests (they assert the old order):**
+- `given valid input, when register called, then salt saved to SaltRepository before database is unlocked` → superseded by the ordering tests above.
+- `given a successful registration, when the post-registration callback fails, then rolls back the salt` → superseded by the post-registration failure test above.
+- `DataStoreSaltRepositoryTest`: `given a salt stored, when delete called, then exists returns false` → removed with `delete()`.
+- `stubSuccessfulRegistration()` gains `every { vaultUnlocker.discard() } returns Outcome.Success(Unit)`; the full-flow test also verifies `discard`.
 
-**Green:**
-1. Create `UserEntity` with mapping extensions.
-2. Create `UserDao`.
-3. Create `OdinDatabase`.
-4. Create `RoomUserRepository` implementing `UserRepository`.
+### Phase 2: infrastructure — `DatabaseProvider.discard()` and Deferred repositories
 
-Run `./gradlew test` — integration tests green.
+**Green:** add `discard()` to `VaultUnlocker`; implement in `DatabaseProvider`.
+Create `DeferredUserRepository` (move the private class out of `AppContainer`)
+and `DeferredCategoryRepository`; wire both in `AppContainer` (`categoryRepository`
+becomes `DeferredCategoryRepository(databaseProvider)`).
 
-### Phase 3: DI — Wire RoomUserRepository in AppContainer
+### Phase 3: application — `UserRegistrar` new order
 
-**Red:** No new tests — the existing `UserRegistrarTest` already mocks `UserRepository`; wiring is verified by the integration tests in Phase 2 and by manual test.
+**Green:** rewrite `performRegistration` to the order in **Change**: salt in
+memory, discard, unlock, wrap, add, post-registration, save salt, store master
+key. Discard on every failure from step 5 on; zero keys in `finally`. Remove
+`SaltRepository.delete()` and its adapter implementation.
 
-**Green:**
-1. Add `Context` parameter to `AppContainer` if not already present; update the call site in `OdinApplication`.
-2. Build `OdinDatabase` as a property in `AppContainer`.
-3. Replace `InMemoryUserRepository()` binding with `RoomUserRepository(database.userDao())`.
+### Phase 4: verify
 
-Run `./gradlew check` — all tests green, detekt clean, coverage passing.
+`./gradlew check` GREEN; `./gradlew compileDebugAndroidTestKotlin` GREEN.
 
 ## Design decisions to hydrate into design.md
 
-- [ ] Room as the persistence adapter — the `UserRepository` port/adapter split enables this swap with no domain or application changes
-- [ ] `OdinDatabase` as the central schema registry — all future entities are registered here; this is the pattern for every incoming persistence feature
-- [ ] `UserEntity` in the infrastructure layer — domain model stays annotation-free; mapping extensions live with the entity
-- [ ] `ByteArray` columns stored as BLOB — Room handles this natively; no type converters needed
-- [ ] Integration tests go in `src/test/.../integrationtests/` using Robolectric with an in-memory Room database — this is the established pattern for all future repository tests
-- [ ] Remove "In-memory storage" Known Limitation from design.md
-- [ ] `OdinDatabase` lives at `dev.raiseexception.odin.persistence` (cross-cutting, not inside any feature) — all future feature entities are registered here
-- [ ] `AppContainer` receives `Context` to build Room — update architecture file tree in design.md if the constructor changes
+- [ ] `user-creation/design.md`: the salt is the commit point (invariant: salt exists ⇔ registration completed), with the rejected alternative (salt first + rollback; cannot survive process death).
+- [ ] `user-creation/design.md`: leftover vault discarded before unlocking; discard on every failure; master key stored last. Rewrite the "`UserRegistrar` depends on `SaltRepository` and `VaultUnlocker`…" bullet, Data Flow step 5–7, and the Reliability pillar.
+- [ ] `sqlcipher-encryption/design.md`: `VaultUnlocker.discard()` — the one close outside normal operation; Registration Data Flow reordered; `SaltRepository` has no `delete()`.
+- [ ] `sqlcipher-encryption/design.md`: user and category repositories resolve their DAO per call (rationale: they are the only ones used before the commit point); restate the "No database close/reopen support" limitation for the remaining post-auth graph in the present tense.
+- [ ] `post-user-registration/design.md`: delete the "Registration rollback is incomplete after vault unlock" Known Limitation; rewrite the overview line, Data Flow, and Reliability pillar to the commit-point model.
+- [ ] `TASKS.md`: tick task 62.

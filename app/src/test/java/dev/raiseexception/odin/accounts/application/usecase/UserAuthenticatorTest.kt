@@ -86,7 +86,7 @@ class UserAuthenticatorTest {
 
         authenticator.authenticate(sensitivePassword("validPassword1"))
 
-        verify { vaultUnlocker.unlock(encryptionKey) }
+        coVerify { vaultUnlocker.unlock(encryptionKey) }
     }
 
     @Test
@@ -113,7 +113,7 @@ class UserAuthenticatorTest {
         runTest {
             coEvery { saltRepository.get() } returns Outcome.Success(salt)
             every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
-            every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
+            coEvery { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
             coEvery { userRepository.get() } returns Outcome.Success(storedUser)
             every { vaultCrypto.unwrapMasterKey(wrappedMasterKey, encryptionKey) } returns Outcome.Failure(
                 CryptoError.DecryptionFailed()
@@ -153,7 +153,7 @@ class UserAuthenticatorTest {
         runTest {
             coEvery { saltRepository.get() } returns Outcome.Success(salt)
             every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
-            every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
+            coEvery { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
             coEvery { userRepository.get() } returns Outcome.Success(storedUser)
             every { vaultCrypto.unwrapMasterKey(wrappedMasterKey, encryptionKey) } returns Outcome.Failure(
                 CryptoError.InvalidKeySize()
@@ -169,7 +169,7 @@ class UserAuthenticatorTest {
     fun `given no registered user, when authenticating, then returns user not found`() = runTest {
         coEvery { saltRepository.get() } returns Outcome.Success(salt)
         every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
-        every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
+        coEvery { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
         coEvery { userRepository.get() } returns Outcome.Failure(
             LoginError.UserNotFound(
                 internalMessage = "No user stored on this device",
@@ -205,7 +205,7 @@ class UserAuthenticatorTest {
     private fun stubSuccessfulAuthentication() {
         coEvery { saltRepository.get() } returns Outcome.Success(salt)
         every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
-        every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
+        coEvery { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
         coEvery { userRepository.get() } returns Outcome.Success(storedUser)
         every { vaultCrypto.unwrapMasterKey(wrappedMasterKey, encryptionKey) } returns Outcome.Success(masterKey)
     }
