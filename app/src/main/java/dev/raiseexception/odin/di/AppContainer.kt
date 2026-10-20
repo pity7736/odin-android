@@ -35,8 +35,8 @@ import dev.raiseexception.odin.accounting.domain.repository.IncomeRepository
 import dev.raiseexception.odin.accounting.domain.repository.TagRepository
 import dev.raiseexception.odin.accounting.domain.repository.TransactionRepository
 import dev.raiseexception.odin.accounting.domain.repository.TransferRepository
+import dev.raiseexception.odin.accounting.infrastructure.repository.DeferredCategoryRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomAccountRepository
-import dev.raiseexception.odin.accounting.infrastructure.repository.RoomCategoryRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomExpenseRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomIncomeRepository
 import dev.raiseexception.odin.accounting.infrastructure.repository.RoomTagRepository
@@ -57,9 +57,8 @@ import dev.raiseexception.odin.accounting.presentation.transactiondetail.Transac
 import dev.raiseexception.odin.accounting.presentation.transfercreation.CreateTransferViewModel
 import dev.raiseexception.odin.accounts.application.usecase.UserAuthenticator
 import dev.raiseexception.odin.accounts.application.usecase.UserRegistrar
-import dev.raiseexception.odin.accounts.domain.model.User
 import dev.raiseexception.odin.accounts.domain.repository.UserRepository
-import dev.raiseexception.odin.accounts.infrastructure.repository.RoomUserRepository
+import dev.raiseexception.odin.accounts.infrastructure.repository.DeferredUserRepository
 import dev.raiseexception.odin.accounts.presentation.login.LoginViewModel
 import dev.raiseexception.odin.accounts.presentation.registration.RegistrationViewModel
 import dev.raiseexception.odin.accounts.presentation.startup.StartupViewModel
@@ -92,7 +91,7 @@ class AppContainer(
 ) {
 
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
-    private val databaseProvider: DatabaseProvider = DatabaseProvider(context)
+    private val databaseProvider: DatabaseProvider = DatabaseProvider(context, ioDispatcher)
     private val secureRandom: SecureRandom = SecureRandom()
     private val vaultCrypto: VaultCrypto = BouncyCastleVaultCrypto(secureRandom)
     private val masterKeyRepository: MasterKeyRepository = InMemoryMasterKeyRepository()
@@ -136,9 +135,7 @@ class AppContainer(
     private val accountTransactionLister by lazy { AccountTransactionLister() }
     private val recentTransactionLister by lazy { RecentTransactionLister() }
     private val homeSummaryLoader by lazy { HomeSummaryLoader(accountLister, recentTransactionLister) }
-    private val categoryRepository: CategoryRepository by lazy {
-        RoomCategoryRepository(databaseProvider.requireDatabase().categoryDao())
-    }
+    private val categoryRepository: CategoryRepository = DeferredCategoryRepository(databaseProvider)
     private val categoryCreator by lazy { CategoryCreator(categoryRepository) }
     private val categoryResolver by lazy { CategoryResolver(categoryRepository, categoryCreator) }
     private val categoryFinder by lazy { CategoryFinder(categoryRepository) }
@@ -395,17 +392,4 @@ class AppContainer(
                 )
             }
         }
-}
-
-private class DeferredUserRepository(
-    private val databaseProvider: DatabaseProvider
-) : UserRepository {
-
-    private val delegate by lazy {
-        RoomUserRepository(databaseProvider.requireDatabase().userDao())
-    }
-
-    override suspend fun add(user: User): Outcome<Unit> = this.delegate.add(user)
-
-    override suspend fun get(): Outcome<User> = this.delegate.get()
 }

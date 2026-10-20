@@ -52,66 +52,72 @@ class UserRegistrar(
 
     private suspend fun performRegistration(password: SensitivePassword): Outcome<User> {
         val salt = this.vaultCrypto.generateSalt()
-        val saveOutcome = this.saltRepository.save(salt)
-        if (saveOutcome is Outcome.Failure) return saveOutcome
-        val result = withContext(this.cpuDispatcher) {
-            val derivedKeys = when (val keysOutcome = vaultCrypto.deriveKeys(password, salt)) {
-                is Outcome.Success -> keysOutcome.value
-                is Outcome.Failure -> return@withContext cryptoFailure(keysOutcome.error.internalMessage)
-            }
-            val unlockOutcome = vaultUnlocker.unlock(derivedKeys.encryptionKey)
-            if (unlockOutcome is Outcome.Failure) {
-                derivedKeys.encryptionKey.fill(0)
-                return@withContext cryptoFailure(unlockOutcome.error.internalMessage)
-            }
-            val masterKey = vaultCrypto.generateMasterKey()
-            val wrapOutcome = vaultCrypto.wrapMasterKey(masterKey, derivedKeys.encryptionKey)
-            val wrappedMasterKey = when (wrapOutcome) {
-                is Outcome.Success -> wrapOutcome.value
-                is Outcome.Failure -> {
-                    masterKey.fill(0)
-                    derivedKeys.encryptionKey.fill(0)
-                    return@withContext cryptoFailure(wrapOutcome.error.internalMessage)
-                }
-            }
-            saveUser(wrappedMasterKey, masterKey, derivedKeys.encryptionKey)
+        val keysOutcome = withContext(this.cpuDispatcher) { vaultCrypto.deriveKeys(password, salt) }
+        val derivedKeys = when (keysOutcome) {
+            is Outcome.Success -> keysOutcome.value
+            is Outcome.Failure -> return this.cryptoFailure(keysOutcome.error.internalMessage)
         }
-        val finalResult = this.runPostRegistration(result)
-        if (finalResult is Outcome.Failure) {
-            this.saltRepository.delete()
+        try {
+            return this.setUpVault(salt, derivedKeys.encryptionKey)
+        } finally {
+            derivedKeys.encryptionKey.fill(0)
         }
-        return finalResult
     }
 
-    private suspend fun runPostRegistration(result: Outcome<User>): Outcome<User> {
-        if (result is Outcome.Failure) return result
-        val postOutcome = this.postRegistration()
-        if (postOutcome is Outcome.Failure) {
-            return this.storageFailure(
-                "Post-registration callback failed: ${postOutcome.error.internalMessage}"
-            )
+    private suspend fun setUpVault(salt: ByteArray, encryptionKey: ByteArray): Outcome<User> {
+        val discardOutcome = this.vaultUnlocker.discard()
+        if (discardOutcome is Outcome.Failure) {
+            return this.storageFailure("Failed to discard leftover vault: ${discardOutcome.error.internalMessage}")
         }
-        return result
+        val creationOutcome = this.createVault(salt, encryptionKey)
+        if (creationOutcome is Outcome.Failure) {
+            this.vaultUnlocker.discard()
+        }
+        return creationOutcome
     }
 
-    private suspend fun saveUser(
-        wrappedMasterKey: ByteArray,
+    private suspend fun createVault(salt: ByteArray, encryptionKey: ByteArray): Outcome<User> {
+        val unlockOutcome = this.vaultUnlocker.unlock(encryptionKey)
+        if (unlockOutcome is Outcome.Failure) {
+            return this.cryptoFailure(unlockOutcome.error.internalMessage)
+        }
+        val masterKey = withContext(this.cpuDispatcher) { vaultCrypto.generateMasterKey() }
+        try {
+            return this.persistRegistration(salt, masterKey, encryptionKey)
+        } finally {
+            masterKey.fill(0)
+        }
+    }
+
+    private suspend fun persistRegistration(
+        salt: ByteArray,
         masterKey: ByteArray,
         encryptionKey: ByteArray
     ): Outcome<User> {
+        val wrapOutcome = withContext(this.cpuDispatcher) { vaultCrypto.wrapMasterKey(masterKey, encryptionKey) }
+        val wrappedMasterKey = when (wrapOutcome) {
+            is Outcome.Success -> wrapOutcome.value
+            is Outcome.Failure -> return this.cryptoFailure(wrapOutcome.error.internalMessage)
+        }
         val user = User(
             id = UuidCreator.getTimeOrderedEpoch().toString(),
             wrappedMasterKey = wrappedMasterKey
         )
         val addOutcome = this.userRepository.add(user)
         if (addOutcome is Outcome.Failure) {
-            masterKey.fill(0)
-            encryptionKey.fill(0)
-            return addOutcome
+            return this.storageFailure("Failed to save the user: ${addOutcome.error.internalMessage}")
+        }
+        val postRegistrationOutcome = this.postRegistration()
+        if (postRegistrationOutcome is Outcome.Failure) {
+            return this.storageFailure(
+                "Post-registration callback failed: ${postRegistrationOutcome.error.internalMessage}"
+            )
+        }
+        val saveOutcome = this.saltRepository.save(salt)
+        if (saveOutcome is Outcome.Failure) {
+            return this.storageFailure("Failed to save the salt: ${saveOutcome.error.internalMessage}")
         }
         this.masterKeyRepository.store(masterKey)
-        masterKey.fill(0)
-        encryptionKey.fill(0)
         return Outcome.Success(user)
     }
 

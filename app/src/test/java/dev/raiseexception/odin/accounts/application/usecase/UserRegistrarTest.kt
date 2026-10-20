@@ -9,9 +9,11 @@ import dev.raiseexception.odin.crypto.domain.VaultCrypto
 import dev.raiseexception.odin.crypto.domain.repository.MasterKeyRepository
 import dev.raiseexception.odin.crypto.domain.repository.SaltRepository
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.domain.StorageError
 import dev.raiseexception.odin.shared.domain.VaultUnlocker
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -19,6 +21,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -39,6 +42,7 @@ class UserRegistrarTest {
     private val masterKeyRepository = mockk<MasterKeyRepository>(relaxUnitFun = true)
     private val saltRepository = mockk<SaltRepository>()
     private val vaultUnlocker = mockk<VaultUnlocker>()
+    private val postRegistrationStep = mockk<PostRegistrationStep>()
     private lateinit var registrar: UserRegistrar
 
     private val salt = ByteArray(TEST_BYTE_ARRAY_SIZE) { (it + SALT_OFFSET).toByte() }
@@ -73,6 +77,7 @@ class UserRegistrarTest {
         verify { vaultCrypto.wrapMasterKey(masterKey, encryptionKey) }
         coVerify { userRepository.add(any()) }
         verify { masterKeyRepository.store(masterKey) }
+        coVerify { vaultUnlocker.discard() }
     }
 
     @Test
@@ -88,22 +93,12 @@ class UserRegistrarTest {
     }
 
     @Test
-    fun `given valid input, when register called, then salt saved to SaltRepository before database is unlocked`() =
-        runTest {
-            stubSuccessfulRegistration()
-
-            registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
-
-            coVerify { saltRepository.save(salt) }
-        }
-
-    @Test
     fun `given valid input, when register called, then vault unlocked with derived encryptionKey`() = runTest {
         stubSuccessfulRegistration()
 
         registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
 
-        verify { vaultUnlocker.unlock(encryptionKey) }
+        coVerify { vaultUnlocker.unlock(encryptionKey) }
     }
 
     @Test
@@ -123,15 +118,16 @@ class UserRegistrarTest {
 
     @Test
     fun `given salt save fails, when register called, then returns StorageFailure`() = runTest {
-        coEvery { saltRepository.exists() } returns false
-        every { vaultCrypto.generateSalt() } returns salt
+        stubSuccessfulRegistration()
         coEvery { saltRepository.save(salt) } returns Outcome.Failure(
-            dev.raiseexception.odin.shared.domain.StorageError(internalMessage = "DataStore failure")
+            StorageError(internalMessage = "DataStore failure")
         )
 
         val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
 
-        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is RegistrationError.StorageFailure)
+        assertEquals("Algo salió mal. Intente de nuevo más tarde", error.externalMessage)
     }
 
     @Test
@@ -197,9 +193,7 @@ class UserRegistrarTest {
     @Test
     fun `given deriveKeys fails, when registering, then returns crypto failure`() = runTest {
         coEvery { saltRepository.exists() } returns false
-        coEvery { saltRepository.delete() } returns Unit
         every { vaultCrypto.generateSalt() } returns salt
-        coEvery { saltRepository.save(salt) } returns Outcome.Success(Unit)
         every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Failure(CryptoError.InvalidSalt())
 
         val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
@@ -211,11 +205,10 @@ class UserRegistrarTest {
     @Test
     fun `given wrapMasterKey fails, when registering, then returns crypto failure`() = runTest {
         coEvery { saltRepository.exists() } returns false
-        coEvery { saltRepository.delete() } returns Unit
         every { vaultCrypto.generateSalt() } returns salt
-        coEvery { saltRepository.save(salt) } returns Outcome.Success(Unit)
         every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
-        every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
+        coEvery { vaultUnlocker.discard() } returns Outcome.Success(Unit)
+        coEvery { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
         every { vaultCrypto.generateMasterKey() } returns masterKey
         every {
             vaultCrypto.wrapMasterKey(masterKey, encryptionKey)
@@ -230,24 +223,21 @@ class UserRegistrarTest {
     @Test
     fun `given crypto succeeds but add fails, when registering, then returns storage failure`() = runTest {
         coEvery { saltRepository.exists() } returns false
-        coEvery { saltRepository.delete() } returns Unit
         every { vaultCrypto.generateSalt() } returns salt
-        coEvery { saltRepository.save(salt) } returns Outcome.Success(Unit)
         every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
-        every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
+        coEvery { vaultUnlocker.discard() } returns Outcome.Success(Unit)
+        coEvery { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
         every { vaultCrypto.generateMasterKey() } returns masterKey
         every { vaultCrypto.wrapMasterKey(masterKey, encryptionKey) } returns Outcome.Success(wrappedMasterKey)
         coEvery { userRepository.add(any()) } returns Outcome.Failure(
-            RegistrationError.StorageFailure(
-                internalMessage = "Storage failed",
-                externalMessage = "Algo salio mal"
-            )
+            StorageError(internalMessage = "Storage failed")
         )
 
         val result = registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
 
-        assertTrue(result is Outcome.Failure)
-        assertTrue((result as Outcome.Failure).error is RegistrationError.StorageFailure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is RegistrationError.StorageFailure)
+        assertEquals("Algo salió mal. Intente de nuevo más tarde", error.externalMessage)
     }
 
     @Test
@@ -320,7 +310,6 @@ class UserRegistrarTest {
     fun `given a successful registration, when the post-registration callback fails, then returns storage failure`() =
         runTest {
             stubSuccessfulRegistration()
-            coEvery { saltRepository.delete() } returns Unit
             val postRegistration: suspend () -> Outcome<Unit> = {
                 Outcome.Failure(
                     RegistrationError.StorageFailure(
@@ -347,31 +336,177 @@ class UserRegistrarTest {
         }
 
     @Test
-    fun `given a successful registration, when the post-registration callback fails, then rolls back the salt`() =
+    fun `given valid input, when registering, then the leftover vault is discarded before the vault is unlocked`() =
         runTest {
             stubSuccessfulRegistration()
-            coEvery { saltRepository.delete() } returns Unit
-            val postRegistration: suspend () -> Outcome<Unit> = {
-                Outcome.Failure(
-                    RegistrationError.StorageFailure(
-                        internalMessage = "Post-registration failed",
-                        externalMessage = "Algo salió mal. Intente de nuevo más tarde"
-                    )
-                )
+
+            registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+            coVerifyOrder {
+                vaultUnlocker.discard()
+                vaultUnlocker.unlock(encryptionKey)
             }
-            registrar = UserRegistrar(
-                vaultCrypto,
-                userRepository,
-                masterKeyRepository,
-                saltRepository,
-                vaultUnlocker,
-                UnconfinedTestDispatcher(),
-                postRegistration
+        }
+
+    @Test
+    fun `given valid input, when registering, then the salt is saved after the post-registration step succeeds`() =
+        runTest {
+            stubSuccessfulRegistration()
+            coEvery { postRegistrationStep.run() } returns Outcome.Success(Unit)
+            registrar = registrarWith(postRegistrationStep)
+
+            registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+            coVerifyOrder {
+                userRepository.add(any())
+                postRegistrationStep.run()
+                saltRepository.save(salt)
+            }
+        }
+
+    @Test
+    fun `given valid input, when registering, then the master key is stored after the salt is saved`() = runTest {
+        stubSuccessfulRegistration()
+        coEvery { postRegistrationStep.run() } returns Outcome.Success(Unit)
+        registrar = registrarWith(postRegistrationStep)
+
+        registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+        coVerifyOrder {
+            postRegistrationStep.run()
+            saltRepository.save(salt)
+            masterKeyRepository.store(masterKey)
+        }
+    }
+
+    @Test
+    fun `given unlock fails, when registering, then the vault is discarded and the salt is never saved`() = runTest {
+        stubSuccessfulRegistration()
+        coEvery { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Failure(
+            StorageError(internalMessage = "Failed to open encrypted database")
+        )
+
+        registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+        coVerifyOrder {
+            vaultUnlocker.unlock(encryptionKey)
+            vaultUnlocker.discard()
+        }
+        coVerify(exactly = 0) { saltRepository.save(any()) }
+    }
+
+    @Test
+    fun `given wrapMasterKey fails, when registering, then the vault is discarded and the salt is never saved`() =
+        runTest {
+            stubSuccessfulRegistration()
+            every {
+                vaultCrypto.wrapMasterKey(masterKey, encryptionKey)
+            } returns Outcome.Failure(CryptoError.InvalidKeySize())
+
+            registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+            coVerifyOrder {
+                vaultUnlocker.unlock(encryptionKey)
+                vaultUnlocker.discard()
+            }
+            coVerify(exactly = 0) { saltRepository.save(any()) }
+        }
+
+    @Test
+    fun `given saving the user fails, when registering, then the vault is discarded and the salt is never saved`() =
+        runTest {
+            stubSuccessfulRegistration()
+            coEvery { userRepository.add(any()) } returns Outcome.Failure(
+                StorageError(internalMessage = "Failed to insert user")
             )
 
             registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
 
-            coVerify { saltRepository.delete() }
+            coVerifyOrder {
+                vaultUnlocker.unlock(encryptionKey)
+                vaultUnlocker.discard()
+            }
+            coVerify(exactly = 0) { saltRepository.save(any()) }
+        }
+
+    @Test
+    fun `given post-registration fails when registering then discards vault saves no salt stores no master key`() =
+        runTest {
+            stubSuccessfulRegistration()
+            coEvery { postRegistrationStep.run() } returns Outcome.Failure(
+                StorageError(internalMessage = "Failed to create the Transfer category")
+            )
+            registrar = registrarWith(postRegistrationStep)
+
+            registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+            coVerifyOrder {
+                vaultUnlocker.unlock(encryptionKey)
+                vaultUnlocker.discard()
+            }
+            coVerify(exactly = 0) { saltRepository.save(any()) }
+            verify(exactly = 0) { masterKeyRepository.store(any()) }
+        }
+
+    @Test
+    fun `given salt save fails when registering then discards vault and stores no master key`() =
+        runTest {
+            stubSuccessfulRegistration()
+            coEvery { saltRepository.save(salt) } returns Outcome.Failure(
+                StorageError(internalMessage = "DataStore failure")
+            )
+
+            registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+            coVerifyOrder {
+                vaultUnlocker.unlock(encryptionKey)
+                vaultUnlocker.discard()
+            }
+            verify(exactly = 0) { masterKeyRepository.store(any()) }
+        }
+
+    @Test
+    fun `given deriveKeys fails, when registering, then the vault is not touched and the salt is never saved`() =
+        runTest {
+            stubSuccessfulRegistration()
+            every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Failure(CryptoError.InvalidSalt())
+
+            registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+            coVerify(exactly = 0) { vaultUnlocker.discard() }
+            coVerify(exactly = 0) { vaultUnlocker.unlock(any()) }
+            coVerify(exactly = 0) { saltRepository.save(any()) }
+        }
+
+    @Test
+    fun `given leftover vault discard fails when registering then returns storage failure without unlocking`() =
+        runTest {
+            stubSuccessfulRegistration()
+            coEvery { vaultUnlocker.discard() } returns Outcome.Failure(
+                StorageError(internalMessage = "Failed to delete the database file")
+            )
+
+            val result =
+                registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+            assertTrue(result is Outcome.Failure)
+            assertTrue((result as Outcome.Failure).error is RegistrationError.StorageFailure)
+            coVerify(exactly = 0) { vaultUnlocker.unlock(any()) }
+        }
+
+    @Test
+    fun `given the post-registration step fails, when registering, then the encryption key and master key are wiped`() =
+        runTest {
+            stubSuccessfulRegistration()
+            coEvery { postRegistrationStep.run() } returns Outcome.Failure(
+                StorageError(internalMessage = "Failed to create the Transfer category")
+            )
+            registrar = registrarWith(postRegistrationStep)
+
+            registrar.register(sensitivePassword("validPassword1"), sensitivePassword("validPassword1"))
+
+            assertArrayEquals(ByteArray(TEST_BYTE_ARRAY_SIZE), encryptionKey)
+            assertArrayEquals(ByteArray(TEST_BYTE_ARRAY_SIZE), masterKey)
         }
 
     private fun stubSuccessfulRegistration() {
@@ -379,11 +514,22 @@ class UserRegistrarTest {
         every { vaultCrypto.generateSalt() } returns salt
         coEvery { saltRepository.save(salt) } returns Outcome.Success(Unit)
         every { vaultCrypto.deriveKeys(any(), eq(salt)) } returns Outcome.Success(derivedKeys)
-        every { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
+        coEvery { vaultUnlocker.discard() } returns Outcome.Success(Unit)
+        coEvery { vaultUnlocker.unlock(encryptionKey) } returns Outcome.Success(Unit)
         every { vaultCrypto.generateMasterKey() } returns masterKey
         every { vaultCrypto.wrapMasterKey(masterKey, encryptionKey) } returns Outcome.Success(wrappedMasterKey)
         coEvery { userRepository.add(any()) } returns Outcome.Success(Unit)
     }
+
+    private fun registrarWith(postRegistrationStep: PostRegistrationStep) = UserRegistrar(
+        vaultCrypto,
+        userRepository,
+        masterKeyRepository,
+        saltRepository,
+        vaultUnlocker,
+        UnconfinedTestDispatcher(),
+        postRegistration = { postRegistrationStep.run() }
+    )
 
     private fun sensitivePassword(raw: String) = SensitivePassword(raw.toCharArray())
 
@@ -396,4 +542,8 @@ class UserRegistrarTest {
         assertTrue(password.isBlank())
         assertTrue(confirmation.isBlank())
     }
+}
+
+private interface PostRegistrationStep {
+    suspend fun run(): Outcome<Unit>
 }

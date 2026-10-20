@@ -50,12 +50,6 @@ class DataStoreSaltRepository(
             .map { preferences -> preferences.contains(SALT_KEY) }
             .first()
 
-    override suspend fun delete() {
-        this.dataStore.edit { preferences ->
-            preferences.remove(SALT_KEY)
-        }
-    }
-
     companion object {
         private val SALT_KEY = stringPreferencesKey("salt")
     }
