@@ -6,8 +6,9 @@
 
 After vault creation, `UserRegistrar` runs a post-registration callback that
 creates the Transfer system category. The callback is injected at the composition
-root, keeping the `accounts` module decoupled from `accounting`. If the callback
-fails, registration fails and the salt is rolled back.
+root, keeping the `accounts` module decoupled from `accounting`. The callback runs
+before the salt is saved, so if it fails, registration fails and leaves nothing
+behind (see `specs/accounts/user-creation/design.md`).
 
 ## Design Decisions & Rationale
 
@@ -35,6 +36,16 @@ fails, registration fails and the salt is rolled back.
   storage failure during registration. The internal message propagates the
   original cause for debugging. Rejected: a dedicated error subtype, which would
   add complexity with no user-visible benefit.
+
+- **The callback runs before the commit point.** It runs after the user is saved
+  and before the salt is saved, so the Transfer category is part of the
+  registration that the salt commits. A failure discards the vault, and the salt
+  is never written. The callback reaches the database through
+  `DeferredCategoryRepository`, which resolves its DAO per call, so a discarded
+  database never leaves it pointing at a closed instance. Anything a future
+  callback uses must resolve its DAO the same way. Rejected: running the callback
+  after the salt is saved, which would commit a registration whose Transfer
+  category may be missing.
 
 - **Transfer category properties.** Name "Transferencia", type `TRANSFER`, color
   `#607D8B`, `isSystem = true`. These are hardcoded at the composition root.
@@ -80,16 +91,17 @@ Registration submit (RegistrationScreen)
       → UserRegistrar.register()
           → validatePassword / confirmMatch
           → performRegistration()
-              → generate salt → save salt
-              → deriveKeys → unlock vault → generate/wrap master key
-              → saveUser (persist User, store master key)
-              → runPostRegistration (callback)
+              → generate salt (in memory) → deriveKeys
+              → discard leftover vault → unlock vault → generate/wrap master key
+              → persist User
+              → postRegistration (callback)
                   → CategoryCreator.createSystem()
                       → Category.createSystem() (validate, isSystem=true)
                       → CategoryRepository.existsByNameAndType()
                       → CategoryRepository.add()
+              → save salt (commit point) → store master key
               ← Outcome<User>
-          (on failure: salt rollback)
+          (on failure: vault discarded, no salt saved)
       ← Outcome<User>
   ← UiState update (Success → navigate home, Failure → Error)
 ```
@@ -102,19 +114,16 @@ which covers the new failure path with no presentation changes.
 
 ## Known Limitations
 
-- **Registration rollback is incomplete after vault unlock.** If post-registration
-  fails, only the salt is deleted. The SQLCipher database file, the persisted user
-  record, and the in-memory master key are not cleaned up. This is a pre-existing
-  gap in `UserRegistrar` (any failure after `vaultUnlocker.unlock()` has the same
-  problem), not specific to this feature. Tracked in `TASKS.md`.
+None.
 
 ## Quality Pillars
 
 - **Security:** The Transfer category contains no sensitive data. The
   post-registration callback runs after the vault is unlocked, so it writes to the
   already-encrypted database. No keys or plaintext are exposed.
-- **Reliability:** Registration fails atomically (via salt rollback) if the
-  Transfer category cannot be created. The default callback is a no-op
+- **Reliability:** If the Transfer category cannot be created, registration fails
+  and leaves nothing behind: the vault is discarded, the salt is never saved, and
+  the master key is never stored, so the user can try again. The default callback is a no-op
   `Outcome.Success(Unit)`, so existing tests and callers that don't inject a
   callback are unaffected.
 - **Performance:** One additional `existsByNameAndType` query and one `add` during

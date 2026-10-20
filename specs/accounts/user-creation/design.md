@@ -34,10 +34,46 @@ inline validation feedback.
   with a code enum — loses the exhaustive `when` compiler check.
 
 - **`UserRegistrar` depends on `SaltRepository` and `VaultUnlocker` in addition
-  to `VaultCrypto`, `UserRepository`, and `MasterKeyRepository`.** Salt is saved
-  to DataStore before the database opens; the vault is unlocked (database opened
-  with the derived encryption key) before the user record is persisted. If
-  registration fails after the salt is saved, the salt is deleted (rollback).
+  to `VaultCrypto`, `UserRepository`, and `MasterKeyRepository`.** The salt gates
+  registration and marks it complete; the vault is unlocked (database opened with
+  the derived encryption key) before the user record is persisted.
+
+- **Saving the salt is the commit point.** Invariant: a salt exists if and only
+  if a registration completed. The salt is generated in memory, the keys are
+  derived from it, and it is written to DataStore only after the user is saved
+  and the post-registration step succeeds. Anything written before that point
+  can be thrown away, because without a salt the app treats the device as having
+  no user and routes to registration. Rejected: saving the salt first and
+  deleting it on failure — the rollback cannot undo the database file, and it
+  cannot run when the process dies mid-registration, which leaves a salt for a
+  registration that never finished.
+
+- **Every registration starts by discarding any leftover vault.** Before
+  unlocking, `UserRegistrar` calls `VaultUnlocker.discard()`, which closes an
+  open database and deletes the `odin_db` file. With no salt nothing is
+  registered, so nothing recoverable is lost: a database without its salt cannot
+  be decrypted. This cleans up after a failed attempt in the same process and
+  after a crash or process death. If the discard fails, registration stops with
+  `StorageFailure` before anything is opened.
+
+- **Any returned failure after the discard discards the vault again.** A failed
+  unlock, wrap, user save, post-registration step, or salt save closes and
+  deletes the database before the error is returned. The result of this second
+  discard does not change the error the user sees; if it fails, the next
+  attempt's leading discard retries it. A thrown exception or cancellation skips
+  it by design — the leading discard of the next attempt covers that case.
+
+- **The master key is stored last.** `MasterKeyRepository.store()` runs only
+  after the salt is saved, so a failed registration never leaves a master key in
+  memory. Both the encryption key and the plaintext master key are zeroed in
+  `finally` blocks on every path, including thrown exceptions.
+
+- **Storage failures during registration map to `RegistrationError.StorageFailure`.**
+  A failed user save, salt save, or post-registration step is wrapped with the
+  registration message ("Algo salió mal. Intente de nuevo más tarde"), keeping
+  the original cause in the internal message. Rejected: returning the
+  repository's plain `StorageError`, whose generic message does not tell the user
+  to try again.
 
 - **`UserRegistrar` maps `CryptoError` to `RegistrationError.CryptoFailure` at
   the module boundary.** The `crypto` module's error types do not leak into the
@@ -46,8 +82,10 @@ inline validation feedback.
 
 - **CPU-heavy crypto runs on an injected `CoroutineDispatcher` (default:
   `Dispatchers.Default`).** Argon2id is intentionally slow (~hundreds of ms).
-  The use case wraps the crypto block in `withContext(cpuDispatcher)` to keep
-  the main thread free. Tests inject an `UnconfinedTestDispatcher`. Rejected
+  The use case wraps only the crypto calls (`deriveKeys`, `generateMasterKey`,
+  `wrapMasterKey`) in `withContext(cpuDispatcher)` to keep the main thread free.
+  The I/O steps (vault discard and unlock, repository writes, salt save) are
+  `suspend` and dispatch themselves, so they never block a CPU thread. Tests inject an `UnconfinedTestDispatcher`. Rejected
   alternative: making `VaultCrypto` functions `suspend` — that would force the
   crypto interface to know about coroutines, which is unnecessary complexity for
   a synchronous computation.
@@ -58,14 +96,14 @@ inline validation feedback.
   the password is correct. The authHash can be re-derived later for server
   enrollment without changing the registration flow.
 
-- **Master key is stored in `MasterKeyRepository` (crypto module) after
-  registration.** This puts the app in a "ready to work" state — future features
+- **Master key is stored in `MasterKeyRepository` (crypto module) as the last
+  step of registration.** This puts the app in a "ready to work" state — future features
   read the master key from this repository. The registration use case is the
   producer; accounting/vault features are consumers.
 
-- **One user per device.** `UserRepository.exists()` gates registration. If a
-  user is already registered, the use case returns `AlreadyRegistered`
-  immediately without touching crypto.
+- **One user per device.** `SaltRepository.exists()` gates registration. If a
+  salt is present, the use case returns `AlreadyRegistered` immediately without
+  touching crypto.
 
 - **Storage is behind a `UserRepository` port.** The domain, use case, and
   presentation layers depend only on the interface. Swapping adapters requires
@@ -76,6 +114,15 @@ inline validation feedback.
   survives process death and device reboots. `add()` checks `exists()` before
   inserting and returns `StorageFailure` if a user is already present,
   maintaining the one-user-per-device invariant at the storage boundary.
+
+- **`DeferredUserRepository` resolves the DAO on every call.** It is the
+  `UserRepository` wired in `AppContainer`, and it builds a `RoomUserRepository`
+  from `DatabaseProvider.requireDatabase()` at call time instead of caching it.
+  Registration may discard and reopen the database, and a cached DAO would point
+  at the closed instance. Every repository used before the commit point must
+  resolve its DAO this way (see `specs/technical/sqlcipher-encryption/design.md`).
+  Rejected: a `by lazy` delegate, which keeps the first database instance for
+  the life of the process.
 
 - **`UserEntity` lives in the infrastructure layer; the domain model carries no
   Room annotations.** Mapping extensions (`toDomain()`, `toEntity()`) are
@@ -159,7 +206,8 @@ app/src/main/java/dev/raiseexception/odin/accounts/
 │       ├── InMemoryUserRepository.kt
 │       ├── UserEntity.kt
 │       ├── UserDao.kt
-│       └── RoomUserRepository.kt
+│       ├── RoomUserRepository.kt
+│       └── DeferredUserRepository.kt
 └── presentation/
     └── registration/
         ├── NavigationTarget.kt
@@ -187,9 +235,11 @@ app/src/test/java/dev/raiseexception/odin/accounts/
 ├── application/usecase/UserRegistrarTest.kt
 ├── infrastructure/repository/InMemoryUserRepositoryTest.kt
 ├── integrationtests/RoomUserRepositoryTest.kt
+├── integrationtests/DeferredUserRepositoryTest.kt
 └── presentation/registration/RegistrationViewModelTest.kt
 
 app/src/androidTest/java/dev/raiseexception/odin/accounts/
+├── RegistrationRetryTest.kt
 └── presentation/registration/RegistrationScreenTest.kt
 
 specs/accounts/user-creation/
@@ -205,16 +255,21 @@ specs/accounts/user-creation/
 3. ViewModel emits `Loading`, launches coroutine on `Dispatchers.Main`
 4. `UserRegistrar.register()` checks `saltRepository.exists()` (salt in
    DataStore means already registered), validates password, checks match
-5. `performRegistration()` generates salt, saves it to DataStore via
-   `saltRepository.save()`, switches to `cpuDispatcher`, derives keys
-   (Argon2id), unlocks the vault (`vaultUnlocker.unlock(encryptionKey)` —
-   opens the encrypted Room database), generates and wraps the master key
-6. User entity `(id, wrappedMasterKey)` is persisted via `UserRepository.add()`
-7. Master key is stored in `MasterKeyRepository` for session use
-8. `Outcome<User>` returns to the ViewModel. On success, it sends
+5. `performRegistration()` generates the salt in memory and derives keys
+   (Argon2id) on `cpuDispatcher`
+6. `vaultUnlocker.discard()` removes any leftover vault, then
+   `vaultUnlocker.unlock(encryptionKey)` opens a new encrypted Room database;
+   the master key is generated and wrapped on `cpuDispatcher`
+7. User entity `(id, wrappedMasterKey)` is persisted via `UserRepository.add()`,
+   then the post-registration step creates the Transfer category
+8. The salt is saved to DataStore via `saltRepository.save()` — the commit point
+9. Master key is stored in `MasterKeyRepository` for session use; both keys are
+   wiped. Any returned failure in steps 6–8 discards the vault and returns a
+   `RegistrationError`
+10. `Outcome<User>` returns to the ViewModel. On success, it sends
    `NavigationTarget.Home` into the `Channel` (UiState stays on `Loading`).
    On failure, it maps the error to a `UiState` (ValidationError or Error)
-9. On success: the screen's `LaunchedEffect` collects the navigation event,
+11. On success: the screen's `LaunchedEffect` collects the navigation event,
    calls the `onRegistrationSuccess` callback, and `MainActivity` navigates
    to the home screen. On failure: the screen re-renders with the error state
 
@@ -239,8 +294,7 @@ specs/accounts/user-creation/
 
 ## Known Limitations
 
-None currently. Previous limitation "no login flow" is resolved — login is
-implemented (see `specs/accounts/login/design.md`).
+None.
 
 ## Quality Pillars
 
@@ -252,13 +306,18 @@ implemented (see `specs/accounts/login/design.md`).
   `UserAuthenticator` — `store()` copies the bytes internally, so the stored
   key is unaffected. The master key is held in memory only (via
   `MasterKeyRepository`).
-- **Reliability:** every failure path is modeled as a typed `RegistrationError`
+- **Reliability:** a failed registration leaves nothing behind. The salt is
+  saved last, so a failure or a crash before it leaves no registered user, and
+  the next attempt discards any leftover vault before opening a new one; the user
+  can retry, with or without restarting the app, and log in with the retry's
+  password. Every failure path is modeled as a typed `RegistrationError`
   mapped to a specific `UiState`. The UI is always in exactly one valid state
   (sealed interface). No silent error swallowing. `register` ignores a second
   invocation while a registration is in progress (it returns early when the state
   is already `Loading`), so a double tap cannot start two registrations.
 - **Performance:** Argon2id runs on `Dispatchers.Default` via an injected
-  dispatcher, keeping the main thread free and avoiding ANRs.
+  dispatcher, keeping the main thread free and avoiding ANRs. Database open and
+  delete run on the injected I/O dispatcher inside `DatabaseProvider`.
 - **Observability:** domain errors carry internal English messages for debugging.
   Structured logging is deferred until a logging library is chosen (Timber
   candidate).
