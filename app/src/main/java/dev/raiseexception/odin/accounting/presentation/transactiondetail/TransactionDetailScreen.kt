@@ -307,12 +307,6 @@ private fun TransactionInfoSection(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
-        val gmfTaxLine = uiState.gmfTaxLine
-        val gmfTaxId = uiState.gmfTaxId
-        if (gmfTaxLine != null && gmfTaxId != null) {
-            GmfTaxField(gmfTaxLine = gmfTaxLine, onOpen = { onOpenTransaction(gmfTaxId) })
-            Spacer(modifier = Modifier.height(16.dp))
-        }
         InfoField(label = "FECHA", value = uiState.formattedDate)
         Spacer(modifier = Modifier.height(16.dp))
         InfoField(label = "CATEGORÍA", value = uiState.categoryName)
@@ -330,25 +324,26 @@ private fun TransactionInfoSection(
             Spacer(modifier = Modifier.height(16.dp))
             TagsField(tagNames = uiState.tagNames)
         }
+        val gmfTaxAmount = uiState.gmfTaxAmount
+        val gmfTaxId = uiState.gmfTaxId
+        if (gmfTaxAmount != null && gmfTaxId != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            GmfTaxField(gmfTaxAmount = gmfTaxAmount, onOpen = { onOpenTransaction(gmfTaxId) })
+        }
     }
 }
 
 @Composable
-private fun GmfTaxField(gmfTaxLine: String, onOpen: () -> Unit) {
+private fun GmfTaxField(gmfTaxAmount: String, onOpen: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onOpen)
-            .testTag("gmf_tax_line"),
+            .testTag("gmf_tax_field"),
     ) {
-        Text(
-            text = gmfTaxLine,
-            style = MaterialTheme.typography.bodyLarge,
-            color = Slate600,
-            modifier = Modifier.weight(1f),
-        )
+        InfoField(label = "4X1000", value = gmfTaxAmount, modifier = Modifier.weight(1f))
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = "Ver 4x1000",

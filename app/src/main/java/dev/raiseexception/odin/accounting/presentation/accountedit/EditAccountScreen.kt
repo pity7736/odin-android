@@ -292,7 +292,7 @@ private fun GmfSettings(
             onConfirm = events.onAddTag,
             onSuggestionPicked = events.onTagPicked,
             onRemove = events.onTagRemoved,
-            label = "Etiquetas del 4x1000",
+            label = "Etiquetas del 4x1000 (opcional)",
         )
     }
 }

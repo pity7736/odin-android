@@ -48,7 +48,7 @@ list.
   account-creation rule enforced inside `create`, not a `Money` rule.
 - **An account's money is a sealed `AccountFunding`, not a bare balance field.**
   `Account` holds `funding: AccountFunding`, and both `currency` and `balance`
-  derive from it. `Funds(initialBalance, kind)` funds savings and cash;
+  derive from it. `Funds(initialBalance, kind, gmf)` funds savings and cash (`gmf` is the 4x1000 setting, see `specs/accounting/gmf/design.md`);
   `Credit(creditLimit, initialDebt)` funds a credit card. The sum type keeps the debt-bearing kind a sibling
   variant instead of bolting it onto a money-only shape. Rejected alternatives:
   nullable fields on `Account` (an optional credit limit), whose "valid only for
@@ -113,12 +113,15 @@ list.
   table, copying existing rows and leaving the new columns null. Overloading
   `initialBalanceAmount` to hold a card's debt is rejected: a debt sitting in a
   "balance" column would corrupt any naive aggregate over it.
-- **The use case is pure orchestration.** `AccountCreator` routes the command to
-  the matching factory, then (on success) checks name uniqueness via the
-  repository, then persists. It owns no rules and no parsing.
-- **The ViewModel is dumb.** It forwards the raw form fields to the use case and
-  maps the resulting `Outcome` to `UiState`. No validation, no parsing, no
-  user-facing messages live in it.
+- **The use case is pure orchestration.** Inside one transaction, `AccountCreator`
+  resolves the 4x1000 tax category, routes the command to the matching factory,
+  then (on success) checks name uniqueness via the repository, then persists. It owns
+  no rules and no parsing.
+- **The ViewModel holds the choices that drive the form, nothing more.** It loads
+  the expense categories and tags, holds the type, currency, 4x1000 switch and tax
+  tag selection (so "show the 4x1000 option" is JVM-tested), builds the command from
+  them and the screen's text fields, and maps the resulting `Outcome` to `UiState`.
+  No validation, no parsing and no user-facing messages live in it.
 - **Room-backed persistence with `AccountEntity`.** `RoomAccountRepository`
   persists accounts to the `accounts` table via `AccountDao`. Entity mappers
   (`Account.toEntity()` / `AccountEntity.toDomain()`) are `internal` extension
@@ -149,7 +152,7 @@ list.
   (backed by the `NavBackStackEntry`'s `ViewModelStore`; instance from the
   `AppContainer` factory). It survives configuration changes and is cleared
   (`onCleared()` → `viewModelScope` cancelled) when the entry leaves the back
-  stack. On success `create` emits `Loading` and sends the navigation event, and
+  stack. On success `create` emits `Saving` and sends the navigation event, and
   the success navigation `popUpTo(ACCOUNTS) { inclusive = true }` removes the
   `ACCOUNT_CREATE` entry and the pre-existing `ACCOUNTS` entry before pushing a
   fresh `ACCOUNTS`, leaving a clean `[Home, Accounts]` back stack. This destroys
@@ -210,9 +213,11 @@ specs/accounting/accounts/creation/
   "+" FAB on `AccountsListScreen` (the accounts tab of the bottom bar; see
   `specs/accounting/accounts/list/design.md`). Routes `ACCOUNTS` and
   `ACCOUNT_CREATE`.
-- **UiState:** one immutable state — `Idle` / `Loading` / `ValidationError`
-  (per-field: name, balance, currency, type, description) / `Error` (general
-  message). Navigation is a one-shot event, separate from state.
+- **UiState:** one immutable state — `Loading` (categories and tags) / `Idle` /
+  `Saving` / `ValidationError` (per-field, 4x1000 category included) / `SaveFailed`
+  (a save failure shown under the form) / `Error` (loading failed) /
+  `UnexpectedFailure`; every form state renders through one form call, so typed
+  fields survive state changes. Navigation is a one-shot event, separate from state.
 - **Backend Interaction:** none. Standalone/on-device only.
 
 ## Known Limitations
@@ -235,7 +240,7 @@ specs/accounting/accounts/creation/
   exceptions across layers; `Account.create` aggregates all field errors; a single
   authority means the ViewModel and use case can't disagree about validity.
   `create` ignores a second invocation while a creation is in progress (it returns
-  early when the state is already `Loading`), so a double tap cannot start two
+  early when the state is already `Saving`), so a double tap cannot start two
   creations. Room repos catch `SQLiteException` and return `Outcome.Failure`.
 - **Performance:** Database operations run off the main thread on an injected
   dispatcher. Uniqueness is a direct SQL query, O(1) via index.

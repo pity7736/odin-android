@@ -67,6 +67,10 @@ one expense references it.
   resolution into each use case (category resolution already shows that
   duplication).
 
+- **An account's 4x1000 tags are names, resolved when a tax is recorded.** They are
+  not tag rows, so the unused-tag cleanup never sees them; `TagResolver` finds or
+  creates the tags when an expense's tax is built. See `specs/accounting/gmf/design.md`.
+
 - **A tag that no expense references is deleted.** `ExpenseUpdater` and
   `TransactionDeleter` run a global "delete tags with no link" cleanup after
   replacing or removing the expense's links, inside the same transaction, so a

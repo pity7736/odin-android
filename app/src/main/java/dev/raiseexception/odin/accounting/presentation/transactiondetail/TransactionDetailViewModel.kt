@@ -14,7 +14,6 @@ import dev.raiseexception.odin.shared.presentation.RestartableLoad
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureSignal
 import dev.raiseexception.odin.shared.presentation.formatFullSpanishDate
 import dev.raiseexception.odin.shared.presentation.formatMoney
-import dev.raiseexception.odin.shared.presentation.gmfTaxLineOf
 import dev.raiseexception.odin.shared.presentation.launchObservation
 import dev.raiseexception.odin.shared.presentation.launchOperation
 import dev.raiseexception.odin.ui.theme.ExpenseRed
@@ -131,7 +130,7 @@ class TransactionDetailViewModel(
             typeLabel = this.typeLabel(detail),
             isEditable = !detail.isTransfer && !detail.isGmfTax,
             tagNames = detail.tags.map { it.name },
-            gmfTaxLine = gmfTax?.let { gmfTaxLineOf(it.amount.amount, it.amount.currency) },
+            gmfTaxAmount = gmfTax?.let { formatMoney(it.amount) },
             gmfTaxId = gmfTax?.id,
         )
     }

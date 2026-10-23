@@ -327,32 +327,32 @@ class TransactionDetailViewModelTest {
     }
 
     @Test
-    fun `given Mercado with its tax of 400, when observing, then Content shows the tax line and its id`() = runTest {
+    fun `given Mercado with its tax of 400, when observing, then Content shows the tax amount and its id`() = runTest {
         val content = loadedContent(mercadoDetail(isTransfer = false))
-        assertEquals("4x1000: $400,00", content.gmfTaxLine)
+        assertEquals("$400,00", content.gmfTaxAmount)
         assertEquals("tax-1", content.gmfTaxId)
         assertTrue(content.isEditable)
     }
 
     @Test
-    fun `given the outgoing side of a transfer with its tax of 800, when observing, then the tax line shows`() =
+    fun `given the outgoing side of a transfer with its tax of 800, when observing, then the tax amount shows`() =
         runTest {
             val content = loadedContent(mercadoDetail(isTransfer = true, taxAmount = "800.00"))
-            assertEquals("4x1000: $800,00", content.gmfTaxLine)
+            assertEquals("$800,00", content.gmfTaxAmount)
             assertEquals("tax-1", content.gmfTaxId)
         }
 
     @Test
-    fun `given the incoming side of a transfer, when observing, then no tax line is shown`() = runTest {
+    fun `given the incoming side of a transfer, when observing, then no tax amount is shown`() = runTest {
         val content = loadedContent(incomeDetail().copy(isTransfer = true))
-        assertNull(content.gmfTaxLine)
+        assertNull(content.gmfTaxAmount)
         assertNull(content.gmfTaxId)
     }
 
     @Test
-    fun `given an expense without a tax, when observing, then no tax line is shown`() = runTest {
+    fun `given an expense without a tax, when observing, then no tax amount is shown`() = runTest {
         val content = loadedContent(expenseDetail())
-        assertNull(content.gmfTaxLine)
+        assertNull(content.gmfTaxAmount)
         assertNull(content.gmfTaxId)
     }
 

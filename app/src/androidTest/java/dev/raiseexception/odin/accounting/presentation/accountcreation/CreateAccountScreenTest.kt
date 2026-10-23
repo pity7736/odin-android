@@ -187,7 +187,7 @@ class CreateAccountScreenTest {
         composeTestRule.onNodeWithText("Exenta de 4x1000").assertIsDisplayed()
         composeTestRule.onNodeWithTag("gmf_exempt_switch").assertIsOn()
         composeTestRule.onNodeWithText("Categoría del 4x1000").assertDoesNotExist()
-        composeTestRule.onNodeWithText("Etiquetas del 4x1000").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Etiquetas del 4x1000 (opcional)").assertDoesNotExist()
     }
 
     @Test
@@ -201,7 +201,7 @@ class CreateAccountScreenTest {
         setScreen(CreateAccountUiState.Idle(savingsInCop.copy(gmfExempt = false, categories = listOf(impuestos))))
         composeTestRule.onNodeWithTag("gmf_exempt_switch").assertIsOff()
         composeTestRule.onNodeWithText("Categoría del 4x1000").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Etiquetas del 4x1000").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Etiquetas del 4x1000 (opcional)").assertIsDisplayed()
     }
 
     @Test

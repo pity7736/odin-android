@@ -55,6 +55,10 @@ belong to a single tab.
   income update use cases read the same fact to refuse editing a transfer. Rejected: inferring it from the category
   type (a proxy that breaks silently if the convention changes).
 
+- **A movement's 4x1000 is part of its detail.** The detail read computes
+  `isGmfTax` and attaches a movement's tax to its expense; the screen shows it as the
+  last field, "4X1000", which opens the tax's details. See `specs/accounting/gmf/design.md`.
+
 - **`TransactionDetail.accountType` carries the account's type, and the
   ViewModel derives `Content.typeLabel` from it.** The detail query reads the
   account's stored type alongside its name. `typeLabel` is "Gasto" for any
@@ -72,7 +76,8 @@ belong to a single tab.
 
 - **`Content.isEditable` controls the edit and delete actions.** Both are icons
   in the header row, a pencil (described "Editar") and a trash can (described
-  "Eliminar"), shown for any transaction that is not a transfer side; transfer
+  "Eliminar"), shown for any transaction that is not a transfer side nor a 4x1000
+  tax (`TransactionDetail.isGmfTax`); transfer
   sides and card payments get `false`. The screen takes one edit callback per
   kind and the pencil calls the income or the expense one according to
   `Content.isIncome`; each navigates directly to its edit destination with

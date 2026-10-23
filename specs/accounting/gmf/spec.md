@@ -51,7 +51,7 @@ it, so that the tax always matches the movement that produced it.
     category or creates a new one, the same way as when recording an expense
     (see `specs/accounting/expense/creation/spec.md`). When it is missing, the
     user sees the message "La categoría del 4x1000 es obligatoria." next to it.
-  - "Etiquetas del 4x1000", optional. It follows the same rules as an expense's
+  - "Etiquetas del 4x1000 (opcional)", optional. It follows the same rules as an expense's
     tags (see `specs/accounting/expense-tags/spec.md`), including a maximum of
     5 tags.
 - When the option is on, those two fields are not shown.
@@ -87,9 +87,10 @@ it, so that the tax always matches the movement that produced it.
 - The details of a tax offer no way to edit or delete it. It only changes
   through the movement that produced it.
 - The details of an expense that has a tax, including the outgoing side of a
-  transfer or a credit card payment, show the line "4x1000: $400,00" with its
-  tax's amount. The user can open it to see the tax's details: its amount, date,
-  category and tags. When the expense has no tax, the line is not shown.
+  transfer or a credit card payment, show a "4X1000" field with its tax's amount
+  (for example "$400,00"), as the last field of the details, after the tags. The
+  user can open it to see the tax's details: its amount, date, category and
+  tags. When the expense has no tax, the field is not shown.
 - The details of a tax offer no way to open the movement that produced it.
 
 ### Recording an expense on a non-exempt account
@@ -396,22 +397,22 @@ tax category "Impuestos" and the tax tag "4x1000".
 ### Seeing a movement's tax from its details
 - Given "Ahorros" has the expense "Mercado" of 100,000 with its tax of 400
 - When the user opens the details of "Mercado"
-- Then the user sees the line "4x1000: $400,00"
-- And when the user opens that line, the details of "4x1000 – Mercado" show its
+- Then the user sees the field "4X1000" with "$400,00" as the last field
+- And when the user opens that field, the details of "4x1000 – Mercado" show its
   amount, date, the category "Impuestos" and the tag "4x1000"
 
 ### Seeing a transfer's tax from its details
 - Given the user transferred 200,000 from "Ahorros" to "Corriente" with "Cobrar
   4x1000" on
 - When the user opens the details of "Transferencia a Corriente" in "Ahorros"
-- Then the user sees the line "4x1000: $800,00"
+- Then the user sees the field "4X1000" with "$800,00"
 - And the details of "Transferencia desde Ahorros" in "Corriente" show no such
-  line
+  field
 
-### No tax line for an expense without a tax
+### No tax field for an expense without a tax
 - Given an exempt savings account "Nómina" with the expense "Mercado"
 - When the user opens the details of "Mercado"
-- Then no "4x1000" line is shown
+- Then no "4X1000" field is shown
 
 ### A tax cannot be edited or deleted on its own
 - Given "Ahorros" has the tax "4x1000 – Mercado"

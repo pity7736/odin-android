@@ -16,7 +16,7 @@ savings or cash, and `Account.type` is derived from `funding`.
 
 - **`Account.funding: AccountFunding` replaces a bare balance field.** `Account`
   holds one `funding` value; `currency` and `balance` derive from it.
-  `Funds(initialBalance, kind)` funds savings and cash; `Credit(creditLimit,
+  `Funds(initialBalance, kind, gmf)` funds savings and cash (`gmf` is the 4x1000 setting, see `specs/accounting/gmf/design.md`); `Credit(creditLimit,
   initialDebt)` funds a credit card. Rejected alternatives: nullable fields on
   `Account` (an optional credit limit), whose "valid only for some types"
   partiality the sum type removes; and a separate entity per money-kind, which
