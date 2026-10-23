@@ -3,6 +3,7 @@ package dev.raiseexception.odin.accounting.presentation.transactiondetail
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Edit
@@ -70,7 +72,8 @@ fun TransactionDetailScreen(
     deletionMessageEvent: Flow<String>,
     unexpectedFailureEvent: Flow<Unit>,
     onRetry: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenTransaction: (String) -> Unit = {},
 ) {
     val isDeleting = (uiState as? TransactionDetailUiState.Content)?.isDeleting == true
     BackHandler(enabled = isDeleting) {}
@@ -104,6 +107,7 @@ fun TransactionDetailScreen(
                 uiState = uiState,
                 onEdit = if (uiState.isIncome) onEditIncome else onEditExpense,
                 onDelete = onDelete,
+                onOpenTransaction = onOpenTransaction,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -162,6 +166,7 @@ private fun TransactionDetailContent(
     uiState: TransactionDetailUiState.Content,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onOpenTransaction: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showsDeleteConfirmation by rememberSaveable { mutableStateOf(false) }
@@ -174,11 +179,12 @@ private fun TransactionDetailContent(
             onDeleteRequest = { showsDeleteConfirmation = true },
         )
         Spacer(modifier = Modifier.height(16.dp))
-        TransactionInfoSection(uiState = uiState)
+        TransactionInfoSection(uiState = uiState, onOpenTransaction = onOpenTransaction)
     }
     if (showsDeleteConfirmation) {
         DeleteConfirmationDialog(
             isIncome = uiState.isIncome,
+            hasGmfTax = uiState.gmfTaxId != null,
             onConfirm = {
                 showsDeleteConfirmation = false
                 onDelete()
@@ -189,8 +195,17 @@ private fun TransactionDetailContent(
 }
 
 @Composable
-private fun DeleteConfirmationDialog(isIncome: Boolean, onConfirm: () -> Unit, onCancel: () -> Unit) {
-    val question = if (isIncome) "¿Eliminar este ingreso?" else "¿Eliminar este gasto?"
+private fun DeleteConfirmationDialog(
+    isIncome: Boolean,
+    hasGmfTax: Boolean,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit
+) {
+    val question = when {
+        isIncome -> "¿Eliminar este ingreso?"
+        hasGmfTax -> "¿Eliminar este gasto? También se eliminará su 4x1000."
+        else -> "¿Eliminar este gasto?"
+    }
     AlertDialog(
         onDismissRequest = onCancel,
         confirmButton = {
@@ -286,7 +301,11 @@ private fun TransactionTypeIcon(isIncome: Boolean, typeLabel: String, modifier: 
 }
 
 @Composable
-private fun TransactionInfoSection(uiState: TransactionDetailUiState.Content, modifier: Modifier = Modifier) {
+private fun TransactionInfoSection(
+    uiState: TransactionDetailUiState.Content,
+    onOpenTransaction: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(modifier = modifier) {
         InfoField(label = "FECHA", value = uiState.formattedDate)
         Spacer(modifier = Modifier.height(16.dp))
@@ -305,6 +324,31 @@ private fun TransactionInfoSection(uiState: TransactionDetailUiState.Content, mo
             Spacer(modifier = Modifier.height(16.dp))
             TagsField(tagNames = uiState.tagNames)
         }
+        val gmfTaxAmount = uiState.gmfTaxAmount
+        val gmfTaxId = uiState.gmfTaxId
+        if (gmfTaxAmount != null && gmfTaxId != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            GmfTaxField(gmfTaxAmount = gmfTaxAmount, onOpen = { onOpenTransaction(gmfTaxId) })
+        }
+    }
+}
+
+@Composable
+private fun GmfTaxField(gmfTaxAmount: String, onOpen: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onOpen)
+            .testTag("gmf_tax_field"),
+    ) {
+        InfoField(label = "4X1000", value = gmfTaxAmount, modifier = Modifier.weight(1f))
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = "Ver 4x1000",
+            tint = Slate400,
+        )
     }
 }
 

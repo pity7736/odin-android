@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -32,6 +33,7 @@ import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAcc
 import dev.raiseexception.odin.accounting.presentation.accountcreation.CreateAccountViewModel
 import dev.raiseexception.odin.accounting.presentation.accountdetail.AccountDetailScreen
 import dev.raiseexception.odin.accounting.presentation.accountdetail.AccountDetailViewModel
+import dev.raiseexception.odin.accounting.presentation.accountedit.EditAccountEvents
 import dev.raiseexception.odin.accounting.presentation.accountedit.EditAccountScreen
 import dev.raiseexception.odin.accounting.presentation.accountedit.EditAccountViewModel
 import dev.raiseexception.odin.accounting.presentation.accountslist.AccountsListScreen
@@ -118,7 +120,7 @@ private fun AppNavHost(startRoute: String) {
             }
             composable(Routes.TRANSACTION_DETAIL) { backStackEntry ->
                 val transactionId = backStackEntry.arguments?.getString("transactionId") ?: ""
-                TransactionDetailDestination(transactionId, navController)
+                TransactionDetailDestination(transactionId, backStackEntry, navController)
             }
             composable(Routes.EXPENSE_EDIT) { backStackEntry ->
                 val expenseId = backStackEntry.arguments?.getString("expenseId") ?: ""
@@ -284,6 +286,14 @@ private fun CreateAccountDestination(navController: NavHostController) {
         uiState = uiState,
         unexpectedFailureEvent = createAccountViewModel.unexpectedFailureEvent,
         onCreate = createAccountViewModel::create,
+        onRetry = createAccountViewModel::retry,
+        onTypeSelected = createAccountViewModel::onTypeSelected,
+        onCurrencySelected = createAccountViewModel::onCurrencySelected,
+        onGmfExemptChanged = createAccountViewModel::onGmfExemptChanged,
+        onTagTextChange = createAccountViewModel::onTagTextChange,
+        onAddTag = createAccountViewModel::addTag,
+        onTagPicked = createAccountViewModel::pickTag,
+        onTagRemoved = createAccountViewModel::removeTag,
         navigationEvent = createAccountViewModel.navigationEvent,
         onCreateSuccess = {
             navController.navigate(Routes.ACCOUNTS) {
@@ -367,7 +377,16 @@ private fun EditAccountDestination(accountId: String, navController: NavHostCont
         onSave = editAccountViewModel::save,
         navigationEvent = editAccountViewModel.navigationEvent,
         onSaved = { navController.popBackStack() },
-        onCancel = { navController.popBackStack() }
+        onCancel = { navController.popBackStack() },
+        events = EditAccountEvents(
+            onKindSelected = editAccountViewModel::onKindSelected,
+            onCurrencySelected = editAccountViewModel::onCurrencySelected,
+            onGmfExemptChanged = editAccountViewModel::onGmfExemptChanged,
+            onTagTextChange = editAccountViewModel::onTagTextChange,
+            onAddTag = editAccountViewModel::addTag,
+            onTagPicked = editAccountViewModel::pickTag,
+            onTagRemoved = editAccountViewModel::removeTag,
+        )
     )
 }
 
@@ -401,6 +420,7 @@ private fun CreateExpenseDestination(accountId: String?, navController: NavHostC
         unexpectedFailureEvent = createExpenseViewModel.unexpectedFailureEvent,
         onRetry = createExpenseViewModel::retry,
         onSave = createExpenseViewModel::save,
+        onAmountChange = createExpenseViewModel::onAmountChanged,
         onAccountSelected = createExpenseViewModel::onAccountSelected,
         onTagTextChange = createExpenseViewModel::onTagTextChange,
         onAddTag = createExpenseViewModel::addTag,
@@ -425,6 +445,8 @@ private fun CreateTransferDestination(accountId: String?, navController: NavHost
         onSourceSelected = createTransferViewModel::onSourceSelected,
         onDestinationSelected = createTransferViewModel::onDestinationSelected,
         onSave = createTransferViewModel::save,
+        onAmountChange = createTransferViewModel::onAmountChanged,
+        onChargeGmfChange = createTransferViewModel::onChargeGmfChanged,
         navigationEvent = createTransferViewModel.navigationEvent,
         onNavigateBack = { _ -> navController.popBackStack() }
     )
@@ -529,7 +551,11 @@ private fun CategoriesListDestination(navController: NavHostController) {
 }
 
 @Composable
-private fun TransactionDetailDestination(transactionId: String, navController: NavHostController) {
+private fun TransactionDetailDestination(
+    transactionId: String,
+    backStackEntry: NavBackStackEntry,
+    navController: NavHostController
+) {
     val application = LocalContext.current.applicationContext as OdinApplication
     val transactionDetailViewModel: TransactionDetailViewModel = viewModel(
         factory = application.appContainer.transactionDetailViewModelFactory(transactionId)
@@ -568,6 +594,11 @@ private fun TransactionDetailDestination(transactionId: String, navController: N
             }
         },
         onEditExpense = { navController.navigate(Routes.expenseEdit(transactionId)) { launchSingleTop = true } },
+        onOpenTransaction = { openedTransactionId ->
+            if (backStackEntry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                navController.navigate(Routes.transactionDetail(openedTransactionId))
+            }
+        },
         onEditIncome = { navController.navigate(Routes.incomeEdit(transactionId)) { launchSingleTop = true } },
     )
 }
@@ -590,7 +621,8 @@ private fun EditExpenseDestination(expenseId: String, navController: NavHostCont
         onTagTextChange = editExpenseViewModel::onTagTextChange,
         onAddTag = editExpenseViewModel::addTag,
         onTagPicked = editExpenseViewModel::pickTag,
-        onTagRemoved = editExpenseViewModel::removeTag
+        onTagRemoved = editExpenseViewModel::removeTag,
+        onAmountChange = editExpenseViewModel::onAmountChanged
     )
 }
 

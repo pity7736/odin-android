@@ -3,10 +3,15 @@ package dev.raiseexception.odin.accounting.application.usecase
 import dev.raiseexception.odin.accounting.domain.AccountCreationError
 import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
+import dev.raiseexception.odin.accounting.domain.model.CategoryInput
+import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.domain.StorageError
+import dev.raiseexception.odin.testutil.RecordingTransactionRunner
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -19,15 +24,17 @@ import org.junit.Test
 class AccountCreatorTest {
 
     private val accountRepository = mockk<AccountRepository>()
-    private val creator = AccountCreator(accountRepository)
+    private val categoryResolver = mockk<CategoryResolver>()
+    private val transactionRunner = RecordingTransactionRunner()
+    private val creator = AccountCreator(accountRepository, categoryResolver, transactionRunner)
 
     private fun moneyAccount(
         name: String = "Ahorros",
-        balance: String = "1500.00",
         currency: Currency? = Currency.COP,
         kind: MoneyAccountKind? = MoneyAccountKind.SAVINGS,
-        description: String = ""
-    ) = CreateAccountCommand.MoneyAccount(name, balance, currency, kind, description)
+        description: String = "",
+        gmf: GmfInput = GmfInput.Exempt
+    ) = CreateAccountCommand.MoneyAccount(name, "1500.00", currency, kind, description, gmf)
 
     private fun creditCard(
         name: String = "Visa",
@@ -145,5 +152,104 @@ class AccountCreatorTest {
 
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is AccountCreationError.StorageFailure)
+    }
+
+    @Test
+    fun `given an existing tax category, when creating a non-exempt account, then it is saved with that category`() =
+        runTest {
+            stubUniqueAndSaved()
+            coEvery {
+                categoryResolver.resolve(CategoryInput.Existing("cat-impuestos"), CategoryType.EXPENSE)
+            } returns Outcome.Success(CategoryResolution.Resolved("cat-impuestos"))
+
+            val result = creator.create(moneyAccount(gmf = taxed(CategoryInput.Existing("cat-impuestos"))))
+
+            val funds = (result as Outcome.Success).value.funding as AccountFunding.Funds
+            assertEquals(GmfTreatment.Taxed("cat-impuestos", listOf("4x1000")), funds.gmf)
+            assertTrue(transactionRunner.committed)
+        }
+
+    @Test
+    fun `given no category named GMF, when creating a non-exempt account typing GMF, then GMF is created and used`() =
+        runTest {
+            stubUniqueAndSaved()
+            coEvery { categoryResolver.resolve(CategoryInput.New("GMF"), CategoryType.EXPENSE) } returns
+                Outcome.Success(CategoryResolution.Resolved("cat-gmf"))
+
+            val result = creator.create(moneyAccount(gmf = taxed(CategoryInput.New("GMF"))))
+
+            val funds = (result as Outcome.Success).value.funding as AccountFunding.Funds
+            assertEquals(GmfTreatment.Taxed("cat-gmf", listOf("4x1000")), funds.gmf)
+            coVerify(exactly = 1) { categoryResolver.resolve(CategoryInput.New("GMF"), CategoryType.EXPENSE) }
+        }
+
+    @Test
+    fun `given an empty tax category, when creating a non-exempt account, then the tax category is required`() =
+        runTest {
+            val result = creator.create(moneyAccount(gmf = taxed(CategoryInput.New(" "))))
+
+            val error = (result as Outcome.Failure).error as AccountCreationError.InvalidInput
+            assertEquals("La categoría del 4x1000 es obligatoria.", error.gmfCategoryError)
+            coVerify(exactly = 0) { categoryResolver.resolve(any(), any()) }
+            coVerify(exactly = 0) { accountRepository.add(any()) }
+        }
+
+    @Test
+    fun `given a rejected tax category and no name, when creating, then both errors are reported`() = runTest {
+        coEvery {
+            categoryResolver.resolve(CategoryInput.Existing("cat-salario"), CategoryType.EXPENSE)
+        } returns Outcome.Success(CategoryResolution.Rejected("La categoría seleccionada no es de tipo gasto."))
+
+        val result = creator.create(
+            moneyAccount(name = "", gmf = taxed(CategoryInput.Existing("cat-salario")))
+        )
+
+        val error = (result as Outcome.Failure).error as AccountCreationError.InvalidInput
+        assertEquals("La categoría seleccionada no es de tipo gasto.", error.gmfCategoryError)
+        assertEquals("El nombre es obligatorio.", error.nameError)
+        assertTrue(transactionRunner.rolledBack)
+    }
+
+    @Test
+    fun `given a new tax category and a duplicate name, when creating, then everything is rolled back`() = runTest {
+        coEvery { accountRepository.existsByName("Ahorros") } returns Outcome.Success(true)
+        coEvery { categoryResolver.resolve(CategoryInput.New("GMF"), CategoryType.EXPENSE) } returns
+            Outcome.Success(CategoryResolution.Resolved("cat-gmf"))
+
+        val result = creator.create(moneyAccount(gmf = taxed(CategoryInput.New("GMF"))))
+
+        assertTrue((result as Outcome.Failure).error is AccountCreationError.DuplicateName)
+        assertTrue(transactionRunner.rolledBack)
+        coVerify(exactly = 0) { accountRepository.add(any()) }
+    }
+
+    @Test
+    fun `given the tax category cannot be resolved for a technical reason, when creating, then it fails unsaved`() =
+        runTest {
+            coEvery { categoryResolver.resolve(CategoryInput.New("GMF"), CategoryType.EXPENSE) } returns
+                Outcome.Failure(StorageError("disk full"))
+
+            val result = creator.create(moneyAccount(gmf = taxed(CategoryInput.New("GMF"))))
+
+            assertTrue((result as Outcome.Failure).error is StorageError)
+            coVerify(exactly = 0) { accountRepository.add(any()) }
+        }
+
+    @Test
+    fun `given an exempt account, when creating, then it is exempt and no category is resolved`() = runTest {
+        stubUniqueAndSaved()
+
+        val result = creator.create(moneyAccount(gmf = GmfInput.Exempt))
+
+        val funds = (result as Outcome.Success).value.funding as AccountFunding.Funds
+        assertEquals(GmfTreatment.Exempt, funds.gmf)
+        coVerify(exactly = 0) { categoryResolver.resolve(any(), any()) }
+    }
+
+    private fun taxed(categoryInput: CategoryInput): GmfInput = GmfInput.Taxed(categoryInput, listOf("4x1000"))
+
+    private fun stubUniqueAndSaved() {
+        coEvery { accountRepository.existsByName("Ahorros") } returns Outcome.Success(false)
+        coEvery { accountRepository.add(any()) } returns Outcome.Success(Unit)
     }
 }

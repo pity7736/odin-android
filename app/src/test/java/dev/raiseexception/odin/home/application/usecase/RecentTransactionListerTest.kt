@@ -35,7 +35,8 @@ class RecentTransactionListerTest {
             categoryId = "cat-2",
             description = "",
             createdAt = Instant.parse("2026-01-15T10:00:00Z"),
-            tagIds = emptyList()
+            tagIds = emptyList(),
+            gmfTax = null
         )
         val account = AccountBuilder()
             .id("acc-1")
@@ -98,7 +99,8 @@ class RecentTransactionListerTest {
             categoryId = "cat-2",
             description = "",
             createdAt = Instant.parse("2026-01-02T10:00:00Z"),
-            tagIds = emptyList()
+            tagIds = emptyList(),
+            gmfTax = null
         )
         val savingsAccount = AccountBuilder()
             .id("acc-1")
@@ -136,7 +138,8 @@ class RecentTransactionListerTest {
             categoryId = "cat-2",
             description = "",
             createdAt = Instant.parse("2026-01-01T14:00:00Z"),
-            tagIds = emptyList()
+            tagIds = emptyList(),
+            gmfTax = null
         )
         val account = AccountBuilder()
             .id("acc-1")

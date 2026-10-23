@@ -18,9 +18,10 @@ import java.math.BigDecimal
     tableName = "transactions",
     foreignKeys = [
         ForeignKey(entity = AccountEntity::class, parentColumns = ["id"], childColumns = ["accountId"]),
-        ForeignKey(entity = CategoryEntity::class, parentColumns = ["id"], childColumns = ["categoryId"])
+        ForeignKey(entity = CategoryEntity::class, parentColumns = ["id"], childColumns = ["categoryId"]),
+        ForeignKey(entity = TransactionEntity::class, parentColumns = ["id"], childColumns = ["gmfMovementId"])
     ],
-    indices = [Index("accountId"), Index("categoryId"), Index("type")]
+    indices = [Index("accountId"), Index("categoryId"), Index("type"), Index("gmfMovementId")]
 )
 data class TransactionEntity(
     @PrimaryKey val id: String,
@@ -31,7 +32,8 @@ data class TransactionEntity(
     val date: String,
     val categoryId: String,
     val description: String,
-    val createdAt: String
+    val createdAt: String,
+    val gmfMovementId: String? = null
 )
 
 data class TransactionWithTagIds(
@@ -56,7 +58,7 @@ internal fun TransactionEntity.toIncome(): Income =
         createdAt = Instant.parse(createdAt)
     )
 
-internal fun TransactionEntity.toExpense(tagIds: List<String>): Expense =
+internal fun TransactionEntity.toExpense(tagIds: List<String>, gmfTax: Expense?): Expense =
     Expense.restore(
         id = id,
         accountId = accountId,
@@ -65,7 +67,8 @@ internal fun TransactionEntity.toExpense(tagIds: List<String>): Expense =
         categoryId = categoryId,
         description = description,
         createdAt = Instant.parse(createdAt),
-        tagIds = tagIds
+        tagIds = tagIds,
+        gmfTax = gmfTax
     )
 
 internal fun Income.toEntity(): TransactionEntity =
@@ -81,7 +84,7 @@ internal fun Income.toEntity(): TransactionEntity =
         createdAt = createdAt.toString()
     )
 
-internal fun Expense.toEntity(): TransactionEntity =
+internal fun Expense.toEntity(gmfMovementId: String?): TransactionEntity =
     TransactionEntity(
         id = id,
         type = "EXPENSE",
@@ -91,5 +94,6 @@ internal fun Expense.toEntity(): TransactionEntity =
         date = date.toString(),
         categoryId = categoryId,
         description = description,
-        createdAt = createdAt.toString()
+        createdAt = createdAt.toString(),
+        gmfMovementId = gmfMovementId
     )

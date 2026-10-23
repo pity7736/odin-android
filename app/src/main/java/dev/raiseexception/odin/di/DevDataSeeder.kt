@@ -9,6 +9,7 @@ import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
@@ -45,7 +46,11 @@ class DevDataSeeder(
         val savingsAccount = Account.restore(
             id = UuidCreator.getTimeOrderedEpoch().toString(),
             name = "Ahorros",
-            funding = AccountFunding.Funds(Money.of(BigDecimal("1000000"), Currency.COP), MoneyAccountKind.SAVINGS),
+            funding = AccountFunding.Funds(
+                Money.of(BigDecimal("1000000"), Currency.COP),
+                MoneyAccountKind.SAVINGS,
+                GmfTreatment.Exempt
+            ),
             description = "",
             createdAt = twoWeeksAgo
         )
@@ -53,7 +58,11 @@ class DevDataSeeder(
         val cashAccount = Account.restore(
             id = UuidCreator.getTimeOrderedEpoch().toString(),
             name = "Efectivo",
-            funding = AccountFunding.Funds(Money.of(BigDecimal("50000"), Currency.COP), MoneyAccountKind.CASH),
+            funding = AccountFunding.Funds(
+                Money.of(BigDecimal("50000"), Currency.COP),
+                MoneyAccountKind.CASH,
+                GmfTreatment.Exempt
+            ),
             description = "",
             createdAt = twoWeeksAgo
         )

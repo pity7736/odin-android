@@ -103,9 +103,10 @@ returns to the transaction details, which reflect the new values live.
   the original cause as the internal message. Not-found reuses
   `TransactionLookupError.NotFound`, which the presentation layer already knows.
 
-- **Persistence is a plain update by primary key through the `ExpenseRepository`
-  port.** The row keeps its identity, account, type and creation time, so no
-  schema change is involved. Rejected: an upsert or delete-and-insert, which would
+- **Persistence is an update by primary key through the `ExpenseRepository`
+  port.** The row keeps its identity, account, type and creation time. An expense's
+  4x1000 is recalculated by `editExpense` and its stored row is replaced with the
+  expense's current one (see `specs/accounting/gmf/design.md`). Rejected: an upsert or delete-and-insert, which would
   break the transfers table's reference to the expense and hide the intent that
   the row must already exist.
 
@@ -116,10 +117,10 @@ returns to the transaction details, which reflect the new values live.
   yields `NotFound`, the defensive fallback for states the UI does not expose.
   `Editing` holds the pre-fill (including the expense's tags as the selection),
   per-field errors, an in-progress flag and a save error, so a failed save
-  overlays errors without losing context. The screen owns
-  the editable text, seeded once from `Editing`, so typed values survive a failed
-  save. The amount pre-fill swaps the stored decimal point for the comma the
-  amount field uses; the category pre-fill resolves to the existing category.
+  overlays errors without losing context. The amount is
+  ViewModel state (it drives the 4x1000 line); the screen owns the other editable
+  text, seeded once from `Editing`, so typed values survive a failed save. The amount
+  pre-fill swaps the stored decimal point for the comma the amount field uses; the category pre-fill resolves to the existing category.
 
 - **The form fields are shared composables.** Amount, date picker, category
   autocomplete, tag field, text field and field error live in `shared/presentation/` and are
@@ -130,7 +131,8 @@ returns to the transaction details, which reflect the new values live.
   unaffected.
 
 - **Entry is a display flag plus a direct navigation lambda.**
-  `TransactionDetailUiState.Content.isEditable` (an expense that is not a transfer
+  `TransactionDetailUiState.Content.isEditable` (an expense that is not a 4x1000 tax
+  nor a transfer
   side) controls the "Editar" action. The click navigates straight to the edit
   destination as a single-top navigation, so a quick double tap cannot stack two
   edit screens (a stale second screen could overwrite a just-saved edit). There is

@@ -3,17 +3,29 @@ package dev.raiseexception.odin.accounting.presentation.accountedit
 import androidx.lifecycle.ViewModel
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.AccountUpdater
+import dev.raiseexception.odin.accounting.application.usecase.CategoryLister
+import dev.raiseexception.odin.accounting.application.usecase.GmfInput
+import dev.raiseexception.odin.accounting.application.usecase.TagLister
 import dev.raiseexception.odin.accounting.domain.AccountUpdateError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountFunding
+import dev.raiseexception.odin.accounting.domain.model.Category
+import dev.raiseexception.odin.accounting.domain.model.CategoryInput
+import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
+import dev.raiseexception.odin.accounting.domain.model.Tag
+import dev.raiseexception.odin.accounting.domain.model.TagInput
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.presentation.RestartableLoad
+import dev.raiseexception.odin.shared.presentation.SelectedTag
+import dev.raiseexception.odin.shared.presentation.TagSelection
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureSignal
+import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.shared.presentation.formatMoney
 import dev.raiseexception.odin.shared.presentation.launchObservation
 import dev.raiseexception.odin.shared.presentation.launchOperation
@@ -30,10 +42,13 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.withContext
 
+@Suppress("LongParameterList")
 class EditAccountViewModel(
     private val accountId: String,
     private val accountFinder: AccountFinder,
     private val accountUpdater: AccountUpdater,
+    private val categoryLister: CategoryLister,
+    private val tagLister: TagLister,
     private val failureRecorder: FailureRecorder,
     private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
@@ -58,16 +73,15 @@ class EditAccountViewModel(
         this.restartableLoad.start()
     }
 
-    @Suppress("LongParameterList")
-    fun save(
-        rawName: String,
-        rawBalance: String,
-        currency: Currency?,
-        kind: MoneyAccountKind?,
-        rawDescription: String
-    ) {
+    fun save(rawName: String, rawBalance: String, rawDescription: String, gmfCategoryInput: CategoryInput) {
         val current = this.mutableUiState.value
         if (current !is EditAccountUiState.Editing || current.isSaving) return
+        val chargesGmf = current.showsGmfOption && !current.gmfExempt
+        val tagSelection = if (chargesGmf) current.tagSelection.withTextAdded(current.tags) else current.tagSelection
+        if (chargesGmf && tagSelection.error != null) {
+            this.mutableUiState.value = current.copy(tagSelection = tagSelection)
+            return
+        }
         this.mutableUiState.value = current.copy(
             isSaving = true,
             nameError = null,
@@ -75,19 +89,67 @@ class EditAccountViewModel(
             currencyError = null,
             typeError = null,
             descriptionError = null,
-            saveError = null
+            saveError = null,
+            gmfCategoryError = null,
+            tagSelection = tagSelection
         )
+        val gmf = if (chargesGmf) {
+            GmfInput.Taxed(gmfCategoryInput, tagSelection.selected.map { it.name })
+        } else {
+            GmfInput.Exempt
+        }
         this.launchOperation(
             operation = SUBMIT_OPERATION,
             recorder = this.failureRecorder,
             work = {
                 withContext(this.ioDispatcher) {
-                    accountUpdater.update(accountId, rawName, rawBalance, currency, kind, rawDescription)
+                    accountUpdater.update(
+                        accountId,
+                        rawName,
+                        amountInputToRaw(rawBalance),
+                        current.currency,
+                        current.kind,
+                        rawDescription,
+                        gmf
+                    )
                 }
             },
             onResult = { outcome -> this.handleSave(outcome) },
             onUnexpectedFailure = { this.unexpectedFailure.restore(current) }
         )
+    }
+
+    fun onKindSelected(kind: MoneyAccountKind) {
+        this.updateEditing { editing -> editing.copy(kind = kind) }
+    }
+
+    fun onCurrencySelected(currency: Currency) {
+        this.updateEditing { editing -> editing.copy(currency = currency) }
+    }
+
+    fun onGmfExemptChanged(gmfExempt: Boolean) {
+        this.updateEditing { editing -> editing.copy(gmfExempt = gmfExempt) }
+    }
+
+    fun onTagTextChange(text: String) {
+        this.updateEditing { editing -> editing.copy(tagSelection = editing.tagSelection.withText(text)) }
+    }
+
+    fun addTag() {
+        this.updateEditing { editing -> editing.copy(tagSelection = editing.tagSelection.withTextAdded(editing.tags)) }
+    }
+
+    fun pickTag(tag: Tag) {
+        this.updateEditing { editing -> editing.copy(tagSelection = editing.tagSelection.withTagPicked(tag)) }
+    }
+
+    fun removeTag(index: Int) {
+        this.updateEditing { editing -> editing.copy(tagSelection = editing.tagSelection.withTagRemoved(index)) }
+    }
+
+    private fun updateEditing(update: (EditAccountUiState.Editing) -> EditAccountUiState.Editing) {
+        val current = this.mutableUiState.value as? EditAccountUiState.Editing ?: return
+        this.mutableUiState.value = update(current)
     }
 
     private suspend fun handleSave(outcome: Outcome<Account>) {
@@ -102,19 +164,30 @@ class EditAccountViewModel(
         return this.launchObservation(
             operation = LOAD_OPERATION,
             recorder = this.failureRecorder,
-            flow = flow { emit(accountFinder.find(accountId, criteria).first()) }.flowOn(this.ioDispatcher),
-            onEach = { outcome ->
-                this.mutableUiState.value = when (outcome) {
-                    is Outcome.Success -> this.buildEditing(outcome.value)
-                    is Outcome.Failure -> EditAccountUiState.NotFound
-                }
-            },
+            flow = flow { emit(loadedState(criteria)) }.flowOn(this.ioDispatcher),
+            onEach = { loaded -> this.mutableUiState.value = loaded },
             onUnexpectedFailure = { this.mutableUiState.value = EditAccountUiState.UnexpectedFailure }
         )
     }
 
-    private fun buildEditing(account: Account): EditAccountUiState.Editing {
+    private suspend fun loadedState(criteria: AccountCriteria): EditAccountUiState {
+        val account = (this.accountFinder.find(this.accountId, criteria).first() as? Outcome.Success)?.value
+            ?: return EditAccountUiState.NotFound
+        val categories = (this.categoryLister.list(CategoryType.EXPENSE, "").first() as? Outcome.Success)?.value
+            ?: return EditAccountUiState.NotFound
+        val tags = (this.tagLister.list().first() as? Outcome.Success)?.value ?: return EditAccountUiState.NotFound
+        return this.buildEditing(account, categories, tags)
+    }
+
+    private fun buildEditing(
+        account: Account,
+        categories: List<Category>,
+        tags: List<Tag>
+    ): EditAccountUiState.Editing {
         val locked = account.hasTransactions()
+        val gmf = account.funding.gmfTreatment
+        val gmfCategoryId = (gmf as? GmfTreatment.Taxed)?.categoryId ?: ""
+        val gmfTagNames = (gmf as? GmfTreatment.Taxed)?.tagNames ?: emptyList()
         val (kind, initialBalance) = when (val funding = account.funding) {
             is AccountFunding.Funds -> Pair(funding.kind, funding.initialBalance)
             is AccountFunding.Credit -> Pair(null, funding.creditLimit)
@@ -126,9 +199,23 @@ class EditAccountViewModel(
             kind = kind,
             description = account.description,
             locked = locked,
-            lockedBalanceDisplay = if (locked) formatMoney(initialBalance) else null
+            lockedBalanceDisplay = if (locked) formatMoney(initialBalance) else null,
+            gmfExempt = gmf !is GmfTreatment.Taxed,
+            gmfCategoryName = categories.firstOrNull { it.id == gmfCategoryId }?.name ?: "",
+            gmfCategoryId = gmfCategoryId,
+            categories = categories,
+            tags = tags,
+            tagSelection = this.tagSelectionOf(gmfTagNames, tags)
         )
     }
+
+    private fun tagSelectionOf(tagNames: List<String>, tags: List<Tag>): TagSelection = TagSelection(
+        selected = tagNames.map { tagName ->
+            tags.firstOrNull { it.normalizedName == Tag.normalize(tagName) }
+                ?.let { SelectedTag(it.name, TagInput.Existing(it.id)) }
+                ?: SelectedTag(tagName, TagInput.New(tagName))
+        }
+    )
 
     private fun savingState(): EditAccountUiState.Editing =
         this.mutableUiState.value as EditAccountUiState.Editing
@@ -141,7 +228,9 @@ class EditAccountViewModel(
                 balanceError = error.balanceError,
                 currencyError = error.currencyError,
                 typeError = error.typeError,
-                descriptionError = error.descriptionError
+                descriptionError = error.descriptionError,
+                gmfCategoryError = error.gmfCategoryError,
+                tagSelection = editing.tagSelection.copy(error = error.gmfTagsError)
             )
             is AccountUpdateError.DuplicateName -> editing.copy(isSaving = false, nameError = error.externalMessage)
             is AccountUpdateError.StorageFailure -> editing.copy(isSaving = false, saveError = error.externalMessage)

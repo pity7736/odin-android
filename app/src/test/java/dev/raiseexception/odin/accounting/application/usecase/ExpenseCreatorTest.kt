@@ -8,6 +8,7 @@ import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.Tag
@@ -16,13 +17,16 @@ import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.accounting.domain.repository.ExpenseRepository
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.domain.StorageError
 import dev.raiseexception.odin.shared.domain.TransactionRunner
 import dev.raiseexception.odin.testutil.AccountBuilder
 import dev.raiseexception.odin.testutil.CategoryBuilder
+import dev.raiseexception.odin.testutil.RecordingTransactionRunner
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.Clock
@@ -32,6 +36,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -501,6 +506,96 @@ class ExpenseCreatorTest {
             assertEquals("El saldo de la cuenta quedaría negativo el 5 de marzo.", error.dateError)
             coVerify(exactly = 0) { expenseRepository.add(any()) }
         }
+
+    @Test
+    fun `given Ahorros not exempt, when recording Mercado, then its tax tags are resolved and saved with it`() =
+        runTest {
+            stubTaxedAhorros()
+            coEvery { tagResolver.resolve(listOf(TagInput.New("4x1000"))) } returns
+                Outcome.Success(listOf("tag-4x1000"))
+            val saved = slot<Expense>()
+            coEvery { expenseRepository.add(capture(saved)) } returns Outcome.Success(Unit)
+
+            val result = createWithTags(emptyList())
+
+            val tax = (result as Outcome.Success).value.gmfTax!!
+            assertEquals(Money.of(BigDecimal("2.00"), Currency.COP), tax.amount)
+            assertEquals(listOf("tag-4x1000"), tax.tagIds)
+            assertEquals("cat-impuestos", tax.categoryId)
+            assertEquals(tax.id, saved.captured.gmfTax!!.id)
+        }
+
+    @Test
+    fun `given Ahorros not exempt, when recording an expense whose tax is zero, then no tax tags are resolved`() =
+        runTest {
+            stubTaxedAhorros()
+            coEvery { expenseRepository.add(any()) } returns Outcome.Success(Unit)
+
+            val result = expenseCreator.create(
+                accountId = "acc-1",
+                amount = "1.00",
+                date = today.toString(),
+                categoryInput = CategoryInput.Existing(expenseCategory.id),
+                description = "Chicle",
+                tagInputs = emptyList()
+            )
+
+            assertNull((result as Outcome.Success).value.gmfTax)
+            coVerify(exactly = 0) { tagResolver.resolve(listOf(TagInput.New("4x1000"))) }
+        }
+
+    @Test
+    fun `given an exempt account, when recording an expense, then no tax tags are resolved`() = runTest {
+        stubAccountAndCategory()
+        coEvery { expenseRepository.add(any()) } returns Outcome.Success(Unit)
+
+        val result = createWithTags(emptyList())
+
+        assertNull((result as Outcome.Success).value.gmfTax)
+        coVerify(exactly = 1) { tagResolver.resolve(any()) }
+    }
+
+    @Test
+    fun `given Ahorros not exempt, when the app cannot finish saving, then neither the expense nor its tax is saved`() =
+        runTest {
+            val recordingRunner = RecordingTransactionRunner()
+            val recordingExpenseCreator = ExpenseCreator(
+                accountRepository = accountRepository,
+                expenseRepository = expenseRepository,
+                categoryRepository = categoryRepository,
+                categoryCreator = categoryCreator,
+                tagResolver = tagResolver,
+                transactionRunner = recordingRunner,
+                clock = fixedClock
+            )
+            stubTaxedAhorros()
+            coEvery { tagResolver.resolve(listOf(TagInput.New("4x1000"))) } returns
+                Outcome.Success(listOf("tag-4x1000"))
+            coEvery { expenseRepository.add(any()) } returns Outcome.Failure(StorageError("disk full"))
+
+            val result = recordingExpenseCreator.create(
+                accountId = "acc-1",
+                amount = "500.00",
+                date = today.toString(),
+                categoryInput = CategoryInput.Existing(expenseCategory.id),
+                description = "Mercado",
+                tagInputs = emptyList()
+            )
+
+            assertTrue((result as Outcome.Failure).error is ExpenseCreationError.StorageFailure)
+            assertTrue(recordingRunner.rolledBack)
+        }
+
+    private fun stubTaxedAhorros() {
+        val ahorros = AccountBuilder()
+            .id("acc-1")
+            .gmf(GmfTreatment.Taxed("cat-impuestos", listOf("4x1000")))
+            .build()
+        every {
+            accountRepository.findById("acc-1", AccountCriteria(includeIncomes = true, includeExpenses = true))
+        } returns flowOf(Outcome.Success(ahorros))
+        every { categoryRepository.getAll() } returns flowOf(Outcome.Success(listOf(expenseCategory)))
+    }
 
     private fun stubAccountAndCategory() {
         every {

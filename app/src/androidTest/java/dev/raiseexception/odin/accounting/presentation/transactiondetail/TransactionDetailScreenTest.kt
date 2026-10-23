@@ -1,6 +1,7 @@
 package dev.raiseexception.odin.accounting.presentation.transactiondetail
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -440,7 +442,8 @@ class TransactionDetailScreenTest {
         uiState: TransactionDetailUiState,
         onDelete: () -> Unit = {},
         deletionMessageEvent: Flow<String> = emptyFlow(),
-        onNavigateToHome: () -> Unit = {}
+        onNavigateToHome: () -> Unit = {},
+        onOpenTransaction: (String) -> Unit = {}
     ) {
         composeTestRule.setContent {
             TransactionDetailScreen(
@@ -455,9 +458,54 @@ class TransactionDetailScreenTest {
                 onNavigateToReports = {},
                 onEditExpense = {},
                 onEditIncome = {},
+                onOpenTransaction = onOpenTransaction,
             )
         }
     }
+
+    @Test
+    fun given_Mercado_with_its_tax_when_displayed_then_shows_the_tax_field_last() {
+        setDetailContent(mercadoWithTax().copy(description = "Mercado", tagNames = listOf("Hogar")))
+        composeTestRule.onNodeWithTag("gmf_tax_field").assertIsDisplayed()
+        composeTestRule.onNodeWithText("4X1000").assertIsDisplayed()
+        composeTestRule.onNodeWithText("$400,00").assertIsDisplayed()
+        val tagsBottom = composeTestRule.onNodeWithTag("tags_chips").getUnclippedBoundsInRoot().bottom
+        val taxTop = composeTestRule.onNodeWithTag("gmf_tax_field").getUnclippedBoundsInRoot().top
+        assertTrue(taxTop > tagsBottom)
+    }
+
+    @Test
+    fun given_Mercado_with_its_tax_when_opening_the_tax_field_then_opens_the_details_of_its_tax() {
+        var openedTransactionId: String? = null
+        setDetailContent(mercadoWithTax(), onOpenTransaction = { openedTransactionId = it })
+        composeTestRule.onNodeWithTag("gmf_tax_field").performClick()
+        assertEquals("tax-1", openedTransactionId)
+    }
+
+    @Test
+    fun given_an_expense_without_a_tax_when_displayed_then_no_tax_field_is_shown() {
+        setDetailContent(expenseContent(isEditable = true))
+        composeTestRule.onNodeWithTag("gmf_tax_field").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_Mercado_with_its_tax_when_tapping_delete_then_the_confirmation_mentions_its_tax() {
+        setDetailContent(mercadoWithTax())
+        composeTestRule.onNodeWithTag("delete_transaction_button").performClick()
+        composeTestRule.onNodeWithText(
+            "¿Eliminar este gasto? También se eliminará su 4x1000. Esta acción no se puede deshacer."
+        ).assertIsDisplayed()
+    }
+
+    @Test
+    fun given_the_details_of_a_tax_when_displayed_then_offers_no_way_to_edit_or_delete_it() {
+        setDetailContent(expenseContent(isEditable = false).copy(description = "4x1000 – Mercado"))
+        composeTestRule.onNodeWithTag("edit_transaction_button").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("delete_transaction_button").assertDoesNotExist()
+    }
+
+    private fun mercadoWithTax() =
+        expenseContent(isEditable = true).copy(gmfTaxAmount = "$400,00", gmfTaxId = "tax-1")
 
     private fun incomeContent(isEditable: Boolean) = TransactionDetailUiState.Content(
         formattedAmount = "+$1.000,00",

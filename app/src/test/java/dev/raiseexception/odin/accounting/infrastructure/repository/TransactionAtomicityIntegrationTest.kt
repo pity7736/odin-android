@@ -5,8 +5,10 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
+import dev.raiseexception.odin.accounting.application.usecase.CategoryResolver
 import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
+import dev.raiseexception.odin.accounting.application.usecase.GmfInput
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.application.usecase.TagResolver
 import dev.raiseexception.odin.accounting.application.usecase.TransferCreator
@@ -75,8 +77,12 @@ class TransactionAtomicityIntegrationTest {
         val transactionRunner = RoomTransactionRunner(database)
         val tagRepository = RoomTagRepository(database.tagDao())
         val tagResolver = TagResolver(tagRepository)
-        accountCreator = AccountCreator(accountRepository)
         categoryCreator = CategoryCreator(categoryRepository)
+        accountCreator = AccountCreator(
+            accountRepository,
+            CategoryResolver(categoryRepository, categoryCreator),
+            transactionRunner
+        )
         expenseCreator = ExpenseCreator(
             accountRepository = accountRepository,
             expenseRepository = expenseRepository,
@@ -98,6 +104,7 @@ class TransactionAtomicityIntegrationTest {
             categoryRepository = categoryRepository,
             expenseRepository = expenseRepository,
             incomeRepository = failingIncomeRepository,
+            tagResolver = tagResolver,
             transactionRunner = transactionRunner
         )
     }
@@ -191,7 +198,8 @@ class TransactionAtomicityIntegrationTest {
                 sourceAccountId = sourceAccount.id,
                 destinationAccountId = destinationAccount.id,
                 amount = "100000",
-                date = today
+                date = today,
+                chargeGmf = true
             )
             assertTrue(
                 "Expected StorageFailure: $result",
@@ -209,7 +217,14 @@ class TransactionAtomicityIntegrationTest {
     private suspend fun createAccount(name: String, initialBalance: String): Account =
         (
             accountCreator.create(
-                CreateAccountCommand.MoneyAccount(name, initialBalance, Currency.COP, MoneyAccountKind.SAVINGS, "")
+                CreateAccountCommand.MoneyAccount(
+                    name,
+                    initialBalance,
+                    Currency.COP,
+                    MoneyAccountKind.SAVINGS,
+                    "",
+                    GmfInput.Exempt
+                )
             ) as Outcome.Success
             ).value
 

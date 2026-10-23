@@ -5,6 +5,7 @@ data class TransactionDetail(
     val categoryName: String,
     val accountName: String,
     val isTransfer: Boolean,
+    val isGmfTax: Boolean,
     val accountType: AccountType,
     val tags: List<Tag>,
 )

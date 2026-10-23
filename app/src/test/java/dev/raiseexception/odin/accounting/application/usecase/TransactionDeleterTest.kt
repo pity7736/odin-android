@@ -6,6 +6,7 @@ import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.Transaction
@@ -75,7 +76,8 @@ class TransactionDeleterTest {
         categoryId = "cat-food",
         description = "Almuerzo",
         createdAt = Instant.parse("2026-03-08T12:00:00Z"),
-        tagIds = listOf("tag-nala")
+        tagIds = listOf("tag-nala"),
+        gmfTax = null
     )
 
     @Test
@@ -238,6 +240,38 @@ class TransactionDeleterTest {
             assertNothingDeleted()
         }
 
+    @Test
+    fun `given the details of a tax, when deleting it, then returns GmfTaxNotDeletable and deletes nothing`() =
+        runTest {
+            every { transactionFinder.find(lunch.id) } returns flowOf(
+                Outcome.Success(detail(lunch).copy(isGmfTax = true))
+            )
+            val result = transactionDeleter.delete(lunch.id)
+            val error = (result as Outcome.Failure).error
+            assertTrue(error is TransactionDeletionError.GmfTaxNotDeletable)
+            assertEquals("El 4x1000 no se puede eliminar.", error.externalMessage)
+            assertNothingDeleted()
+        }
+
+    @Test
+    fun `given Mercado with its tax, when deleting Mercado, then the expense repository deletes it once`() = runTest {
+        val ahorros = AccountBuilder()
+            .id("acc-1")
+            .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+            .initialBalance(Money.of(BigDecimal("1000000"), Currency.COP))
+            .gmf(GmfTreatment.Taxed("cat-impuestos", listOf("4x1000")))
+            .withExpense(amount = "100000", date = "2026-03-10", description = "Mercado", clock = fixedClock)
+            .build()
+        val mercado = ahorros.expenses.first()
+        stubFound(mercado, ahorros)
+        coEvery { expenseRepository.delete(mercado.id) } returns Outcome.Success(Unit)
+        coEvery { tagRepository.deleteUnused() } returns Outcome.Success(Unit)
+        val result = transactionDeleter.delete(mercado.id)
+        assertTrue(result is Outcome.Success)
+        coVerify(exactly = 1) { expenseRepository.delete(any()) }
+        coVerify(exactly = 1) { expenseRepository.delete(mercado.id) }
+    }
+
     private fun stubFound(transaction: Transaction, account: Account) {
         every { transactionFinder.find(transaction.id) } returns flowOf(Outcome.Success(detail(transaction)))
         every { accountFinder.find("acc-1", fullCriteria) } returns flowOf(Outcome.Success(account))
@@ -256,6 +290,7 @@ class TransactionDeleterTest {
         "Comida",
         "Ahorros",
         isTransfer = isTransfer,
+        isGmfTax = false,
         accountType = AccountType.SAVINGS,
         tags = emptyList()
     )

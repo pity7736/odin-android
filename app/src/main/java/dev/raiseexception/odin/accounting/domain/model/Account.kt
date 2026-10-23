@@ -17,6 +17,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import java.math.BigDecimal
+import kotlin.time.Duration.Companion.milliseconds
 
 @Suppress("LongParameterList")
 class Account private constructor(
@@ -33,9 +34,9 @@ class Account private constructor(
     val incomes: List<Income> get() = this._incomes.toList()
 
     private val _expenses: MutableList<Expense> = expenses.toMutableList()
-    val expenses: List<Expense> get() = this._expenses.toList()
+    val expenses: List<Expense> get() = this._expenses.flatMap { it.withGmfTax() }
 
-    val transactions: List<Transaction> get() = this._incomes + this._expenses
+    val transactions: List<Transaction> get() = this._incomes + this.expenses
 
     val currency: Currency get() = this.funding.currency
 
@@ -72,7 +73,7 @@ class Account private constructor(
             null
         }
         val dateError = dateValidationError
-            ?: candidate?.let { this.historyError(this._incomes + this._expenses, it, today) }
+            ?: candidate?.let { this.historyError(this.transactions, it, today) }
         val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
         if (anyError(amountError, dateError, categoryError)) {
             return Outcome.Failure(
@@ -87,40 +88,46 @@ class Account private constructor(
         return Outcome.Success(candidate)
     }
 
+    fun gmfTaxOn(amount: String): BigDecimal =
+        this.parseAmount(amount)?.let { this.funding.gmfTaxOn(it) } ?: BigDecimal.ZERO
+
     fun createExpense(
         amount: String,
         date: String,
         categoryId: String,
         description: String,
         tagIds: List<String>,
+        chargeGmf: Boolean,
+        gmfTagIds: List<String>,
         clock: Clock = Clock.System
     ): Outcome<Expense> {
         val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         val parsedAmount = parseAmount(amount)
-        val amountError = validateExpenseAmount(
-            amount,
-            parsedAmount,
-            this.funding.spendable(this.incomes, this.expenses).amount,
-            this.funding.overSpendMessage
-        )
+        val ceiling = this.funding.spendable(this.incomes, this.expenses).amount
+        val gmfTax = if (chargeGmf) this.gmfTaxOn(amount) else BigDecimal.ZERO
+        val amountError = validateExpenseAmount(amount, parsedAmount, ceiling, this.funding.overSpendMessage)
+            ?: parsedAmount?.let { this.validateAmountWithGmfTax(it, gmfTax, ceiling) }
         val (parsedDate, dateValidationError) = parseAndValidateDate(date, today)
         val uniqueTagIds = tagIds.distinct()
         val candidate = if (amountError == null && parsedDate != null) {
+            val trimmedDescription = description.trim()
+            val createdAt = clock.now()
             Expense(
                 id = UuidCreator.getTimeOrderedEpoch().toString(),
                 accountId = this.id,
                 amount = Money.of(parsedAmount!!, this.currency),
                 date = parsedDate,
                 categoryId = categoryId,
-                description = description.trim(),
-                createdAt = clock.now(),
-                tagIds = uniqueTagIds
+                description = trimmedDescription,
+                createdAt = createdAt,
+                tagIds = uniqueTagIds,
+                gmfTax = this.newGmfTax(gmfTax, parsedDate, trimmedDescription, createdAt, gmfTagIds)
             )
         } else {
             null
         }
         val dateError = dateValidationError
-            ?: candidate?.let { this.historyError(this._incomes + this._expenses, it, today) }
+            ?: candidate?.let { this.historyError(this.transactions, it, today) }
         val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
         val tagsError = Expense.validateTagCount(uniqueTagIds)
         if (anyError(amountError, dateError, categoryError, tagsError)) {
@@ -151,30 +158,33 @@ class Account private constructor(
             return Outcome.Failure(this.notFound("Expense", expenseId))
         }
         val original = this._expenses[expenseIndex]
-        val otherExpenses = this._expenses.filterIndexed { index, _ -> index != expenseIndex }
-        val ceiling = this.funding.spendable(this._incomes, otherExpenses).amount
+        val otherExpenses = this._expenses
+            .filterIndexed { index, _ -> index != expenseIndex }
+            .flatMap { it.withGmfTax() }
         val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         val parsedAmount = parseAmount(amount)
-        val amountError = validateExpenseAmount(amount, parsedAmount, ceiling, this.funding.overSpendMessage)
-            ?: parsedAmount?.let { this.funding.validateEditedExpenseAmount(it, this._incomes, otherExpenses) }
+        val gmfTax = this.recalculatedGmfTaxAmount(original, parsedAmount)
+        val amountError = this.validateEditedExpenseAmount(amount, parsedAmount, gmfTax, otherExpenses)
         val (parsedDate, dateValidationError) = parseAndValidateDate(date, today)
         val uniqueTagIds = tagIds.distinct()
         val candidate = if (amountError == null && parsedDate != null) {
+            val trimmedDescription = description.trim()
             Expense(
                 id = original.id,
                 accountId = original.accountId,
                 amount = Money.of(parsedAmount!!, this.currency),
                 date = parsedDate,
                 categoryId = categoryId,
-                description = description.trim(),
+                description = trimmedDescription,
                 createdAt = original.createdAt,
-                tagIds = uniqueTagIds
+                tagIds = uniqueTagIds,
+                gmfTax = original.gmfTax?.let { this.recalculatedGmfTax(it, gmfTax, parsedDate, trimmedDescription) }
             )
         } else {
             null
         }
         val dateError = dateValidationError
-            ?: candidate?.let { this.historyError(this._incomes + otherExpenses + it, null, today) }
+            ?: candidate?.let { this.historyError(this._incomes + otherExpenses + it.withGmfTax(), null, today) }
         val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
         val tagsError = Expense.validateTagCount(uniqueTagIds)
         if (anyError(amountError, dateError, categoryError, tagsError)) {
@@ -208,7 +218,7 @@ class Account private constructor(
         val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         val parsedAmount = parseAmount(amount)
         val amountError = validateAmount(amount, parsedAmount)
-            ?: parsedAmount?.let { this.funding.validateEditedIncomeAmount(it, otherIncomes, this._expenses) }
+            ?: parsedAmount?.let { this.funding.validateEditedIncomeAmount(it, otherIncomes, this.expenses) }
         val (parsedDate, dateValidationError) = parseAndValidateDate(date, today)
         val candidate = if (amountError == null && parsedDate != null) {
             Income(
@@ -224,7 +234,7 @@ class Account private constructor(
             null
         }
         val dateError = dateValidationError
-            ?: candidate?.let { this.historyError(otherIncomes + it + this._expenses, null, today) }
+            ?: candidate?.let { this.historyError(otherIncomes + it + this.expenses, null, today) }
         val categoryError = if (categoryId.isBlank()) "La categoría es obligatoria." else null
         if (anyError(amountError, dateError, categoryError)) {
             return Outcome.Failure(
@@ -241,12 +251,12 @@ class Account private constructor(
 
     fun deleteIncome(incomeId: String, clock: Clock = Clock.System): Outcome<Unit> =
         this.deleteTransaction(this._incomes, "Income", incomeId, clock) { remainingIncomes ->
-            remainingIncomes + this._expenses
+            remainingIncomes + this.expenses
         }
 
     fun deleteExpense(expenseId: String, clock: Clock = Clock.System): Outcome<Unit> =
         this.deleteTransaction(this._expenses, "Expense", expenseId, clock) { remainingExpenses ->
-            this._incomes + remainingExpenses
+            this._incomes + remainingExpenses.flatMap { it.withGmfTax() }
         }
 
     @Suppress("LongParameterList")
@@ -255,7 +265,8 @@ class Account private constructor(
         initialBalance: String,
         currency: Currency?,
         kind: MoneyAccountKind?,
-        description: String
+        description: String,
+        gmf: GmfTreatment
     ): Outcome<Account> {
         if (this.funding is AccountFunding.Credit) {
             return Outcome.Failure(AccountUpdateError.CreditCardNotEditable())
@@ -268,14 +279,28 @@ class Account private constructor(
         val currencyError = if (currency == null) "La moneda es obligatoria." else null
         val typeError = if (kind == null) "El tipo de cuenta es obligatorio." else null
         val descriptionError = validateDescription(trimmedDescription)
-        if (anyError(nameError, balanceError, currencyError, typeError, descriptionError)) {
+        val applicableGmf = gmf.forAccount(kind, currency)
+        val gmfCategoryError = applicableGmf.categoryError()
+        val gmfTagsError = applicableGmf.tagsError()
+        val hasErrors = anyError(
+            nameError,
+            balanceError,
+            currencyError,
+            typeError,
+            descriptionError,
+            gmfCategoryError,
+            gmfTagsError
+        )
+        if (hasErrors) {
             return Outcome.Failure(
                 AccountUpdateError.InvalidInput(
                     nameError = nameError,
                     balanceError = balanceError,
                     currencyError = currencyError,
                     typeError = typeError,
-                    descriptionError = descriptionError
+                    descriptionError = descriptionError,
+                    gmfCategoryError = gmfCategoryError,
+                    gmfTagsError = gmfTagsError
                 )
             )
         }
@@ -283,7 +308,7 @@ class Account private constructor(
             Account(
                 id = this.id,
                 name = trimmedName,
-                funding = AccountFunding.Funds(Money.of(amount!!, currency!!), kind!!),
+                funding = AccountFunding.Funds(Money.of(amount!!, currency!!), kind!!, applicableGmf),
                 description = trimmedDescription,
                 createdAt = this.createdAt,
                 incomes = this._incomes.toList(),
@@ -336,6 +361,73 @@ class Account private constructor(
     ): String? = validateAmount(rawAmount, parsed)
         ?: if (parsed != null && parsed > ceiling) overSpendMessage else null
 
+    private fun recalculatedGmfTaxAmount(original: Expense, parsedAmount: BigDecimal?): BigDecimal =
+        if (original.gmfTax != null && parsedAmount != null) gmfTaxOf(parsedAmount) else BigDecimal.ZERO
+
+    private fun validateEditedExpenseAmount(
+        rawAmount: String,
+        parsedAmount: BigDecimal?,
+        gmfTax: BigDecimal,
+        otherExpenses: List<Expense>
+    ): String? {
+        val ceiling = this.funding.spendable(this._incomes, otherExpenses).amount
+        return validateExpenseAmount(rawAmount, parsedAmount, ceiling, this.funding.overSpendMessage)
+            ?: parsedAmount?.let { this.validateAmountWithGmfTax(it, gmfTax, ceiling) }
+            ?: parsedAmount?.let { this.funding.validateEditedExpenseAmount(it, this._incomes, otherExpenses) }
+    }
+
+    private fun validateAmountWithGmfTax(amount: BigDecimal, gmfTax: BigDecimal, ceiling: BigDecimal): String? =
+        if (gmfTax.signum() > 0 && amount.add(gmfTax) > ceiling) {
+            "El monto más el 4x1000 supera el saldo disponible."
+        } else {
+            null
+        }
+
+    private fun newGmfTax(
+        gmfTax: BigDecimal,
+        movementDate: LocalDate,
+        movementDescription: String,
+        movementCreatedAt: Instant,
+        gmfTagIds: List<String>
+    ): Expense? {
+        val treatment = this.funding.gmfTreatment as? GmfTreatment.Taxed ?: return null
+        if (gmfTax.signum() <= 0) return null
+        return Expense(
+            id = UuidCreator.getTimeOrderedEpoch().toString(),
+            accountId = this.id,
+            amount = Money.of(gmfTax, this.currency),
+            date = movementDate,
+            categoryId = treatment.categoryId,
+            description = this.gmfTaxDescription(movementDescription),
+            createdAt = movementCreatedAt + 1.milliseconds,
+            tagIds = gmfTagIds.distinct(),
+            gmfTax = null
+        )
+    }
+
+    private fun recalculatedGmfTax(
+        storedGmfTax: Expense,
+        gmfTax: BigDecimal,
+        movementDate: LocalDate,
+        movementDescription: String
+    ): Expense? {
+        if (gmfTax.signum() <= 0) return null
+        return Expense(
+            id = storedGmfTax.id,
+            accountId = storedGmfTax.accountId,
+            amount = Money.of(gmfTax, this.currency),
+            date = movementDate,
+            categoryId = storedGmfTax.categoryId,
+            description = this.gmfTaxDescription(movementDescription),
+            createdAt = storedGmfTax.createdAt,
+            tagIds = storedGmfTax.tagIds,
+            gmfTax = null
+        )
+    }
+
+    private fun gmfTaxDescription(movementDescription: String): String =
+        if (movementDescription.isBlank()) GMF_TAX_NAME else "$GMF_TAX_NAME – $movementDescription"
+
     private fun validateAmount(rawAmount: String, parsed: BigDecimal?): String? = when {
         rawAmount.isBlank() -> "El monto es obligatorio."
         parsed == null -> "El monto no es un número válido."
@@ -361,9 +453,13 @@ class Account private constructor(
         return Pair(parsed, null)
     }
 
-    private fun historyError(existing: List<Transaction>, recorded: Transaction?, today: LocalDate): String? {
-        val sorted = existing.sortedWith(compareBy<Transaction> { it.date }.thenBy { it.createdAt })
-        val movements = recorded?.let { this.placeLastOnItsDay(sorted, it) } ?: sorted
+    private fun historyError(
+        storedMovements: List<Transaction>,
+        newMovement: Transaction?,
+        today: LocalDate
+    ): String? {
+        val sorted = storedMovements.sortedWith(compareBy<Transaction> { it.date }.thenBy { it.createdAt })
+        val movements = newMovement?.let { this.placeLastOnItsDay(sorted, it.withGmfTax()) } ?: sorted
         val figures = movements.runningFold(this.funding.openingFigure()) { figure, movement ->
             figure.add(this.funding.movementEffect(movement))
         }
@@ -374,9 +470,9 @@ class Account private constructor(
         }
     }
 
-    private fun placeLastOnItsDay(sorted: List<Transaction>, recorded: Transaction): List<Transaction> {
-        val position = sorted.indexOfLast { it.date <= recorded.date } + 1
-        return sorted.take(position) + recorded + sorted.drop(position)
+    private fun placeLastOnItsDay(sorted: List<Transaction>, newMovements: List<Transaction>): List<Transaction> {
+        val position = sorted.indexOfLast { it.date <= newMovements.first().date } + 1
+        return sorted.take(position) + newMovements + sorted.drop(position)
     }
 
     private fun anyError(vararg errors: String?): Boolean = errors.any { it != null }
@@ -386,6 +482,7 @@ class Account private constructor(
         private const val MAX_NAME_LENGTH = 200
         private const val MAX_DESCRIPTION_LENGTH = 500
         private const val MAX_DECIMAL_PLACES = 2
+        private const val GMF_TAX_NAME = "4x1000"
 
         @Suppress("LongParameterList")
         fun restore(
@@ -413,6 +510,7 @@ class Account private constructor(
             currency: Currency?,
             kind: MoneyAccountKind?,
             description: String,
+            gmf: GmfTreatment,
             clock: Clock = Clock.System
         ): Outcome<Account> {
             val trimmedName = name.trim()
@@ -423,14 +521,28 @@ class Account private constructor(
             val currencyError = if (currency == null) "La moneda es obligatoria." else null
             val typeError = if (kind == null) "El tipo de cuenta es obligatorio." else null
             val descriptionError = validateDescription(trimmedDescription)
-            if (anyError(nameError, balanceError, currencyError, typeError, descriptionError)) {
+            val applicableGmf = gmf.forAccount(kind, currency)
+            val gmfCategoryError = applicableGmf.categoryError()
+            val gmfTagsError = applicableGmf.tagsError()
+            val hasErrors = anyError(
+                nameError,
+                balanceError,
+                currencyError,
+                typeError,
+                descriptionError,
+                gmfCategoryError,
+                gmfTagsError
+            )
+            if (hasErrors) {
                 return Outcome.Failure(
                     AccountCreationError.InvalidInput(
                         nameError = nameError,
                         balanceError = balanceError,
                         currencyError = currencyError,
                         typeError = typeError,
-                        descriptionError = descriptionError
+                        descriptionError = descriptionError,
+                        gmfCategoryError = gmfCategoryError,
+                        gmfTagsError = gmfTagsError
                     )
                 )
             }
@@ -438,7 +550,7 @@ class Account private constructor(
                 Account(
                     id = UuidCreator.getTimeOrderedEpoch().toString(),
                     name = trimmedName,
-                    funding = AccountFunding.Funds(Money.of(amount!!, currency!!), kind!!),
+                    funding = AccountFunding.Funds(Money.of(amount!!, currency!!), kind!!, applicableGmf),
                     description = trimmedDescription,
                     createdAt = clock.now()
                 )

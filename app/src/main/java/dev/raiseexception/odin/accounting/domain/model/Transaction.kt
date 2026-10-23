@@ -11,4 +11,6 @@ interface Transaction {
     val categoryId: String
     val description: String
     val createdAt: Instant
+
+    fun withGmfTax(): List<Transaction> = listOf(this)
 }

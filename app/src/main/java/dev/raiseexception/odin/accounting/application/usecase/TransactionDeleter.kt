@@ -59,6 +59,13 @@ class TransactionDeleter(
                 )
             )
         }
+        if (detail.isGmfTax) {
+            return Outcome.Failure(
+                TransactionDeletionError.GmfTaxNotDeletable(
+                    internalMessage = "Transaction $transactionId is the 4x1000 of a movement"
+                )
+            )
+        }
         return Outcome.Success(detail.transaction)
     }
 

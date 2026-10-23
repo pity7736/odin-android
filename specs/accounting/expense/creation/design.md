@@ -8,6 +8,8 @@ Records an expense against an existing money account or credit card. The user st
 
 ## Design Decisions & Rationale
 
+- **An expense on a taxed savings account records its 4x1000 inside it.** `createExpense` takes `chargeGmf` and the tax tag ids, checks the amount plus its tax, and returns the expense with its tax nested; the form's ViewModel holds the amount and computes the "4x1000: $X" line. See `specs/accounting/gmf/design.md`.
+
 - **Tags are part of recording an expense.** The form's tag field, tag resolution inside the save transaction and the tag rules on the aggregate are described in `specs/accounting/expense-tags/design.md`.
 
 - **`Expense` is an entity within the `Account` aggregate, created via `Account.createExpense()`** — the `Expense` constructor is `internal`; only `Account` can create expenses. This keeps every spending invariant (including the "amount must not exceed what the account can spend" rule) enforced at the aggregate root. `Expense.restore()` exists for hydration from the repository. Alternative rejected: a standalone factory — it cannot enforce aggregate invariants like the spending ceiling.
@@ -117,7 +119,7 @@ specs/accounting/expense/creation/
 
 - `Loading` — spinner shown while expense categories are loading
 - `Idle(categories, accountCreatedAt, tags, tagSelection)` — form displayed with amount, date (today pre-selected, picker constrained from account creation date through today), category autocomplete (expense categories), tag field, optional description, and save button
-- `Saving` — save button disabled; form field state preserved via `rememberSaveable`, and the last tag selection kept on screen
+- `Saving` — save button disabled; the date, category and description stay in `rememberSaveable`, the amount is ViewModel state, and the last tag selection is kept on screen
 - `ValidationError(categories, accountCreatedAt, tags, tagSelection, amountError?, dateError?, categoryError?, descriptionError?)` — per-field error messages shown below the relevant fields; a tag error travels in the selection
 - `Error(message)` — centered Spanish error message
 

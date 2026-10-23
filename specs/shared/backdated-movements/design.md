@@ -127,8 +127,10 @@ specs/shared/backdated-movements/
    and validate the
    amount and the date as before. When neither has an error, they build the
    candidate movement and call `historyError` with the stored movements and the
-   candidate (new movement placed last on its day; edited expense or income
-   replacing the original).
+   candidate (a new movement, with its 4x1000 right after it, placed last on its
+   day; edited expense or income replacing the original). `storedMovements` are the
+   account's flattened movements, so every 4x1000 is replayed as its own expense (see
+   `specs/accounting/gmf/design.md`).
 3. `historyError` walks the movements from `funding.openingFigure()` and returns
    the first `historyBreachMessage` together with its date, or `null`.
 4. The result becomes the operation's `dateError`. On any error nothing is added

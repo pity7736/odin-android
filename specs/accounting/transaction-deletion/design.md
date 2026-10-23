@@ -27,6 +27,12 @@ is always kept.
   it removes from and how the remaining history is rebuilt. Rejected: a check in
   the use case (it would duplicate the replay outside the aggregate).
 
+- **Deleting an expense deletes its 4x1000; a 4x1000 cannot be deleted on its own.**
+  The tax is inside its expense, so `Account.deleteExpense` removes both and the
+  repository deletes the tax's row first. `TransactionDeleter` refuses a tax through
+  `TransactionDetail.isGmfTax`, and the confirmation for a taxed expense mentions its
+  tax. See `specs/accounting/gmf/design.md`.
+
 - **The domain takes an id, not an instance.** The check must run on the
   aggregate's own copy of the movement; a parameter instance is read separately
   and could be stale, and taking only the id makes it impossible to use its

@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,13 +41,18 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.raiseexception.odin.accounting.domain.model.AccountType
+import dev.raiseexception.odin.accounting.domain.model.Category
+import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
+import dev.raiseexception.odin.accounting.domain.model.Tag
 import dev.raiseexception.odin.accounting.domain.model.toAccountType
 import dev.raiseexception.odin.shared.presentation.AmountField
+import dev.raiseexception.odin.shared.presentation.CategoryAutocomplete
+import dev.raiseexception.odin.shared.presentation.TagField
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureDialogHost
-import dev.raiseexception.odin.shared.presentation.amountInputToRaw
+import dev.raiseexception.odin.shared.presentation.resolveCategoryInput
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.Slate100
 import dev.raiseexception.odin.ui.theme.Slate200
@@ -64,13 +70,14 @@ private const val LOCK_MESSAGE =
 @Composable
 fun EditAccountScreen(
     uiState: EditAccountUiState,
-    onSave: (String, String, Currency?, MoneyAccountKind?, String) -> Unit,
+    onSave: (String, String, String, CategoryInput) -> Unit,
     navigationEvent: Flow<Unit>,
     unexpectedFailureEvent: Flow<Unit>,
     onRetry: () -> Unit,
     onSaved: () -> Unit,
     onCancel: () -> Unit = {},
     modifier: Modifier = Modifier,
+    events: EditAccountEvents = EditAccountEvents(),
 ) {
     LaunchedEffect(Unit) {
         navigationEvent.collect { onSaved() }
@@ -80,22 +87,23 @@ fun EditAccountScreen(
         is EditAccountUiState.UnexpectedFailure -> UnexpectedFailureContent(onRetry = onRetry, modifier = modifier)
         is EditAccountUiState.Loading -> EditAccountLoading(modifier)
         is EditAccountUiState.NotFound -> EditAccountMessage(modifier)
-        is EditAccountUiState.Editing -> EditAccountForm(uiState, onSave, onCancel, modifier)
+        is EditAccountUiState.Editing -> EditAccountForm(uiState, onSave, onCancel, events, modifier)
     }
 }
 
 @Composable
 private fun EditAccountForm(
     editing: EditAccountUiState.Editing,
-    onSave: (String, String, Currency?, MoneyAccountKind?, String) -> Unit,
+    onSave: (String, String, String, CategoryInput) -> Unit,
     onCancel: () -> Unit,
+    events: EditAccountEvents,
     modifier: Modifier = Modifier,
 ) {
     var name by rememberSaveable { mutableStateOf(editing.name) }
     var balance by rememberSaveable { mutableStateOf(editing.initialBalance.replace('.', ',')) }
     var description by rememberSaveable { mutableStateOf(editing.description) }
-    var selectedCurrency by rememberSaveable { mutableStateOf(editing.currency) }
-    var selectedKind by rememberSaveable { mutableStateOf(editing.kind) }
+    var gmfCategoryText by rememberSaveable { mutableStateOf(editing.gmfCategoryName) }
+    var gmfCategoryId by rememberSaveable { mutableStateOf(editing.gmfCategoryId) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -148,8 +156,8 @@ private fun EditAccountForm(
                 for (currency in Currency.entries) {
                     FilterChipItem(
                         label = currencyLabel(currency),
-                        selected = selectedCurrency == currency,
-                        onClick = { selectedCurrency = currency },
+                        selected = editing.currency == currency,
+                        onClick = { events.onCurrencySelected(currency) },
                         testTag = "currency_option_${currency.name}",
                     )
                 }
@@ -164,11 +172,27 @@ private fun EditAccountForm(
             for (kind in MoneyAccountKind.entries) {
                 FilterChipItem(
                     label = typeLabel(kind.toAccountType()),
-                    selected = selectedKind == kind,
-                    onClick = { selectedKind = kind },
+                    selected = editing.kind == kind,
+                    onClick = { events.onKindSelected(kind) },
                     testTag = "type_option_${kind.name}",
                 )
             }
+        }
+        if (editing.showsGmfOption) {
+            Spacer(modifier = Modifier.height(16.dp))
+            GmfSettings(
+                editing = editing,
+                gmfCategoryText = gmfCategoryText,
+                onGmfCategoryTextChange = { text ->
+                    gmfCategoryText = text
+                    gmfCategoryId = ""
+                },
+                onGmfCategorySelected = { category ->
+                    gmfCategoryText = category.name
+                    gmfCategoryId = category.id
+                },
+                events = events,
+            )
         }
         Spacer(modifier = Modifier.height(16.dp))
         OdinField(
@@ -180,7 +204,12 @@ private fun EditAccountForm(
         )
         Spacer(modifier = Modifier.height(24.dp))
         SaveAction(editing) {
-            onSave(name, amountInputToRaw(balance), selectedCurrency, selectedKind, description)
+            onSave(
+                name,
+                balance,
+                description,
+                resolveCategoryInput(gmfCategoryText, gmfCategoryId, editing.categories),
+            )
         }
         GeneralMessage(editing)
         TextButton(
@@ -206,6 +235,65 @@ private fun LockedBalance(display: String) {
             modifier = Modifier.padding(bottom = 6.dp),
         )
         ReadOnlyValue(display, "balance_readonly")
+    }
+}
+
+data class EditAccountEvents(
+    val onKindSelected: (MoneyAccountKind) -> Unit = {},
+    val onCurrencySelected: (Currency) -> Unit = {},
+    val onGmfExemptChanged: (Boolean) -> Unit = {},
+    val onTagTextChange: (String) -> Unit = {},
+    val onAddTag: () -> Unit = {},
+    val onTagPicked: (Tag) -> Unit = {},
+    val onTagRemoved: (Int) -> Unit = {},
+)
+
+@Composable
+private fun GmfSettings(
+    editing: EditAccountUiState.Editing,
+    gmfCategoryText: String,
+    onGmfCategoryTextChange: (String) -> Unit,
+    onGmfCategorySelected: (Category) -> Unit,
+    events: EditAccountEvents,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = "Exenta de 4x1000",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = Slate800,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(
+            checked = editing.gmfExempt,
+            onCheckedChange = events.onGmfExemptChanged,
+            modifier = Modifier.testTag("gmf_exempt_switch"),
+        )
+    }
+    if (!editing.gmfExempt) {
+        Spacer(modifier = Modifier.height(16.dp))
+        CategoryAutocomplete(
+            categories = editing.categories,
+            categoryText = gmfCategoryText,
+            onCategoryTextChange = onGmfCategoryTextChange,
+            onSuggestionSelected = onGmfCategorySelected,
+            errorMessage = editing.gmfCategoryError,
+            label = "Categoría del 4x1000",
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        TagField(
+            selection = editing.tagSelection,
+            suggestions = editing.tagSelection.suggestions(editing.tags),
+            isEnabled = !editing.isSaving,
+            onTextChange = events.onTagTextChange,
+            onConfirm = events.onAddTag,
+            onSuggestionPicked = events.onTagPicked,
+            onRemove = events.onTagRemoved,
+            label = "Etiquetas del 4x1000 (opcional)",
+        )
     }
 }
 

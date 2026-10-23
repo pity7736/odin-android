@@ -15,6 +15,8 @@ sealed interface CreateExpenseUiState {
         val selectedAccountId: String? = null,
         val tags: List<Tag> = emptyList(),
         val tagSelection: TagSelection = TagSelection(),
+        val amount: String = "",
+        val gmfTaxLine: String? = null,
     ) : CreateExpenseUiState
     data object Saving : CreateExpenseUiState
 
@@ -31,6 +33,8 @@ sealed interface CreateExpenseUiState {
         val accountError: String? = null,
         val tags: List<Tag> = emptyList(),
         val tagSelection: TagSelection = TagSelection(),
+        val amount: String = "",
+        val gmfTaxLine: String? = null,
     ) : CreateExpenseUiState
     data class Error(val message: String) : CreateExpenseUiState
     data object UnexpectedFailure : CreateExpenseUiState

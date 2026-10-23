@@ -151,9 +151,20 @@ Discovery (above) must be complete first.
 3. **Plan investigation & discussion** — do this BEFORE writing any plan file.
    The plan's input comes from the code and architecture, not the user's head,
    so investigate first, then align:
-   a. **Read the relevant code.** For an existing feature, the feature's code.
-      For a new one, `docs/02-architecture.md`, `docs/05-code-standards.md`, and
-      the closest existing feature to mirror its patterns.
+   a. **Read ALL the code the change touches — COMPLETELY, BEFORE the first
+      finding.** This is a GATE, not something done along the way.
+      - Every file the change will create next to or modify, in EVERY layer:
+        domain models, use cases, ViewModels and their `UiState`, screens,
+        repositories, DAOs/entities, migrations, and DI wiring. This includes
+        the code of OTHER features the change reaches (a new feature that adds a
+        rule to expenses, transfers, or accounts touches their code too).
+      - For a new feature, also `docs/02-architecture.md`,
+        `docs/05-code-standards.md`, and the closest existing feature to mirror
+        its patterns. For an existing feature, also its `design.md`.
+      - **Every claim in a finding cites the code it rests on** (file:line plus
+        the quoted snippet). If a finding depends on code not yet read, STOP and
+        read it before presenting the finding — never propose a design over code
+        you have not read.
    b. **Surface findings one at a time.** Present ONE finding, concern, or
       decision point. Wait for the user's response. Do not advance to the next
       finding until the current one is settled. When a finding opens a

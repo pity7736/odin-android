@@ -10,6 +10,7 @@ import dev.raiseexception.odin.accounting.application.usecase.CategoryResolver
 import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseUpdater
+import dev.raiseexception.odin.accounting.application.usecase.GmfInput
 import dev.raiseexception.odin.accounting.application.usecase.TagResolver
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
 import dev.raiseexception.odin.accounting.application.usecase.TransferCreator
@@ -66,9 +67,13 @@ class ExpenseUpdateIntegrationTest {
         val transactionRunner = RoomTransactionRunner(database)
         val tagRepository = RoomTagRepository(database.tagDao())
         val tagResolver = TagResolver(tagRepository)
-        accountCreator = AccountCreator(accountRepository)
         accountFinder = AccountFinder(accountRepository)
         categoryCreator = CategoryCreator(categoryRepository)
+        accountCreator = AccountCreator(
+            accountRepository,
+            CategoryResolver(categoryRepository, categoryCreator),
+            transactionRunner
+        )
         transactionFinder = TransactionFinder(RoomTransactionRepository(transactionDao, database.tagDao()))
         expenseCreator = ExpenseCreator(
             accountRepository = accountRepository,
@@ -84,6 +89,7 @@ class ExpenseUpdateIntegrationTest {
             categoryRepository = categoryRepository,
             expenseRepository = expenseRepository,
             incomeRepository = RoomIncomeRepository(transactionDao),
+            tagResolver = tagResolver,
             transactionRunner = transactionRunner
         )
         expenseUpdater = ExpenseUpdater(
@@ -144,7 +150,8 @@ class ExpenseUpdateIntegrationTest {
             val savings = createAccount("Ahorros", "100000")
             val cash = createAccount("Efectivo", "0")
             categoryCreator.createSystem("Transferencia", CategoryType.TRANSFER, "", "#607D8B")
-            val transfer = (transferCreator.create(savings.id, cash.id, "30000", today) as Outcome.Success).value
+            val transferOutcome = transferCreator.create(savings.id, cash.id, "30000", today, chargeGmf = true)
+            val transfer = (transferOutcome as Outcome.Success).value
             val result = expenseUpdater.update(
                 expenseId = transfer.expense.id,
                 amount = "10000",
@@ -161,7 +168,14 @@ class ExpenseUpdateIntegrationTest {
 
     private suspend fun createAccount(name: String, initialBalance: String): Account = (
         this.accountCreator.create(
-            CreateAccountCommand.MoneyAccount(name, initialBalance, Currency.COP, MoneyAccountKind.SAVINGS, "")
+            CreateAccountCommand.MoneyAccount(
+                name,
+                initialBalance,
+                Currency.COP,
+                MoneyAccountKind.SAVINGS,
+                "",
+                GmfInput.Exempt
+            )
         ) as Outcome.Success
         ).value
 

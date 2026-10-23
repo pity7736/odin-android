@@ -19,6 +19,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.math.BigDecimal
+import kotlin.time.Duration.Companion.milliseconds
 
 private const val MAX_NAME_LENGTH = 200
 private const val MAX_DESCRIPTION_LENGTH = 500
@@ -38,6 +39,7 @@ class AccountCreateTest {
             currency = Currency.COP,
             kind = MoneyAccountKind.SAVINGS,
             description = "Fondo de emergencia",
+            gmf = GmfTreatment.Exempt,
             clock = fakeClock
         )
 
@@ -60,7 +62,8 @@ class AccountCreateTest {
             initialBalance = "0",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertTrue(result is Outcome.Success)
@@ -75,7 +78,8 @@ class AccountCreateTest {
             initialBalance = "10.00",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertTrue(result is Outcome.Success)
@@ -89,7 +93,8 @@ class AccountCreateTest {
             initialBalance = "10.00",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals("El nombre es obligatorio.", failureInvalidInput(result).nameError)
@@ -102,7 +107,8 @@ class AccountCreateTest {
             initialBalance = "10.00",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals("El nombre no puede superar los 200 caracteres.", failureInvalidInput(result).nameError)
@@ -115,7 +121,8 @@ class AccountCreateTest {
             initialBalance = "",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals("El saldo inicial es obligatorio.", failureInvalidInput(result).balanceError)
@@ -128,7 +135,8 @@ class AccountCreateTest {
             initialBalance = "abc",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals("El saldo inicial no es un número válido.", failureInvalidInput(result).balanceError)
@@ -141,7 +149,8 @@ class AccountCreateTest {
             initialBalance = "-1.00",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals("El saldo inicial no puede ser negativo.", failureInvalidInput(result).balanceError)
@@ -154,7 +163,8 @@ class AccountCreateTest {
             initialBalance = "10.255",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals("El saldo inicial admite máximo 2 decimales.", failureInvalidInput(result).balanceError)
@@ -167,7 +177,8 @@ class AccountCreateTest {
             initialBalance = "10.00",
             currency = null,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals("La moneda es obligatoria.", failureInvalidInput(result).currencyError)
@@ -180,7 +191,8 @@ class AccountCreateTest {
             initialBalance = "10.00",
             currency = Currency.COP,
             kind = MoneyAccountKind.SAVINGS,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         val account = (result as Outcome.Success).value
@@ -195,7 +207,8 @@ class AccountCreateTest {
             initialBalance = "10.00",
             currency = Currency.COP,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         val account = (result as Outcome.Success).value
@@ -210,7 +223,8 @@ class AccountCreateTest {
             initialBalance = "10.00",
             currency = Currency.USD,
             kind = null,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals("El tipo de cuenta es obligatorio.", failureInvalidInput(result).typeError)
@@ -223,7 +237,8 @@ class AccountCreateTest {
             initialBalance = "10.00",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = "a".repeat(MAX_DESCRIPTION_LENGTH + 1)
+            description = "a".repeat(MAX_DESCRIPTION_LENGTH + 1),
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals(
@@ -239,7 +254,8 @@ class AccountCreateTest {
             initialBalance = "10.00",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = "    "
+            description = "    ",
+            gmf = GmfTreatment.Exempt
         )
 
         assertTrue(result is Outcome.Success)
@@ -253,7 +269,8 @@ class AccountCreateTest {
             initialBalance = "",
             currency = null,
             kind = null,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         val error = failureInvalidInput(result)
@@ -352,7 +369,8 @@ class AccountEditTest {
             initialBalance = "2000.00",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = "Gastos diarios"
+            description = "Gastos diarios",
+            gmf = GmfTreatment.Exempt
         )
 
         assertTrue(result is Outcome.Success)
@@ -374,7 +392,8 @@ class AccountEditTest {
             initialBalance = "10.00",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals("El nombre es obligatorio.", failureInvalidInput(result).nameError)
@@ -387,7 +406,8 @@ class AccountEditTest {
             initialBalance = "10.00",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals("El nombre no puede superar los 200 caracteres.", failureInvalidInput(result).nameError)
@@ -400,7 +420,8 @@ class AccountEditTest {
             initialBalance = "",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals("El saldo inicial es obligatorio.", failureInvalidInput(result).balanceError)
@@ -413,7 +434,8 @@ class AccountEditTest {
             initialBalance = "-1.00",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals("El saldo inicial no puede ser negativo.", failureInvalidInput(result).balanceError)
@@ -426,7 +448,8 @@ class AccountEditTest {
             initialBalance = "10.255",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals("El saldo inicial admite máximo 2 decimales.", failureInvalidInput(result).balanceError)
@@ -439,7 +462,8 @@ class AccountEditTest {
             initialBalance = "10.00",
             currency = null,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals("La moneda es obligatoria.", failureInvalidInput(result).currencyError)
@@ -454,7 +478,8 @@ class AccountEditTest {
             initialBalance = "10.00",
             currency = Currency.COP,
             kind = MoneyAccountKind.CASH,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         val edited = (result as Outcome.Success).value
@@ -473,7 +498,8 @@ class AccountEditTest {
             initialBalance = "10.00",
             currency = Currency.COP,
             kind = MoneyAccountKind.SAVINGS,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertTrue(result is Outcome.Failure)
@@ -491,7 +517,8 @@ class AccountEditTest {
             initialBalance = "",
             currency = null,
             kind = null,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertTrue(result is Outcome.Failure)
@@ -505,7 +532,8 @@ class AccountEditTest {
             initialBalance = "10.00",
             currency = Currency.USD,
             kind = null,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals("El tipo de cuenta es obligatorio.", failureInvalidInput(result).typeError)
@@ -518,7 +546,8 @@ class AccountEditTest {
             initialBalance = "10.00",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = "a".repeat(MAX_DESCRIPTION_LENGTH + 1)
+            description = "a".repeat(MAX_DESCRIPTION_LENGTH + 1),
+            gmf = GmfTreatment.Exempt
         )
 
         assertEquals(
@@ -534,7 +563,8 @@ class AccountEditTest {
             initialBalance = "",
             currency = null,
             kind = null,
-            description = ""
+            description = "",
+            gmf = GmfTreatment.Exempt
         )
 
         val error = failureInvalidInput(result)
@@ -552,7 +582,8 @@ class AccountEditTest {
             initialBalance = "10.00",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = "    "
+            description = "    ",
+            gmf = GmfTreatment.Exempt
         )
 
         assertTrue(result is Outcome.Success)
@@ -606,7 +637,7 @@ class AccountRestoreTest {
         val account = Account.restore(
             id = "test-id-123",
             name = "Cuenta de Ahorros",
-            funding = AccountFunding.Funds(initialBalance, MoneyAccountKind.SAVINGS),
+            funding = AccountFunding.Funds(initialBalance, MoneyAccountKind.SAVINGS, GmfTreatment.Exempt),
             description = "Mi cuenta principal",
             createdAt = knownInstant
         )
@@ -640,7 +671,11 @@ class AccountRestoreTest {
         val account = Account.restore(
             id = "acc-1",
             name = "Ahorros",
-            funding = AccountFunding.Funds(Money.of(BigDecimal("10.00"), Currency.COP), MoneyAccountKind.SAVINGS),
+            funding = AccountFunding.Funds(
+                Money.of(BigDecimal("10.00"), Currency.COP),
+                MoneyAccountKind.SAVINGS,
+                GmfTreatment.Exempt
+            ),
             description = "",
             createdAt = Instant.parse("2026-01-15T12:00:00Z")
         )
@@ -653,7 +688,11 @@ class AccountRestoreTest {
         val account = Account.restore(
             id = "acc-1",
             name = "Efectivo",
-            funding = AccountFunding.Funds(Money.of(BigDecimal("10.00"), Currency.COP), MoneyAccountKind.CASH),
+            funding = AccountFunding.Funds(
+                Money.of(BigDecimal("10.00"), Currency.COP),
+                MoneyAccountKind.CASH,
+                GmfTreatment.Exempt
+            ),
             description = "",
             createdAt = Instant.parse("2026-01-15T12:00:00Z")
         )
@@ -1457,7 +1496,8 @@ class AccountEditIncomeTest {
         categoryId = "cat-1",
         description = "",
         createdAt = Instant.parse("${date}T12:00:00Z"),
-        tagIds = emptyList()
+        tagIds = emptyList(),
+        gmfTax = null
     )
 
     private fun editIncome(account: Account, amount: String, date: String): Outcome<Income> = account.editIncome(
@@ -1661,7 +1701,8 @@ class AccountCreditCardExpenseTest {
                     categoryId = "cat-1",
                     description = "",
                     createdAt = this.expenseCreatedAt,
-                    tagIds = emptyList()
+                    tagIds = emptyList(),
+                    gmfTax = null
                 )
             )
         )
@@ -1707,6 +1748,8 @@ class AccountCreditCardExpenseTest {
             categoryId = "cat-1",
             description = "",
             tagIds = emptyList(),
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -1795,6 +1838,8 @@ class AccountCreditCardPaymentTest {
             categoryId = "cat-1",
             description = "",
             tagIds = emptyList(),
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -2018,6 +2063,8 @@ class AccountExpenseTagsTest {
             categoryId = "cat-1",
             description = "",
             tagIds = tagIds,
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = this.expenseClock
         )
         return account
@@ -2030,6 +2077,8 @@ class AccountExpenseTagsTest {
             categoryId = "cat-1",
             description = "",
             tagIds = tagIds,
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -2325,6 +2374,8 @@ class AccountBackdatedMovementsTest {
             categoryId = "",
             description = "",
             tagIds = (1..6).map { "tag-$it" },
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -2412,7 +2463,8 @@ class AccountBackdatedMovementsTest {
             categoryId = "cat-1",
             description = "",
             createdAt = Instant.parse(createdAt),
-            tagIds = emptyList()
+            tagIds = emptyList(),
+            gmfTax = null
         )
 
     private fun createExpense(account: Account, amount: String, date: String): Outcome<Expense> =
@@ -2422,6 +2474,8 @@ class AccountBackdatedMovementsTest {
             categoryId = "cat-1",
             description = "",
             tagIds = emptyList(),
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = this.fixedClock
         )
 
@@ -2674,7 +2728,8 @@ class AccountDeleteTransactionTest {
         categoryId = "cat-1",
         description = "",
         createdAt = Instant.parse("${date}T12:00:00Z"),
-        tagIds = emptyList()
+        tagIds = emptyList(),
+        gmfTax = null
     )
 
     private fun historyBreach(result: Outcome<Unit>): TransactionDeletionError.HistoryBreach {
@@ -2689,6 +2744,798 @@ class AccountDeleteTransactionTest {
         val error = (result as Outcome.Failure).error
         assertTrue(error is TransactionLookupError.NotFound)
         assertEquals("Transacción no encontrada", error.externalMessage)
+    }
+
+    private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)
+}
+
+class AccountGmfSettingTest {
+
+    private val impuestosTreatment = GmfTreatment.Taxed(categoryId = "cat-impuestos", tagNames = listOf("4x1000"))
+
+    @Test
+    fun `given a savings account in COP marked as not exempt, when creating it, then it keeps the tax settings`() {
+        val result = this.create(MoneyAccountKind.SAVINGS, Currency.COP, this.impuestosTreatment)
+
+        assertEquals(this.impuestosTreatment, this.fundsOf(result).gmf)
+    }
+
+    @Test
+    fun `given a savings account in COP left exempt, when creating it, then it is exempt`() {
+        val result = this.create(MoneyAccountKind.SAVINGS, Currency.COP, GmfTreatment.Exempt)
+
+        assertEquals(GmfTreatment.Exempt, this.fundsOf(result).gmf)
+    }
+
+    @Test
+    fun `given a cash account marked as not exempt, when creating it, then it is saved as exempt`() {
+        val result = this.create(MoneyAccountKind.CASH, Currency.COP, this.impuestosTreatment)
+
+        assertEquals(GmfTreatment.Exempt, this.fundsOf(result).gmf)
+    }
+
+    @Test
+    fun `given a savings account in USD marked as not exempt, when creating it, then it is saved as exempt`() {
+        val result = this.create(MoneyAccountKind.SAVINGS, Currency.USD, this.impuestosTreatment)
+
+        assertEquals(GmfTreatment.Exempt, this.fundsOf(result).gmf)
+    }
+
+    @Test
+    fun `given a savings account in EUR marked as not exempt, when creating it, then it is saved as exempt`() {
+        val result = this.create(MoneyAccountKind.SAVINGS, Currency.EUR, this.impuestosTreatment)
+
+        assertEquals(GmfTreatment.Exempt, this.fundsOf(result).gmf)
+    }
+
+    @Test
+    fun `given a non-exempt account with no tax category, when creating it, then a tax category required error`() {
+        val result = this.create(MoneyAccountKind.SAVINGS, Currency.COP, GmfTreatment.Taxed(" ", emptyList()))
+
+        assertEquals("La categoría del 4x1000 es obligatoria.", this.creationInvalidInput(result).gmfCategoryError)
+    }
+
+    @Test
+    fun `given a non-exempt account with six tax tags, when creating it, then the tag limit error`() {
+        val treatment = GmfTreatment.Taxed("cat-impuestos", (1..Expense.MAX_TAGS + 1).map { "tag-$it" })
+
+        val result = this.create(MoneyAccountKind.SAVINGS, Currency.COP, treatment)
+
+        assertEquals(Expense.TAG_LIMIT_MESSAGE, this.creationInvalidInput(result).gmfTagsError)
+    }
+
+    @Test
+    fun `given a non-exempt account with five tax tags, when creating it, then it keeps the five`() {
+        val treatment = GmfTreatment.Taxed("cat-impuestos", (1..Expense.MAX_TAGS).map { "tag-$it" })
+
+        val result = this.create(MoneyAccountKind.SAVINGS, Currency.COP, treatment)
+
+        assertEquals(treatment, this.fundsOf(result).gmf)
+    }
+
+    @Test
+    fun `given a blank name and no tax category, when creating, then reports both errors at once`() {
+        val result = Account.create(
+            name = "",
+            initialBalance = "1000",
+            currency = Currency.COP,
+            kind = MoneyAccountKind.SAVINGS,
+            description = "",
+            gmf = GmfTreatment.Taxed("", emptyList())
+        )
+
+        val error = this.creationInvalidInput(result)
+        assertEquals("El nombre es obligatorio.", error.nameError)
+        assertEquals("La categoría del 4x1000 es obligatoria.", error.gmfCategoryError)
+    }
+
+    @Test
+    fun `given a savings account in COP, when editing it as not exempt, then it keeps the tax settings`() {
+        val result = this.edit(this.ahorros(GmfTreatment.Exempt), MoneyAccountKind.SAVINGS, this.impuestosTreatment)
+
+        assertEquals(this.impuestosTreatment, this.fundsOf(result).gmf)
+    }
+
+    @Test
+    fun `given a non-exempt account, when saving it as exempt, then it discards the tax settings`() {
+        val result = this.edit(this.ahorros(this.impuestosTreatment), MoneyAccountKind.SAVINGS, GmfTreatment.Exempt)
+
+        assertEquals(GmfTreatment.Exempt, this.fundsOf(result).gmf)
+    }
+
+    @Test
+    fun `given a non-exempt account with taxes, when changing its type to cash, then discards settings keeps taxes`() {
+        val ahorros = AccountBuilder()
+            .initialBalance(Money.of(BigDecimal("1000000"), Currency.COP))
+            .gmf(this.impuestosTreatment)
+            .withExpense(amount = "100000", date = "2026-01-01")
+            .build()
+
+        val result = this.edit(ahorros, MoneyAccountKind.CASH, this.impuestosTreatment)
+
+        val edited = (result as Outcome.Success).value
+        assertEquals(GmfTreatment.Exempt, this.fundsOf(result).gmf)
+        assertEquals(ahorros.expenses.map { it.id }, edited.expenses.map { it.id })
+    }
+
+    @Test
+    fun `given a non-exempt account, when changing its currency away from COP, then it is saved as exempt`() {
+        val result = this.ahorros(this.impuestosTreatment).edit(
+            name = "Ahorros",
+            initialBalance = "1000",
+            currency = Currency.USD,
+            kind = MoneyAccountKind.SAVINGS,
+            description = "",
+            gmf = this.impuestosTreatment
+        )
+
+        assertEquals(GmfTreatment.Exempt, this.fundsOf(result).gmf)
+    }
+
+    @Test
+    fun `given a savings account in COP, when editing it as not exempt without a category, then a category error`() {
+        val treatment = GmfTreatment.Taxed("", emptyList())
+
+        val result = this.edit(this.ahorros(GmfTreatment.Exempt), MoneyAccountKind.SAVINGS, treatment)
+
+        assertEquals("La categoría del 4x1000 es obligatoria.", this.updateInvalidInput(result).gmfCategoryError)
+    }
+
+    @Test
+    fun `given a savings account in COP, when editing it with six tax tags, then the tag limit error`() {
+        val treatment = GmfTreatment.Taxed("cat-impuestos", (1..Expense.MAX_TAGS + 1).map { "tag-$it" })
+
+        val result = this.edit(this.ahorros(GmfTreatment.Exempt), MoneyAccountKind.SAVINGS, treatment)
+
+        assertEquals(Expense.TAG_LIMIT_MESSAGE, this.updateInvalidInput(result).gmfTagsError)
+    }
+
+    @Test
+    fun `given a blank name and no tax category, when editing, then reports both errors at once`() {
+        val result = this.ahorros(GmfTreatment.Exempt).edit(
+            name = "",
+            initialBalance = "1000",
+            currency = Currency.COP,
+            kind = MoneyAccountKind.SAVINGS,
+            description = "",
+            gmf = GmfTreatment.Taxed("", emptyList())
+        )
+
+        val error = this.updateInvalidInput(result)
+        assertEquals("El nombre es obligatorio.", error.nameError)
+        assertEquals("La categoría del 4x1000 es obligatoria.", error.gmfCategoryError)
+    }
+
+    private fun create(kind: MoneyAccountKind, currency: Currency, gmf: GmfTreatment): Outcome<Account> =
+        Account.create(
+            name = "Ahorros",
+            initialBalance = "1000",
+            currency = currency,
+            kind = kind,
+            description = "",
+            gmf = gmf
+        )
+
+    private fun edit(account: Account, kind: MoneyAccountKind, gmf: GmfTreatment): Outcome<Account> =
+        account.edit(
+            name = "Ahorros",
+            initialBalance = "1000000",
+            currency = Currency.COP,
+            kind = kind,
+            description = "",
+            gmf = gmf
+        )
+
+    private fun ahorros(gmf: GmfTreatment): Account = AccountBuilder()
+        .initialBalance(Money.of(BigDecimal("1000000"), Currency.COP))
+        .gmf(gmf)
+        .build()
+
+    private fun fundsOf(result: Outcome<Account>): AccountFunding.Funds =
+        (result as Outcome.Success).value.funding as AccountFunding.Funds
+
+    private fun creationInvalidInput(result: Outcome<Account>): AccountCreationError.InvalidInput {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is AccountCreationError.InvalidInput)
+        return error as AccountCreationError.InvalidInput
+    }
+
+    private fun updateInvalidInput(result: Outcome<Account>): AccountUpdateError.InvalidInput {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is AccountUpdateError.InvalidInput)
+        return error as AccountUpdateError.InvalidInput
+    }
+}
+
+class AccountGmfExpenseTest {
+
+    private val now = Instant.parse("2026-10-22T12:00:00Z")
+    private val clock = object : Clock {
+        override fun now(): Instant = this@AccountGmfExpenseTest.now
+    }
+    private val today = "2026-10-22"
+    private val impuestos = GmfTreatment.Taxed(categoryId = "cat-impuestos", tagNames = listOf("4x1000"))
+
+    @Test
+    fun `given Ahorros with 1000000, when recording Mercado of 100000, then Mercado carries its tax of 400`() {
+        val ahorros = this.ahorros("1000000")
+
+        val mercado = this.success(this.record(ahorros, "100000", "Mercado", gmfTagIds = listOf("tag-4x1000")))
+
+        val tax = mercado.gmfTax!!
+        assertEquals("Mercado", mercado.description)
+        assertEquals(this.pesos("100000"), mercado.amount)
+        assertEquals(this.pesos("400.00"), tax.amount)
+        assertEquals("4x1000 – Mercado", tax.description)
+        assertEquals("cat-impuestos", tax.categoryId)
+        assertEquals(listOf("tag-4x1000"), tax.tagIds)
+        assertEquals(mercado.date, tax.date)
+        assertEquals(ahorros.id, tax.accountId)
+        assertEquals(mercado.createdAt + 1.milliseconds, tax.createdAt)
+        assertNull(tax.gmfTax)
+    }
+
+    @Test
+    fun `given Ahorros not exempt, when asking the tax of 100000, then it is 400`() {
+        assertEquals(BigDecimal("400.00"), this.ahorros("1000000").gmfTaxOn("100000"))
+    }
+
+    @Test
+    fun `given Ahorros not exempt, when asking the tax of 1, then it is zero`() {
+        assertEquals(0, this.ahorros("1000000").gmfTaxOn("1.00").signum())
+    }
+
+    @Test
+    fun `given Ahorros not exempt, when asking the tax of an invalid amount, then it is zero`() {
+        assertEquals(0, this.ahorros("1000000").gmfTaxOn("abc").signum())
+    }
+
+    @Test
+    fun `given an exempt account, when asking the tax of 100000, then it is zero`() {
+        assertEquals(0, AccountBuilder().build().gmfTaxOn("100000").signum())
+    }
+
+    @Test
+    fun `given Ahorros with 1000000, when recording Mercado of 100000, then the balance is 899600`() {
+        val ahorros = this.ahorros("1000000")
+
+        this.record(ahorros, "100000", "Mercado")
+
+        assertEquals(this.pesos("899600"), ahorros.balance)
+    }
+
+    @Test
+    fun `given Ahorros, when recording Mercado, then its movements list Mercado followed by its tax`() {
+        val ahorros = this.ahorros("1000000")
+
+        val mercado = this.success(this.record(ahorros, "100000", "Mercado"))
+
+        assertEquals(listOf(mercado.id, mercado.gmfTax!!.id), ahorros.expenses.map { it.id })
+        assertEquals(listOf(mercado.id, mercado.gmfTax!!.id), ahorros.transactions.map { it.id })
+    }
+
+    @Test
+    fun `given an exempt account Nomina with 1000000, when recording 100000, then only the expense is recorded`() {
+        val nomina = AccountBuilder()
+            .name("Nómina")
+            .initialBalance(this.pesos("1000000"))
+            .createdAt(Instant.parse("2026-01-01T12:00:00Z"))
+            .build()
+
+        val expense = this.success(this.record(nomina, "100000", "Mercado"))
+
+        assertNull(expense.gmfTax)
+        assertEquals(1, nomina.expenses.size)
+        assertEquals(this.pesos("900000"), nomina.balance)
+    }
+
+    @Test
+    fun `given Ahorros, when recording an expense without charging the tax, then no tax is recorded`() {
+        val ahorros = this.ahorros("1000000")
+
+        val expense = this.success(
+            ahorros.createExpense(
+                amount = "200000",
+                date = this.today,
+                categoryId = "cat-transferencia",
+                description = "Transferencia a Corriente",
+                tagIds = emptyList(),
+                chargeGmf = false,
+                gmfTagIds = listOf("tag-4x1000"),
+                clock = this.clock
+            )
+        )
+
+        assertNull(expense.gmfTax)
+        assertEquals(this.pesos("800000"), ahorros.balance)
+    }
+
+    @Test
+    fun `given Ahorros, when recording an expense of 100000 with no description, then its tax is named 4x1000`() {
+        val ahorros = this.ahorros("1000000")
+
+        val expense = this.success(this.record(ahorros, "100000", "   "))
+
+        assertEquals("4x1000", expense.gmfTax!!.description)
+    }
+
+    @Test
+    fun `given Ahorros, when recording Veterinario tagged Nala, then its tax has the tag 4x1000 and not Nala`() {
+        val ahorros = this.ahorros("1000000")
+
+        val veterinario = this.success(
+            ahorros.createExpense(
+                amount = "100000",
+                date = this.today,
+                categoryId = "cat-mascotas",
+                description = "Veterinario",
+                tagIds = listOf("tag-nala"),
+                chargeGmf = true,
+                gmfTagIds = listOf("tag-4x1000"),
+                clock = this.clock
+            )
+        )
+
+        assertEquals(listOf("tag-nala"), veterinario.tagIds)
+        assertEquals("4x1000 – Veterinario", veterinario.gmfTax!!.description)
+        assertEquals(listOf("tag-4x1000"), veterinario.gmfTax!!.tagIds)
+    }
+
+    @Test
+    fun `given Ahorros, when recording an expense of 12345,67, then its tax is rounded to the cent as 49,38`() {
+        val expense = this.success(this.record(this.ahorros("1000000"), "12345.67", "Mercado"))
+
+        assertEquals(this.pesos("49.38"), expense.gmfTax!!.amount)
+    }
+
+    @Test
+    fun `given Ahorros, when recording an expense of 13,75, then a half cent rounds its tax up to 0,06`() {
+        val expense = this.success(this.record(this.ahorros("1000000"), "13.75", "Mercado"))
+
+        assertEquals(this.pesos("0.06"), expense.gmfTax!!.amount)
+    }
+
+    @Test
+    fun `given Ahorros, when recording an expense of 1, then no tax is recorded because it rounds to zero`() {
+        val ahorros = this.ahorros("1000000")
+
+        val expense = this.success(this.record(ahorros, "1.00", "Chicle"))
+
+        assertNull(expense.gmfTax)
+        assertEquals(1, ahorros.expenses.size)
+    }
+
+    @Test
+    fun `given Ahorros with 100000, when recording an expense of 100000, then the amount plus tax error`() {
+        val ahorros = this.ahorros("100000")
+
+        val result = this.record(ahorros, "100000", "Mercado")
+
+        val error = this.creationInvalidInput(result)
+        assertEquals("El monto más el 4x1000 supera el saldo disponible.", error.amountError)
+        assertTrue(ahorros.expenses.isEmpty())
+    }
+
+    @Test
+    fun `given Ahorros with 100000, when recording an expense of 99601, then it and its tax of 398,40 fit`() {
+        val ahorros = this.ahorros("100000")
+
+        val expense = this.success(this.record(ahorros, "99601", "Mercado"))
+
+        assertEquals(this.pesos("398.40"), expense.gmfTax!!.amount)
+        assertEquals(this.pesos("0.60"), ahorros.balance)
+    }
+
+    @Test
+    fun `given Ahorros with 100000, when recording an expense of 150000, then the amount alone exceeds the balance`() {
+        val result = this.record(this.ahorros("100000"), "150000", "Mercado")
+
+        assertEquals("El monto supera el saldo disponible.", this.creationInvalidInput(result).amountError)
+    }
+
+    @Test
+    fun `given incomes on March 5 and 10, when recording 99800 on March 6, then its tax breaks the history`() {
+        val ahorros = this.marchAhorros(
+            this.income("100000", "2026-03-05"),
+            this.income("500000", "2026-03-10")
+        )
+
+        val result = this.record(ahorros, "99800", "Mercado", date = "2026-03-06")
+
+        val error = this.creationInvalidInput(result)
+        assertEquals("El saldo de la cuenta quedaría negativo el 6 de marzo.", error.dateError)
+        assertNull(error.amountError)
+    }
+
+    @Test
+    fun `given an income on March 10 recorded later than now, when spending it with its tax that day, then saved`() {
+        val ahorros = this.marchAhorros(
+            this.income("100400", "2026-03-10", createdAt = "2026-10-22T13:00:00Z")
+        )
+
+        val result = this.record(ahorros, "100000", "Mercado", date = "2026-03-10")
+
+        assertTrue(result is Outcome.Success)
+        assertEquals(this.pesos("0.00"), ahorros.balance)
+    }
+
+    @Test
+    fun `given Ahorros not exempt today, when recording Arriendo dated September 15, then its tax has that date`() {
+        val ahorros = this.ahorros("2000000")
+
+        val arriendo = this.success(this.record(ahorros, "1000000", "Arriendo", date = "2026-09-15"))
+
+        assertEquals(this.pesos("4000.00"), arriendo.gmfTax!!.amount)
+        assertEquals("4x1000 – Arriendo", arriendo.gmfTax!!.description)
+        assertEquals(LocalDate.parse("2026-09-15"), arriendo.gmfTax!!.date)
+    }
+
+    @Test
+    fun `given a credit card, when recording an expense, then it is never taxed`() {
+        val visa = AccountBuilder()
+            .creditCard(this.pesos("3000000"), this.pesos("0"))
+            .createdAt(Instant.parse("2026-01-01T12:00:00Z"))
+            .build()
+
+        val expense = this.success(this.record(visa, "100000", "Mercado"))
+
+        assertNull(expense.gmfTax)
+    }
+
+    private fun ahorros(initialBalance: String): Account = AccountBuilder()
+        .name("Ahorros")
+        .initialBalance(this.pesos(initialBalance))
+        .gmf(this.impuestos)
+        .createdAt(Instant.parse("2026-01-01T12:00:00Z"))
+        .build()
+
+    private fun marchAhorros(vararg incomes: Income): Account = AccountBuilder()
+        .id("ahorros")
+        .name("Ahorros")
+        .initialBalance(this.pesos("0"))
+        .gmf(this.impuestos)
+        .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+        .incomes(incomes.toList())
+        .build()
+
+    private fun income(amount: String, date: String, createdAt: String = "${date}T12:00:00Z"): Income =
+        Income.restore(
+            id = "income-$amount",
+            accountId = "ahorros",
+            amount = this.pesos(amount),
+            date = LocalDate.parse(date),
+            categoryId = "cat-salario",
+            description = "",
+            createdAt = Instant.parse(createdAt)
+        )
+
+    private fun record(
+        account: Account,
+        amount: String,
+        description: String,
+        date: String = this.today,
+        gmfTagIds: List<String> = emptyList()
+    ): Outcome<Expense> = account.createExpense(
+        amount = amount,
+        date = date,
+        categoryId = "cat-mercado",
+        description = description,
+        tagIds = emptyList(),
+        chargeGmf = true,
+        gmfTagIds = gmfTagIds,
+        clock = this.clock
+    )
+
+    private fun success(result: Outcome<Expense>): Expense = (result as Outcome.Success).value
+
+    private fun creationInvalidInput(result: Outcome<Expense>): ExpenseCreationError.InvalidInput {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is ExpenseCreationError.InvalidInput)
+        return error as ExpenseCreationError.InvalidInput
+    }
+
+    private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)
+}
+
+class AccountGmfExpenseEditTest {
+
+    private val now = Instant.parse("2026-10-22T12:00:00Z")
+    private val clock = object : Clock {
+        override fun now(): Instant = this@AccountGmfExpenseEditTest.now
+    }
+    private val impuestos = GmfTreatment.Taxed(categoryId = "cat-impuestos", tagNames = listOf("4x1000"))
+
+    @Test
+    fun `given Mercado of 100000 with its tax of 400, when editing it to 50000, then its tax is 200`() {
+        val ahorros = this.ahorros("1000000", this.impuestos)
+        val mercado = this.record(ahorros, "100000", "Mercado")
+
+        val edited = this.success(this.edit(ahorros, mercado.id, "50000"))
+
+        assertEquals(this.pesos("200.00"), edited.gmfTax!!.amount)
+        assertEquals("4x1000 – Mercado", edited.gmfTax!!.description)
+        assertEquals(this.pesos("949800"), ahorros.balance)
+    }
+
+    @Test
+    fun `given Mercado with its tax, when editing it, then the tax keeps its id createdAt category and tags`() {
+        val ahorros = this.ahorros("1000000", this.impuestos)
+        val mercado = this.record(ahorros, "100000", "Mercado")
+
+        val edited = this.success(this.edit(ahorros, mercado.id, "50000"))
+
+        val tax = edited.gmfTax!!
+        assertEquals(mercado.gmfTax!!.id, tax.id)
+        assertEquals(mercado.gmfTax!!.createdAt, tax.createdAt)
+        assertEquals("cat-impuestos", tax.categoryId)
+        assertEquals(listOf("tag-4x1000"), tax.tagIds)
+        assertEquals(listOf(mercado.id, tax.id), ahorros.expenses.map { it.id })
+    }
+
+    @Test
+    fun `given Mercado dated October 10 with its tax, when editing it to October 8, then its tax is dated October 8`() {
+        val ahorros = this.ahorros("1000000", this.impuestos)
+        val mercado = this.record(ahorros, "100000", "Mercado", date = "2026-10-10")
+
+        val edited = this.success(this.edit(ahorros, mercado.id, "100000", date = "2026-10-08"))
+
+        assertEquals(LocalDate.parse("2026-10-08"), edited.gmfTax!!.date)
+    }
+
+    @Test
+    fun `given Mercado with its tax, when editing its description to Supermercado, then its tax is renamed`() {
+        val ahorros = this.ahorros("1000000", this.impuestos)
+        val mercado = this.record(ahorros, "100000", "Mercado")
+
+        val edited = this.success(this.edit(ahorros, mercado.id, "100000", description = "Supermercado"))
+
+        assertEquals("4x1000 – Supermercado", edited.gmfTax!!.description)
+    }
+
+    @Test
+    fun `given an expense without description and its tax, when describing it as Mercado, then the tax follows`() {
+        val ahorros = this.ahorros("1000000", this.impuestos)
+        val expense = this.record(ahorros, "100000", "")
+
+        val edited = this.success(this.edit(ahorros, expense.id, "100000", description = "Mercado"))
+
+        assertEquals("4x1000", expense.gmfTax!!.description)
+        assertEquals("4x1000 – Mercado", edited.gmfTax!!.description)
+    }
+
+    @Test
+    fun `given Mercado with its tax, when clearing its description, then its tax is named 4x1000`() {
+        val ahorros = this.ahorros("1000000", this.impuestos)
+        val mercado = this.record(ahorros, "100000", "Mercado")
+
+        val edited = this.success(this.edit(ahorros, mercado.id, "100000", description = " "))
+
+        assertEquals("4x1000", edited.gmfTax!!.description)
+    }
+
+    @Test
+    fun `given Mercado taxed under GMF and Impuestos as category now, when editing it, then its tax keeps GMF`() {
+        val gmfAhorros = this.ahorros("1000000", GmfTreatment.Taxed("cat-gmf", emptyList()))
+        val mercado = this.record(gmfAhorros, "100000", "Mercado")
+        val ahorros = this.restoreWith(gmfAhorros, this.impuestos, mercado)
+
+        val edited = this.success(this.edit(ahorros, mercado.id, "50000"))
+
+        assertEquals("cat-gmf", edited.gmfTax!!.categoryId)
+    }
+
+    @Test
+    fun `given Ahorros at 0,60 after Mercado of 99601 and its tax, when editing Mercado to 100000, then a tax error`() {
+        val ahorros = this.ahorros("100000", this.impuestos)
+        val mercado = this.record(ahorros, "99601", "Mercado")
+
+        val result = this.edit(ahorros, mercado.id, "100000")
+
+        assertEquals("El monto más el 4x1000 supera el saldo disponible.", this.updateInvalidInput(result).amountError)
+        assertEquals(this.pesos("0.60"), ahorros.balance)
+    }
+
+    @Test
+    fun `given Ahorros at 0,60 after Mercado of 99601 and its tax, when editing Mercado to 99601, then it is saved`() {
+        val ahorros = this.ahorros("100000", this.impuestos)
+        val mercado = this.record(ahorros, "99601", "Mercado")
+
+        val result = this.edit(ahorros, mercado.id, "99601")
+
+        assertTrue(result is Outcome.Success)
+    }
+
+    @Test
+    fun `given Mercado recorded while exempt and Ahorros not exempt now, when editing it, then no tax is recorded`() {
+        val exemptAhorros = this.ahorros("1000000", GmfTreatment.Exempt)
+        val mercado = this.record(exemptAhorros, "100000", "Mercado")
+        val ahorros = this.restoreWith(exemptAhorros, this.impuestos, mercado)
+
+        val edited = this.success(this.edit(ahorros, mercado.id, "150000"))
+
+        assertNull(edited.gmfTax)
+        assertEquals(1, ahorros.expenses.size)
+    }
+
+    @Test
+    fun `given Mercado with its tax of 400 and Ahorros exempt now, when editing it to 150000, then its tax is 600`() {
+        val taxedAhorros = this.ahorros("1000000", this.impuestos)
+        val mercado = this.record(taxedAhorros, "100000", "Mercado")
+        val ahorros = this.restoreWith(taxedAhorros, GmfTreatment.Exempt, mercado)
+
+        val edited = this.success(this.edit(ahorros, mercado.id, "150000"))
+
+        assertEquals(this.pesos("600.00"), edited.gmfTax!!.amount)
+    }
+
+    @Test
+    fun `given Chicle of 1 recorded with no tax, when editing it to 100, then no tax is recorded`() {
+        val ahorros = this.ahorros("1000000", this.impuestos)
+        val chicle = this.record(ahorros, "1.00", "Chicle")
+
+        val edited = this.success(this.edit(ahorros, chicle.id, "100.00"))
+
+        assertNull(edited.gmfTax)
+    }
+
+    @Test
+    fun `given Chicle of 100 with its tax of 0,40, when editing it to 1, then its tax is removed`() {
+        val ahorros = this.ahorros("1000000", this.impuestos)
+        val chicle = this.record(ahorros, "100.00", "Chicle")
+
+        val edited = this.success(this.edit(ahorros, chicle.id, "1.00"))
+
+        assertEquals(this.pesos("0.40"), chicle.gmfTax!!.amount)
+        assertNull(edited.gmfTax)
+        assertEquals(listOf(chicle.id), ahorros.expenses.map { it.id })
+    }
+
+    @Test
+    fun `given Chicle whose tax was removed by an edit, when editing it back to 100, then no tax is recorded`() {
+        val ahorros = this.ahorros("1000000", this.impuestos)
+        val chicle = this.record(ahorros, "100.00", "Chicle")
+        this.edit(ahorros, chicle.id, "1.00")
+
+        val edited = this.success(this.edit(ahorros, chicle.id, "100.00"))
+
+        assertNull(edited.gmfTax)
+    }
+
+    @Test
+    fun `given the id of a tax, when editing it, then fails with TransactionLookupError NotFound`() {
+        val ahorros = this.ahorros("1000000", this.impuestos)
+        val mercado = this.record(ahorros, "100000", "Mercado")
+
+        val result = this.edit(ahorros, mercado.gmfTax!!.id, "1000")
+
+        assertTrue((result as Outcome.Failure).error is TransactionLookupError.NotFound)
+    }
+
+    @Test
+    fun `given Mercado of 100000 with its tax of 400, when deleting it, then both go and the balance grows 100400`() {
+        val ahorros = this.ahorros("1000000", this.impuestos)
+        val mercado = this.record(ahorros, "100000", "Mercado")
+        val balanceBefore = ahorros.balance.amount
+
+        val result = ahorros.deleteExpense(mercado.id, this.clock)
+
+        assertTrue(result is Outcome.Success)
+        assertTrue(ahorros.expenses.isEmpty())
+        assertEquals(0, BigDecimal("100400").compareTo(ahorros.balance.amount - balanceBefore))
+    }
+
+    @Test
+    fun `given the id of a tax, when deleting it, then fails with TransactionLookupError NotFound`() {
+        val ahorros = this.ahorros("1000000", this.impuestos)
+        val mercado = this.record(ahorros, "100000", "Mercado")
+
+        val result = ahorros.deleteExpense(mercado.gmfTax!!.id, this.clock)
+
+        assertTrue((result as Outcome.Failure).error is TransactionLookupError.NotFound)
+        assertEquals(2, ahorros.expenses.size)
+    }
+
+    @Test
+    fun `given an income of 100400 paying Mercado and its tax, when lowering the income by one, then saldo error`() {
+        val ahorros = this.ahorros("0", this.impuestos)
+        val salario = (
+            ahorros.createIncome("100400", "2026-10-01", "cat-salario", "", this.clock) as Outcome.Success
+            ).value
+        this.record(ahorros, "100000", "Mercado")
+
+        val result = ahorros.editIncome(salario.id, "100399", "2026-10-01", "cat-salario", "", this.clock)
+
+        val error = (result as Outcome.Failure).error as IncomeUpdateError.InvalidInput
+        assertEquals("El saldo de la cuenta no puede quedar negativo.", error.amountError)
+    }
+
+    @Test
+    fun `given an income paying the tax of a March 8 expense, when deleting the income, then a March 8 breach`() {
+        val ahorros = this.ahorros("100000", this.impuestos, createdAt = "2026-03-01T12:00:00Z")
+        val bono = (ahorros.createIncome("400", "2026-03-05", "cat-bono", "", this.clock) as Outcome.Success).value
+        this.record(ahorros, "100000", "Mercado", date = "2026-03-08")
+
+        val result = ahorros.deleteIncome(bono.id, this.clock)
+
+        val breach = (result as Outcome.Failure).error as TransactionDeletionError.HistoryBreach
+        assertEquals("El saldo de la cuenta quedaría negativo el 8 de marzo.", breach.externalMessage)
+    }
+
+    @Test
+    fun `given Ahorros with 1000000, when recording an income of 500000, then only the income and 1500000`() {
+        val ahorros = this.ahorros("1000000", this.impuestos)
+
+        ahorros.createIncome("500000", "2026-10-22", "cat-salario", "", this.clock)
+
+        assertTrue(ahorros.expenses.isEmpty())
+        assertEquals(this.pesos("1500000"), ahorros.balance)
+    }
+
+    private fun ahorros(
+        initialBalance: String,
+        gmf: GmfTreatment,
+        createdAt: String = "2026-01-01T12:00:00Z"
+    ): Account = AccountBuilder()
+        .id("ahorros")
+        .name("Ahorros")
+        .initialBalance(this.pesos(initialBalance))
+        .gmf(gmf)
+        .createdAt(Instant.parse(createdAt))
+        .build()
+
+    private fun restoreWith(account: Account, gmf: GmfTreatment, movement: Expense): Account = Account.restore(
+        id = account.id,
+        name = account.name,
+        funding = AccountFunding.Funds(
+            (account.funding as AccountFunding.Funds).initialBalance,
+            MoneyAccountKind.SAVINGS,
+            gmf
+        ),
+        description = account.description,
+        createdAt = account.createdAt,
+        expenses = listOf(movement)
+    )
+
+    private fun record(account: Account, amount: String, description: String, date: String = "2026-10-20"): Expense =
+        (
+            account.createExpense(
+                amount = amount,
+                date = date,
+                categoryId = "cat-mercado",
+                description = description,
+                tagIds = emptyList(),
+                chargeGmf = true,
+                gmfTagIds = listOf("tag-4x1000"),
+                clock = this.clock
+            ) as Outcome.Success
+            ).value
+
+    private fun edit(
+        account: Account,
+        expenseId: String,
+        amount: String,
+        date: String = "2026-10-20",
+        description: String = "Mercado"
+    ): Outcome<Expense> = account.editExpense(
+        expenseId = expenseId,
+        amount = amount,
+        date = date,
+        categoryId = "cat-mercado",
+        description = description,
+        tagIds = emptyList(),
+        clock = this.clock
+    )
+
+    private fun success(result: Outcome<Expense>): Expense = (result as Outcome.Success).value
+
+    private fun updateInvalidInput(result: Outcome<Expense>): ExpenseUpdateError.InvalidInput {
+        assertTrue(result is Outcome.Failure)
+        val error = (result as Outcome.Failure).error
+        assertTrue(error is ExpenseUpdateError.InvalidInput)
+        return error as ExpenseUpdateError.InvalidInput
     }
 
     private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)

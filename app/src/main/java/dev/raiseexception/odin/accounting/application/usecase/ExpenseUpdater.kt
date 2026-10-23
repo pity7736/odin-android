@@ -85,6 +85,11 @@ class ExpenseUpdater(
                 ExpenseUpdateError.TransferNotEditable(internalMessage = "Expense $expenseId belongs to a transfer")
             )
         }
+        if (detail.isGmfTax) {
+            return Outcome.Failure(
+                ExpenseUpdateError.GmfTaxNotEditable(internalMessage = "Expense $expenseId is the 4x1000 of a movement")
+            )
+        }
         return Outcome.Success(expense)
     }
 

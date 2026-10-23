@@ -9,14 +9,22 @@ sealed interface CreateTransferUiState {
         val destinationAccounts: List<Account>,
         val selectedSourceAccountId: String,
         val selectedDestinationAccountId: String,
-        val saveLabel: String
+        val saveLabel: String,
+        val amount: String = "",
+        val chargeGmf: Boolean = true,
+        val showsGmfOption: Boolean = false,
+        val gmfTaxLine: String? = null
     ) : CreateTransferUiState
     data class Saving(
         val sourceAccounts: List<Account>,
         val destinationAccounts: List<Account>,
         val selectedSourceAccountId: String,
         val selectedDestinationAccountId: String,
-        val saveLabel: String
+        val saveLabel: String,
+        val amount: String = "",
+        val chargeGmf: Boolean = true,
+        val showsGmfOption: Boolean = false,
+        val gmfTaxLine: String? = null
     ) : CreateTransferUiState
 
     @Suppress("LongParameterList")
@@ -26,6 +34,10 @@ sealed interface CreateTransferUiState {
         val selectedSourceAccountId: String,
         val selectedDestinationAccountId: String,
         val saveLabel: String,
+        val amount: String = "",
+        val chargeGmf: Boolean = true,
+        val showsGmfOption: Boolean = false,
+        val gmfTaxLine: String? = null,
         val amountError: String? = null,
         val dateError: String? = null,
         val sourceAccountError: String? = null,

@@ -105,8 +105,9 @@ which reflect the new values.
   in-progress flag, and a general save-error message. A single content state (over
   creation-style separate error states) lets a failed save overlay field errors
   without losing the pre-fill or the locked context. The screen owns the editable
-  text fields, so the user's typed-but-unsaved input persists across a failed save
-  while the ViewModel state carries only the pre-fill and the overlaid errors.
+  text fields, so the user's typed-but-unsaved input persists across a failed save;
+  the ViewModel state carries the pre-fill, the overlaid errors, and the kind,
+  currency and 4x1000 choices (see `specs/accounting/gmf/design.md`).
 
 - **The account is loaded once at open, not observed.** The edit form edits a
   snapshot; a one-shot read (the first emission of the finder, with movement
@@ -195,7 +196,7 @@ specs/accounting/accounts/update/
 - **Screen:** `EditAccountScreen`, reached from `AccountDetailScreen` via an edit
   affordance; route `ACCOUNT_EDIT` carrying the account id.
 - **UiState:** `Loading` / `NotFound` / `Editing`. `Editing` holds the pre-filled
-  name/balance/currency/kind/description, `locked`, the formatted locked-balance
+  name/balance/currency/kind/description, the 4x1000 switch, tax category and tags, `locked`, the formatted locked-balance
   display, per-field errors, an in-progress flag, and a general save-error.
   Navigation on save is a one-shot event, separate from state.
 - **Backend Interaction:** none. Standalone/on-device only.

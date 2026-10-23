@@ -19,10 +19,17 @@ interface TransactionDao {
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun deleteById(id: String)
 
+    @Query("DELETE FROM transactions WHERE gmfMovementId = :movementId")
+    suspend fun deleteByGmfMovementId(movementId: String)
+
+    @Transaction
+    @Query("SELECT * FROM transactions WHERE gmfMovementId = :movementId")
+    fun findGmfTaxOf(movementId: String): Flow<TransactionWithTagIds?>
+
     @Query(
         """
         SELECT t.*, c.name AS categoryName, a.name AS accountName, tr.id IS NOT NULL AS isTransfer,
-            a.type AS accountType
+            t.gmfMovementId IS NOT NULL AS isGmfTax, a.type AS accountType
         FROM transactions t
         JOIN categories c ON t.categoryId = c.id
         JOIN accounts a ON t.accountId = a.id

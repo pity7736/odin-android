@@ -5,6 +5,7 @@ import dev.raiseexception.odin.accounting.application.usecase.TransactionDeleter
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.accounting.domain.model.AccountType
+import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.TransactionDetail
 import dev.raiseexception.odin.shared.domain.FailureRecorder
@@ -117,6 +118,7 @@ class TransactionDetailViewModel(
         val transaction = detail.transaction
         val isIncome = transaction is Income
         val prefix = if (isIncome) "+" else "-"
+        val gmfTax = (transaction as? Expense)?.gmfTax
         return TransactionDetailUiState.Content(
             formattedAmount = "$prefix${formatMoney(transaction.amount)}",
             amountColor = if (isIncome) IncomeGreen else ExpenseRed,
@@ -126,8 +128,10 @@ class TransactionDetailViewModel(
             description = transaction.description,
             isIncome = isIncome,
             typeLabel = this.typeLabel(detail),
-            isEditable = !detail.isTransfer,
+            isEditable = !detail.isTransfer && !detail.isGmfTax,
             tagNames = detail.tags.map { it.name },
+            gmfTaxAmount = gmfTax?.let { formatMoney(it.amount) },
+            gmfTaxId = gmfTax?.id,
         )
     }
 

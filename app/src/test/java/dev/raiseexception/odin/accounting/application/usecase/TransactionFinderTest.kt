@@ -41,6 +41,7 @@ class TransactionFinderTest {
             categoryName = "Salario",
             accountName = "Ahorros",
             isTransfer = false,
+            isGmfTax = false,
             accountType = AccountType.SAVINGS,
             tags = emptyList()
         )

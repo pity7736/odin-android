@@ -12,8 +12,11 @@ class Expense internal constructor(
     override val categoryId: String,
     override val description: String,
     override val createdAt: Instant,
-    val tagIds: List<String>
+    val tagIds: List<String>,
+    val gmfTax: Expense?
 ) : Transaction {
+
+    override fun withGmfTax(): List<Expense> = listOfNotNull(this, this.gmfTax)
 
     companion object {
         const val MAX_TAGS = 5
@@ -28,7 +31,8 @@ class Expense internal constructor(
             categoryId: String,
             description: String,
             createdAt: Instant,
-            tagIds: List<String>
+            tagIds: List<String>,
+            gmfTax: Expense?
         ): Expense = Expense(
             id = id,
             accountId = accountId,
@@ -37,7 +41,8 @@ class Expense internal constructor(
             categoryId = categoryId,
             description = description,
             createdAt = createdAt,
-            tagIds = tagIds
+            tagIds = tagIds,
+            gmfTax = gmfTax
         )
 
         internal fun validateTagCount(uniqueTagIds: List<String>): String? =

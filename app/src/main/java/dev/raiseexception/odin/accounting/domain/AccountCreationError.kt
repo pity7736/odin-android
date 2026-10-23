@@ -8,14 +8,16 @@ sealed class AccountCreationError(
 ) : DomainError {
 
     @Suppress("LongParameterList")
-    class InvalidInput(
+    data class InvalidInput(
         val nameError: String?,
         val balanceError: String?,
         val currencyError: String?,
         val typeError: String?,
         val descriptionError: String?,
         val creditLimitError: String? = null,
-        val debtError: String? = null
+        val debtError: String? = null,
+        val gmfCategoryError: String? = null,
+        val gmfTagsError: String? = null
     ) : AccountCreationError(
         internalMessage = "One or more account fields are invalid",
         externalMessage = "Revisa los datos de la cuenta"

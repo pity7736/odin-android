@@ -61,6 +61,7 @@ fun TagField(
     onConfirm: () -> Unit,
     onSuggestionPicked: (Tag) -> Unit,
     onRemove: (Int) -> Unit,
+    label: String = "Etiquetas",
 ) {
     var isFocused by remember { mutableStateOf(false) }
     var isDismissed by remember { mutableStateOf(false) }
@@ -79,7 +80,7 @@ fun TagField(
             .bringIntoViewRequester(bringIntoViewRequester),
     ) {
         Text(
-            text = "Etiquetas",
+            text = label,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             color = Slate800,

@@ -128,7 +128,8 @@ class EditIncomeViewModelTest {
             categoryId = "cat-food",
             description = "",
             createdAt = Instant.parse("2026-03-10T12:00:00Z"),
-            tagIds = emptyList()
+            tagIds = emptyList(),
+            gmfTax = null
         )
         every { transactionFinder.find(incomeId) } returns flowOf(Outcome.Success(detail(transaction = expense)))
         assertLoadsNotFound()
@@ -293,6 +294,7 @@ class EditIncomeViewModelTest {
             "Salario",
             "Ahorros",
             isTransfer = isTransfer,
+            isGmfTax = false,
             accountType = AccountType.SAVINGS,
             tags = emptyList()
         )

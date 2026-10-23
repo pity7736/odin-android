@@ -124,11 +124,22 @@ class RoomAccountRepository(
             emptyList()
         }
         val expenses = if (criteria.includeExpenses) {
-            transactions.filter { it.transaction.type == "EXPENSE" }.map { it.transaction.toExpense(it.tagIds) }
+            this.movementsWithGmfTax(transactions.filter { it.transaction.type == "EXPENSE" })
         } else {
             emptyList()
         }
         return Pair(incomes, expenses)
+    }
+
+    private fun movementsWithGmfTax(expenseRows: List<TransactionWithTagIds>): List<Expense> {
+        val (gmfTaxRows, movementRows) = expenseRows.partition { it.transaction.gmfMovementId != null }
+        val gmfTaxesByMovementId = gmfTaxRows.associateBy(
+            { row -> row.transaction.gmfMovementId },
+            { row -> row.transaction.toExpense(row.tagIds, null) }
+        )
+        return movementRows.map { row ->
+            row.transaction.toExpense(row.tagIds, gmfTaxesByMovementId[row.transaction.id])
+        }
     }
 
     private fun notFoundError(id: String): Outcome.Failure =

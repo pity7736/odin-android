@@ -29,6 +29,7 @@ import dev.raiseexception.odin.shared.presentation.AmountField
 import dev.raiseexception.odin.shared.presentation.CategoryAutocomplete
 import dev.raiseexception.odin.shared.presentation.DatePickerField
 import dev.raiseexception.odin.shared.presentation.EditFormLoading
+import dev.raiseexception.odin.shared.presentation.GmfTaxLine
 import dev.raiseexception.odin.shared.presentation.OdinField
 import dev.raiseexception.odin.shared.presentation.ReadOnlyAccount
 import dev.raiseexception.odin.shared.presentation.SaveAction
@@ -37,7 +38,6 @@ import dev.raiseexception.odin.shared.presentation.TagField
 import dev.raiseexception.odin.shared.presentation.TransactionNotFound
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureDialogHost
-import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.shared.presentation.resolveCategoryInput
 import dev.raiseexception.odin.ui.theme.Slate600
 import dev.raiseexception.odin.ui.theme.Slate900
@@ -47,7 +47,7 @@ import kotlinx.coroutines.flow.Flow
 @Composable
 fun EditExpenseScreen(
     uiState: EditExpenseUiState,
-    onSave: (String, String, CategoryInput, String) -> Unit,
+    onSave: (String, CategoryInput, String) -> Unit,
     navigationEvent: Flow<Unit>,
     unexpectedFailureEvent: Flow<Unit>,
     onRetry: () -> Unit,
@@ -58,6 +58,7 @@ fun EditExpenseScreen(
     onAddTag: () -> Unit = {},
     onTagPicked: (Tag) -> Unit = {},
     onTagRemoved: (Int) -> Unit = {},
+    onAmountChange: (String) -> Unit = {},
 ) {
     LaunchedEffect(Unit) {
         navigationEvent.collect { onSaved() }
@@ -75,6 +76,7 @@ fun EditExpenseScreen(
             onAddTag = onAddTag,
             onTagPicked = onTagPicked,
             onTagRemoved = onTagRemoved,
+            onAmountChange = onAmountChange,
             modifier = modifier,
         )
     }
@@ -83,15 +85,15 @@ fun EditExpenseScreen(
 @Composable
 private fun EditExpenseForm(
     editing: EditExpenseUiState.Editing,
-    onSave: (String, String, CategoryInput, String) -> Unit,
+    onSave: (String, CategoryInput, String) -> Unit,
     onCancel: () -> Unit,
     onTagTextChange: (String) -> Unit,
     onAddTag: () -> Unit,
     onTagPicked: (Tag) -> Unit,
     onTagRemoved: (Int) -> Unit,
+    onAmountChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var amount by rememberSaveable { mutableStateOf(editing.amount.replace('.', ',')) }
     var rawDate by rememberSaveable { mutableStateOf(editing.date) }
     var categoryText by rememberSaveable { mutableStateOf(editing.categoryName) }
     var selectedCategoryId by rememberSaveable { mutableStateOf(editing.categoryId) }
@@ -116,12 +118,13 @@ private fun EditExpenseForm(
         ReadOnlyAccount(editing.accountName)
         Spacer(modifier = Modifier.height(16.dp))
         AmountField(
-            value = amount,
-            onValueChange = { amount = it },
+            value = editing.amount,
+            onValueChange = onAmountChange,
             label = "Monto",
             testTag = "amount_field",
             errorMessage = editing.amountError,
         )
+        GmfTaxLine(editing.gmfTaxLine)
         Spacer(modifier = Modifier.height(16.dp))
         DatePickerField(rawDate, { rawDate = it }, editing.dateError, editing.accountCreatedAt)
         Spacer(modifier = Modifier.height(16.dp))
@@ -158,7 +161,7 @@ private fun EditExpenseForm(
         )
         Spacer(modifier = Modifier.height(24.dp))
         SaveAction(isSaving = editing.isSaving) {
-            onSave(amountInputToRaw(amount), rawDate, categoryInput, description)
+            onSave(rawDate, categoryInput, description)
         }
         SaveErrorMessage(editing.saveError)
         TextButton(

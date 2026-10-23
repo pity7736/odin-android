@@ -6,8 +6,10 @@ import androidx.test.core.app.ApplicationProvider
 import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
+import dev.raiseexception.odin.accounting.application.usecase.CategoryResolver
 import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
+import dev.raiseexception.odin.accounting.application.usecase.GmfInput
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.application.usecase.TagResolver
 import dev.raiseexception.odin.accounting.application.usecase.TransactionDeleter
@@ -71,7 +73,11 @@ class TransactionDeletionIntegrationTest {
         val categoryCreator = CategoryCreator(categoryRepository)
         val transactionFinder = TransactionFinder(RoomTransactionRepository(transactionDao, database.tagDao()))
         tagRepository = RoomTagRepository(database.tagDao())
-        accountCreator = AccountCreator(accountRepository)
+        accountCreator = AccountCreator(
+            accountRepository,
+            CategoryResolver(categoryRepository, categoryCreator),
+            transactionRunner
+        )
         accountFinder = AccountFinder(accountRepository)
         expenseCreator = ExpenseCreator(
             accountRepository = accountRepository,
@@ -189,7 +195,14 @@ class TransactionDeletionIntegrationTest {
 
     private suspend fun createAccount(initialBalance: String): Account = (
         this.accountCreator.create(
-            CreateAccountCommand.MoneyAccount("Ahorros", initialBalance, Currency.COP, MoneyAccountKind.SAVINGS, "")
+            CreateAccountCommand.MoneyAccount(
+                "Ahorros",
+                initialBalance,
+                Currency.COP,
+                MoneyAccountKind.SAVINGS,
+                "",
+                GmfInput.Exempt
+            )
         ) as Outcome.Success
         ).value
 

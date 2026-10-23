@@ -16,6 +16,8 @@ sealed interface TransactionDetailUiState {
         val isEditable: Boolean,
         val tagNames: List<String> = emptyList(),
         val isDeleting: Boolean = false,
+        val gmfTaxAmount: String? = null,
+        val gmfTaxId: String? = null,
     ) : TransactionDetailUiState
     data object NotFound : TransactionDetailUiState
     data class Error(val message: String) : TransactionDetailUiState

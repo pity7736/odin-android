@@ -3,6 +3,7 @@ package dev.raiseexception.odin.accounting.domain.model
 import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
+import dev.raiseexception.odin.testutil.ExpenseBuilder
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -16,6 +17,21 @@ import org.junit.Test
 import java.math.BigDecimal
 
 class ExpenseTest {
+
+    @Test
+    fun `given Mercado with its tax, when listing it with its tax, then Mercado followed by its tax`() {
+        val tax = ExpenseBuilder().id("tax-1").amount("400").build()
+        val mercado = ExpenseBuilder().id("mercado").amount("100000").gmfTax(tax).build()
+
+        assertEquals(listOf(mercado, tax), mercado.withGmfTax())
+    }
+
+    @Test
+    fun `given an expense without a tax, when listing it with its tax, then only the expense`() {
+        val almuerzo = ExpenseBuilder().id("almuerzo").build()
+
+        assertEquals(listOf(almuerzo), almuerzo.withGmfTax())
+    }
 
     private val fixedInstant = Instant.parse("2026-08-29T12:00:00Z")
     private val fixedClock = object : Clock {
@@ -40,6 +56,8 @@ class ExpenseTest {
             categoryId = "cat-1",
             description = "Mercado",
             tagIds = emptyList(),
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -62,6 +80,8 @@ class ExpenseTest {
             categoryId = "cat-1",
             description = "",
             tagIds = emptyList(),
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -79,6 +99,8 @@ class ExpenseTest {
             categoryId = "cat-1",
             description = "",
             tagIds = emptyList(),
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -94,6 +116,8 @@ class ExpenseTest {
             categoryId = "cat-1",
             description = "",
             tagIds = emptyList(),
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -111,6 +135,8 @@ class ExpenseTest {
             categoryId = "cat-1",
             description = "",
             tagIds = emptyList(),
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -126,6 +152,8 @@ class ExpenseTest {
             categoryId = "cat-1",
             description = "",
             tagIds = emptyList(),
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -141,6 +169,8 @@ class ExpenseTest {
             categoryId = "",
             description = "",
             tagIds = emptyList(),
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -158,6 +188,8 @@ class ExpenseTest {
             categoryId = "cat-1",
             description = "",
             tagIds = emptyList(),
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
 
@@ -185,6 +217,8 @@ class ExpenseTest {
             categoryId = "cat-1",
             description = "",
             tagIds = emptyList(),
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = marchClock
         )
 
@@ -212,10 +246,31 @@ class ExpenseTest {
             categoryId = "cat-1",
             description = "",
             tagIds = emptyList(),
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = marchClock
         )
 
         assertTrue(result is Outcome.Success)
+    }
+
+    @Test
+    fun `given a stored movement with its tax, when restoring it, then it carries that tax`() {
+        val tax = ExpenseBuilder().id("tax-1").amount("400.00").description("4x1000 – Mercado").build()
+
+        val mercado = Expense.restore(
+            id = "mercado-1",
+            accountId = "acc-1",
+            amount = Money.of(BigDecimal("100000"), Currency.COP),
+            date = today,
+            categoryId = "cat-1",
+            description = "Mercado",
+            createdAt = fixedInstant,
+            tagIds = emptyList(),
+            gmfTax = tax
+        )
+
+        assertEquals(tax, mercado.gmfTax)
     }
 
     private fun assertInvalidInput(result: Outcome<Expense>): ExpenseCreationError.InvalidInput {

@@ -33,6 +33,14 @@ class IncomeTest {
     }
 
     @Test
+    fun `given an income, when listing it with its tax, then only the income`() {
+        val outcome = account.createIncome("500.00", today.toString(), "cat-1", "Salario", fixedClock)
+        val salario = (outcome as Outcome.Success).value
+
+        assertEquals(listOf(salario), salario.withGmfTax())
+    }
+
+    @Test
     fun `given a valid income, when created via account, then income has correct fields`() {
         val result = account.createIncome(
             amount = "500.00",

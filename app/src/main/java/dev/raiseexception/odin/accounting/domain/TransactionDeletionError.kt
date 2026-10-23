@@ -19,6 +19,11 @@ sealed class TransactionDeletionError(
         externalMessage: String = "Las transferencias no se pueden eliminar."
     ) : TransactionDeletionError(internalMessage, externalMessage)
 
+    class GmfTaxNotDeletable(
+        internalMessage: String,
+        externalMessage: String = "El 4x1000 no se puede eliminar."
+    ) : TransactionDeletionError(internalMessage, externalMessage)
+
     class StorageFailure(
         internalMessage: String,
         externalMessage: String

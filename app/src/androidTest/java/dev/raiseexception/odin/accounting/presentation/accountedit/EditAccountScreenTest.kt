@@ -1,17 +1,24 @@
 package dev.raiseexception.odin.accounting.presentation.accountedit
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
+import dev.raiseexception.odin.accounting.domain.model.TagInput
+import dev.raiseexception.odin.shared.presentation.SelectedTag
+import dev.raiseexception.odin.shared.presentation.TagSelection
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
@@ -22,7 +29,8 @@ class EditAccountScreenTest {
 
     private fun editing(
         locked: Boolean = false,
-        nameError: String? = null
+        nameError: String? = null,
+        gmfExempt: Boolean = true
     ) = EditAccountUiState.Editing(
         name = "Ahorros",
         initialBalance = "1000.00",
@@ -31,7 +39,13 @@ class EditAccountScreenTest {
         description = "Fondo",
         locked = locked,
         lockedBalanceDisplay = if (locked) "$1.000,00" else null,
-        nameError = nameError
+        nameError = nameError,
+        gmfExempt = gmfExempt,
+        gmfCategoryName = if (gmfExempt) "" else "Impuestos",
+        gmfCategoryId = if (gmfExempt) "" else "cat-impuestos",
+        tagSelection = if (gmfExempt) TagSelection() else TagSelection(
+            selected = listOf(SelectedTag("4x1000", TagInput.Existing("tag-4x1000")))
+        )
     )
 
     @Test
@@ -41,7 +55,7 @@ class EditAccountScreenTest {
                 unexpectedFailureEvent = emptyFlow(),
                 onRetry = {},
                 uiState = editing(locked = false),
-                onSave = { _, _, _, _, _ -> },
+                onSave = { _, _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onSaved = {}
             )
@@ -58,7 +72,7 @@ class EditAccountScreenTest {
                 unexpectedFailureEvent = emptyFlow(),
                 onRetry = {},
                 uiState = editing(locked = true),
-                onSave = { _, _, _, _, _ -> },
+                onSave = { _, _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onSaved = {}
             )
@@ -79,7 +93,7 @@ class EditAccountScreenTest {
                 unexpectedFailureEvent = emptyFlow(),
                 onRetry = {},
                 uiState = editing(nameError = "El nombre es obligatorio."),
-                onSave = { _, _, _, _, _ -> },
+                onSave = { _, _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onSaved = {}
             )
@@ -95,7 +109,7 @@ class EditAccountScreenTest {
                 unexpectedFailureEvent = emptyFlow(),
                 onRetry = {},
                 uiState = EditAccountUiState.NotFound,
-                onSave = { _, _, _, _, _ -> },
+                onSave = { _, _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onSaved = {}
             )
@@ -112,7 +126,7 @@ class EditAccountScreenTest {
                 unexpectedFailureEvent = unexpectedFailures.receiveAsFlow(),
                 onRetry = {},
                 uiState = editing(),
-                onSave = { _, _, _, _, _ -> },
+                onSave = { _, _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onSaved = {},
             )
@@ -133,7 +147,7 @@ class EditAccountScreenTest {
                 unexpectedFailureEvent = emptyFlow(),
                 onRetry = {},
                 uiState = EditAccountUiState.UnexpectedFailure,
-                onSave = { _, _, _, _, _ -> },
+                onSave = { _, _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onSaved = {},
             )
@@ -143,5 +157,75 @@ class EditAccountScreenTest {
         composeTestRule.onNodeWithTag("name_field").assertDoesNotExist()
         composeTestRule.onNodeWithTag("save_button").assertDoesNotExist()
         composeTestRule.onNodeWithTag("not_found_message").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_a_savings_account_in_cop_that_existed_before_when_editing_then_the_exempt_option_is_on() {
+        setScreen(editing())
+        composeTestRule.onNodeWithText("Exenta de 4x1000").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("gmf_exempt_switch").assertIsOn()
+        composeTestRule.onNodeWithText("Categoría del 4x1000").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_Ahorros_not_exempt_when_editing_then_the_tax_category_and_tag_are_filled_in() {
+        setScreen(editing(gmfExempt = false))
+        composeTestRule.onNodeWithTag("gmf_exempt_switch").assertIsOff()
+        composeTestRule.onNodeWithTag("category_field").assertTextContains("Impuestos")
+        composeTestRule.onNodeWithText("4x1000").assertIsDisplayed()
+    }
+
+    @Test
+    fun given_a_cash_account_when_editing_then_the_exempt_option_is_not_shown() {
+        setScreen(editing().copy(kind = MoneyAccountKind.CASH))
+        composeTestRule.onNodeWithText("Exenta de 4x1000").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_the_kind_chip_when_clicked_then_the_event_is_sent() {
+        var selectedKind: MoneyAccountKind? = null
+        composeTestRule.setContent {
+            EditAccountScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
+                uiState = editing(),
+                onSave = { _, _, _, _ -> },
+                navigationEvent = emptyFlow(),
+                onSaved = {},
+                events = EditAccountEvents(onKindSelected = { selectedKind = it })
+            )
+        }
+        composeTestRule.onNodeWithTag("type_option_CASH").performClick()
+        assertEquals(MoneyAccountKind.CASH, selectedKind)
+    }
+
+    @Test
+    fun given_Ahorros_not_exempt_when_saving_then_the_tax_category_is_sent() {
+        var captured: CategoryInput? = null
+        composeTestRule.setContent {
+            EditAccountScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
+                uiState = editing(gmfExempt = false),
+                onSave = { _, _, _, gmfCategoryInput -> captured = gmfCategoryInput },
+                navigationEvent = emptyFlow(),
+                onSaved = {}
+            )
+        }
+        composeTestRule.onNodeWithTag("save_button").performClick()
+        assertEquals(CategoryInput.New("Impuestos"), captured)
+    }
+
+    private fun setScreen(uiState: EditAccountUiState) {
+        composeTestRule.setContent {
+            EditAccountScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
+                uiState = uiState,
+                onSave = { _, _, _, _ -> },
+                navigationEvent = emptyFlow(),
+                onSaved = {}
+            )
+        }
     }
 }

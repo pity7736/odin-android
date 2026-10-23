@@ -17,8 +17,9 @@ class RoomExpenseRepository(
 
     override suspend fun add(expense: Expense): Outcome<Unit> =
         try {
-            this.transactionDao.insert(expense.toEntity())
+            this.transactionDao.insert(expense.toEntity(gmfMovementId = null))
             this.expenseTagDao.insertAll(expense.toExpenseTagEntities())
+            this.insertGmfTax(expense)
             Outcome.Success(Unit)
         } catch (e: SQLiteException) {
             Outcome.Failure(StorageError(e.message ?: "Failed to add expense"))
@@ -26,9 +27,11 @@ class RoomExpenseRepository(
 
     override suspend fun update(expense: Expense): Outcome<Unit> =
         try {
-            this.transactionDao.update(expense.toEntity())
+            this.transactionDao.update(expense.toEntity(gmfMovementId = null))
             this.expenseTagDao.deleteByExpenseId(expense.id)
             this.expenseTagDao.insertAll(expense.toExpenseTagEntities())
+            this.deleteStoredGmfTaxOf(expense.id)
+            this.insertGmfTax(expense)
             Outcome.Success(Unit)
         } catch (e: SQLiteException) {
             Outcome.Failure(StorageError(e.message ?: "Failed to update expense"))
@@ -36,6 +39,7 @@ class RoomExpenseRepository(
 
     override suspend fun delete(expenseId: String): Outcome<Unit> =
         try {
+            this.deleteStoredGmfTaxOf(expenseId)
             this.expenseTagDao.deleteByExpenseId(expenseId)
             this.transactionDao.deleteById(expenseId)
             Outcome.Success(Unit)
@@ -46,7 +50,7 @@ class RoomExpenseRepository(
     override fun findSpendingBetween(start: LocalDate, end: LocalDate): Flow<Outcome<List<Expense>>> =
         this.transactionDao.findSpendingBetween(start.toString(), end.toString())
             .map<_, Outcome<List<Expense>>> { rows ->
-                Outcome.Success(rows.map { it.transaction.toExpense(it.tagIds) })
+                Outcome.Success(rows.map { it.transaction.toExpense(it.tagIds, null) })
             }
             .catch { e ->
                 if (e is SQLiteException) {
@@ -55,4 +59,15 @@ class RoomExpenseRepository(
                     throw e
                 }
             }
+
+    private suspend fun insertGmfTax(movement: Expense) {
+        val gmfTax = movement.gmfTax ?: return
+        this.transactionDao.insert(gmfTax.toEntity(gmfMovementId = movement.id))
+        this.expenseTagDao.insertAll(gmfTax.toExpenseTagEntities())
+    }
+
+    private suspend fun deleteStoredGmfTaxOf(movementId: String) {
+        this.expenseTagDao.deleteByGmfMovementId(movementId)
+        this.transactionDao.deleteByGmfMovementId(movementId)
+    }
 }

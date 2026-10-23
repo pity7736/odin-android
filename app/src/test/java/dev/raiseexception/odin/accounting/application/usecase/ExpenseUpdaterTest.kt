@@ -12,6 +12,7 @@ import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.Tag
@@ -31,6 +32,7 @@ import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.Clock
@@ -146,6 +148,7 @@ class ExpenseUpdaterTest {
                         "Salario",
                         "Ahorros",
                         isTransfer = false,
+                        isGmfTax = false,
                         accountType = AccountType.SAVINGS,
                         tags = emptyList()
                     )
@@ -166,6 +169,7 @@ class ExpenseUpdaterTest {
                         "Transferencia",
                         "Ahorros",
                         isTransfer = true,
+                        isGmfTax = false,
                         accountType = AccountType.SAVINGS,
                         tags = emptyList()
                     )
@@ -262,7 +266,8 @@ class ExpenseUpdaterTest {
                 categoryId = "cat-food",
                 description = "",
                 createdAt = Instant.parse("2026-03-10T12:00:00Z"),
-                tagIds = emptyList()
+                tagIds = emptyList(),
+                gmfTax = null
             )
             val cardPayment = Income.restore(
                 id = "card-payment",
@@ -290,6 +295,7 @@ class ExpenseUpdaterTest {
                         "Alimentación",
                         "Visa",
                         isTransfer = false,
+                        isGmfTax = false,
                         accountType = AccountType.CREDIT_CARD,
                         tags = emptyList()
                     )
@@ -343,6 +349,7 @@ class ExpenseUpdaterTest {
                         "Alimentación",
                         "Visa",
                         isTransfer = false,
+                        isGmfTax = false,
                         accountType = AccountType.CREDIT_CARD,
                         tags = emptyList()
                     )
@@ -556,6 +563,69 @@ class ExpenseUpdaterTest {
         coVerify(exactly = 0) { tagRepository.deleteUnused() }
     }
 
+    @Test
+    fun `given the details of a tax, when updating it, then returns GmfTaxNotEditable and saves nothing`() =
+        runTest {
+            every { transactionFinder.find(expense.id) } returns flowOf(
+                Outcome.Success(
+                    TransactionDetail(
+                        expense,
+                        "Impuestos",
+                        "Ahorros",
+                        isTransfer = false,
+                        isGmfTax = true,
+                        accountType = AccountType.SAVINGS,
+                        tags = emptyList()
+                    )
+                )
+            )
+            val result = update(categoryInput = CategoryInput.Existing("cat-restaurant"))
+            val error = (result as Outcome.Failure).error
+            assertTrue(error is ExpenseUpdateError.GmfTaxNotEditable)
+            assertEquals("El 4x1000 no se puede editar.", error.externalMessage)
+            coVerify(exactly = 0) { expenseRepository.update(any()) }
+        }
+
+    @Test
+    fun `given Mercado of 100000 with its tax, when editing it to 50000, then saves it with a tax of 200`() =
+        runTest {
+            val ahorros = AccountBuilder()
+                .id("acc-1")
+                .createdAt(Instant.parse("2026-03-01T12:00:00Z"))
+                .initialBalance(Money.of(BigDecimal("1000000"), Currency.COP))
+                .gmf(GmfTreatment.Taxed("cat-impuestos", listOf("4x1000")))
+                .withExpense(amount = "100000", date = "2026-03-10", categoryId = "cat-food", description = "Mercado")
+                .build()
+            val mercado = ahorros.expenses.first()
+            every { transactionFinder.find(mercado.id) } returns flowOf(
+                Outcome.Success(
+                    TransactionDetail(
+                        mercado,
+                        "Alimentación",
+                        "Ahorros",
+                        isTransfer = false,
+                        isGmfTax = false,
+                        accountType = AccountType.SAVINGS,
+                        tags = emptyList()
+                    )
+                )
+            )
+            every { accountFinder.find("acc-1", fullCriteria) } returns flowOf(Outcome.Success(ahorros))
+            every { categoryRepository.findById("cat-restaurant") } returns flowOf(Outcome.Success(expenseCategory))
+            val saved = slot<Expense>()
+            coEvery { expenseRepository.update(capture(saved)) } returns Outcome.Success(Unit)
+            expenseUpdater.update(
+                expenseId = mercado.id,
+                amount = "50000",
+                date = "2026-03-10",
+                categoryInput = CategoryInput.Existing("cat-restaurant"),
+                description = "Mercado",
+                tagInputs = emptyList()
+            )
+            assertEquals(Money.of(BigDecimal("200.00"), Currency.COP), saved.captured.gmfTax!!.amount)
+            assertEquals(mercado.gmfTax!!.id, saved.captured.gmfTax!!.id)
+        }
+
     private fun stubExpenseFound() {
         every { transactionFinder.find(expense.id) } returns flowOf(Outcome.Success(detail()))
         every { accountFinder.find("acc-1", fullCriteria) } returns flowOf(Outcome.Success(account))
@@ -567,6 +637,7 @@ class ExpenseUpdaterTest {
             "Alimentación",
             "Ahorros",
             isTransfer = false,
+            isGmfTax = false,
             accountType = AccountType.SAVINGS,
             tags = emptyList()
         )
@@ -593,7 +664,8 @@ class ExpenseUpdaterTest {
         categoryId = "cat-food",
         description = "",
         createdAt = Instant.parse("${date}T12:00:00Z"),
-        tagIds = emptyList()
+        tagIds = emptyList(),
+        gmfTax = null
     )
 
     private fun invalidInput(result: Outcome<Expense>): ExpenseUpdateError.InvalidInput {

@@ -8,11 +8,14 @@ import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.domain.TransactionRunner
 import kotlinx.coroutines.flow.first
 
 class AccountUpdater(
     private val accountFinder: AccountFinder,
-    private val accountRepository: AccountRepository
+    private val accountRepository: AccountRepository,
+    private val categoryResolver: CategoryResolver,
+    private val transactionRunner: TransactionRunner
 ) {
 
     private val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
@@ -24,23 +27,33 @@ class AccountUpdater(
         initialBalance: String,
         currency: Currency?,
         kind: MoneyAccountKind?,
-        description: String
+        description: String,
+        gmf: GmfInput
     ): Outcome<Account> {
         val findOutcome = this.accountFinder.find(id, this.criteria).first()
         if (findOutcome is Outcome.Failure) return findOutcome
         val existing = (findOutcome as Outcome.Success).value
-        val editOutcome = existing.edit(
-            name = name,
-            initialBalance = this.effectiveBalance(existing, initialBalance),
-            currency = this.effectiveCurrency(existing, currency),
-            kind = kind,
-            description = description
-        )
-        if (editOutcome is Outcome.Failure) return editOutcome
-        val edited = (editOutcome as Outcome.Success).value
-        val duplicateOutcome = this.checkDuplicate(existing, edited)
-        if (duplicateOutcome is Outcome.Failure) return duplicateOutcome
-        return this.persist(edited)
+        return this.transactionRunner.run {
+            val gmfCategory = when (val categoryOutcome = gmf.resolveCategory(this.categoryResolver)) {
+                is Outcome.Success -> categoryOutcome.value
+                is Outcome.Failure -> return@run categoryOutcome
+            }
+            val editOutcome = existing.edit(
+                name = name,
+                initialBalance = this.effectiveBalance(existing, initialBalance),
+                currency = this.effectiveCurrency(existing, currency),
+                kind = kind,
+                description = description,
+                gmf = gmf.treatment(gmfCategory)
+            )
+            val edited = when (editOutcome) {
+                is Outcome.Success -> editOutcome.value
+                is Outcome.Failure -> return@run this.withGmfRejection(editOutcome, gmfCategory)
+            }
+            val duplicateOutcome = this.checkDuplicate(existing, edited)
+            if (duplicateOutcome is Outcome.Failure) return@run duplicateOutcome
+            this.persist(edited)
+        }
     }
 
     private fun effectiveBalance(existing: Account, incoming: String): String =
@@ -55,6 +68,12 @@ class AccountUpdater(
 
     private fun effectiveCurrency(existing: Account, incoming: Currency?): Currency? =
         if (existing.hasTransactions()) existing.currency else incoming
+
+    private fun withGmfRejection(editFailure: Outcome.Failure, gmfCategory: CategoryResolution?): Outcome.Failure {
+        val invalidInput = editFailure.error as? AccountUpdateError.InvalidInput ?: return editFailure
+        val categoryRejection = (gmfCategory as? CategoryResolution.Rejected)?.categoryError ?: return editFailure
+        return Outcome.Failure(invalidInput.copy(gmfCategoryError = categoryRejection))
+    }
 
     private suspend fun checkDuplicate(existing: Account, edited: Account): Outcome<Unit> {
         if (edited.name.equals(existing.name, ignoreCase = true)) return Outcome.Success(Unit)

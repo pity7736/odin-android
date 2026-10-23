@@ -2,6 +2,8 @@ package dev.raiseexception.odin.accounting.infrastructure.repository
 
 import androidx.room.Embedded
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Relation
 import dev.raiseexception.odin.accounting.domain.model.Account
@@ -9,13 +11,25 @@ import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import kotlinx.datetime.Instant
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.Json
 import java.math.BigDecimal
 
-@Entity(tableName = "accounts")
+private val GMF_TAG_NAMES_SERIALIZER = ListSerializer(String.serializer())
+
+@Entity(
+    tableName = "accounts",
+    foreignKeys = [
+        ForeignKey(entity = CategoryEntity::class, parentColumns = ["id"], childColumns = ["gmfCategoryId"])
+    ],
+    indices = [Index("gmfCategoryId")]
+)
 data class AccountEntity(
     @PrimaryKey val id: String,
     val name: String,
@@ -25,7 +39,9 @@ data class AccountEntity(
     val description: String,
     val createdAt: String,
     val creditLimitAmount: String? = null,
-    val debtAmount: String? = null
+    val debtAmount: String? = null,
+    val gmfCategoryId: String? = null,
+    val gmfTagNames: String? = null
 )
 
 data class AccountWithTransactions(
@@ -55,7 +71,17 @@ private fun AccountEntity.toFunding(): AccountFunding = when (AccountType.valueO
 }
 
 private fun AccountEntity.toFunds(kind: MoneyAccountKind): AccountFunding =
-    AccountFunding.Funds(Money.of(BigDecimal(initialBalanceAmount!!), Currency.valueOf(currency)), kind)
+    AccountFunding.Funds(
+        Money.of(BigDecimal(initialBalanceAmount!!), Currency.valueOf(currency)),
+        kind,
+        toGmfTreatment()
+    )
+
+private fun AccountEntity.toGmfTreatment(): GmfTreatment {
+    val categoryId = gmfCategoryId ?: return GmfTreatment.Exempt
+    val tagNames = gmfTagNames?.let { Json.decodeFromString(GMF_TAG_NAMES_SERIALIZER, it) } ?: emptyList()
+    return GmfTreatment.Taxed(categoryId, tagNames)
+}
 
 internal fun Account.toEntity(): AccountEntity = when (val accountFunding = funding) {
     is AccountFunding.Funds -> AccountEntity(
@@ -67,7 +93,11 @@ internal fun Account.toEntity(): AccountEntity = when (val accountFunding = fund
         description = description,
         createdAt = createdAt.toString(),
         creditLimitAmount = null,
-        debtAmount = null
+        debtAmount = null,
+        gmfCategoryId = (accountFunding.gmf as? GmfTreatment.Taxed)?.categoryId,
+        gmfTagNames = (accountFunding.gmf as? GmfTreatment.Taxed)?.let {
+            Json.encodeToString(GMF_TAG_NAMES_SERIALIZER, it.tagNames)
+        }
     )
     is AccountFunding.Credit -> AccountEntity(
         id = id,

@@ -5,7 +5,9 @@ import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.Money
+import dev.raiseexception.odin.accounting.domain.model.TagInput
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
 import dev.raiseexception.odin.accounting.domain.repository.CategoryRepository
@@ -21,6 +23,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.Clock
@@ -30,6 +33,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.math.BigDecimal
@@ -41,6 +45,7 @@ class TransferCreatorTest {
     private val categoryRepository = mockk<CategoryRepository>()
     private val expenseRepository = mockk<ExpenseRepository>()
     private val incomeRepository = mockk<IncomeRepository>()
+    private val tagResolver = mockk<TagResolver>()
     private val transactionRunner = object : TransactionRunner {
         override suspend fun <T> run(block: suspend () -> Outcome<T>): Outcome<T> = block()
     }
@@ -56,6 +61,7 @@ class TransferCreatorTest {
         categoryRepository = categoryRepository,
         expenseRepository = expenseRepository,
         incomeRepository = incomeRepository,
+        tagResolver = tagResolver,
         transactionRunner = transactionRunner,
         clock = fixedClock
     )
@@ -99,7 +105,8 @@ class TransferCreatorTest {
                 sourceAccountId = "src-1",
                 destinationAccountId = "dst-1",
                 amount = "200.00",
-                date = today.toString()
+                date = today.toString(),
+                chargeGmf = true
             )
             assertTrue(result is Outcome.Success)
             coVerify { expenseRepository.add(any()) }
@@ -114,7 +121,8 @@ class TransferCreatorTest {
                 sourceAccountId = "",
                 destinationAccountId = "dst-1",
                 amount = "200.00",
-                date = today.toString()
+                date = today.toString(),
+                chargeGmf = true
             )
             assertTrue(result is Outcome.Failure)
             val error = (result as Outcome.Failure).error
@@ -129,7 +137,8 @@ class TransferCreatorTest {
                 sourceAccountId = "src-1",
                 destinationAccountId = "",
                 amount = "200.00",
-                date = today.toString()
+                date = today.toString(),
+                chargeGmf = true
             )
             assertTrue(result is Outcome.Failure)
             val error = (result as Outcome.Failure).error
@@ -146,7 +155,8 @@ class TransferCreatorTest {
             sourceAccountId = "src-1",
             destinationAccountId = "dst-1",
             amount = "200.00",
-            date = today.toString()
+            date = today.toString(),
+            chargeGmf = true
         )
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is TransferCreationError.StorageFailure)
@@ -164,7 +174,8 @@ class TransferCreatorTest {
             sourceAccountId = "src-1",
             destinationAccountId = "dst-1",
             amount = "200.00",
-            date = today.toString()
+            date = today.toString(),
+            chargeGmf = true
         )
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is TransferCreationError.StorageFailure)
@@ -185,7 +196,8 @@ class TransferCreatorTest {
             sourceAccountId = "src-1",
             destinationAccountId = "src-1",
             amount = "200.00",
-            date = today.toString()
+            date = today.toString(),
+            chargeGmf = true
         )
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error
@@ -213,7 +225,8 @@ class TransferCreatorTest {
             sourceAccountId = "src-1",
             destinationAccountId = "dst-1",
             amount = "200.00",
-            date = today.toString()
+            date = today.toString(),
+            chargeGmf = true
         )
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error
@@ -236,7 +249,8 @@ class TransferCreatorTest {
             sourceAccountId = "src-1",
             destinationAccountId = "dst-1",
             amount = "5000.00",
-            date = today.toString()
+            date = today.toString(),
+            chargeGmf = true
         )
         assertTrue(result is Outcome.Failure)
         val error = (result as Outcome.Failure).error
@@ -260,7 +274,8 @@ class TransferCreatorTest {
                 sourceAccountId = "src-1",
                 destinationAccountId = "dst-1",
                 amount = "200.00",
-                date = today.toString()
+                date = today.toString(),
+                chargeGmf = true
             )
             assertTrue(result is Outcome.Failure)
             assertTrue((result as Outcome.Failure).error is TransferCreationError.TransferCategoryNotFound)
@@ -282,7 +297,8 @@ class TransferCreatorTest {
             sourceAccountId = "src-1",
             destinationAccountId = "dst-1",
             amount = "200.00",
-            date = today.toString()
+            date = today.toString(),
+            chargeGmf = true
         )
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is TransferCreationError.StorageFailure)
@@ -305,7 +321,8 @@ class TransferCreatorTest {
             sourceAccountId = "src-1",
             destinationAccountId = "dst-1",
             amount = "200.00",
-            date = today.toString()
+            date = today.toString(),
+            chargeGmf = true
         )
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is TransferCreationError.StorageFailure)
@@ -329,7 +346,8 @@ class TransferCreatorTest {
             sourceAccountId = "src-1",
             destinationAccountId = "dst-1",
             amount = "200.00",
-            date = today.toString()
+            date = today.toString(),
+            chargeGmf = true
         )
         assertTrue(result is Outcome.Failure)
         assertTrue((result as Outcome.Failure).error is TransferCreationError.StorageFailure)
@@ -344,7 +362,8 @@ class TransferCreatorTest {
             sourceAccountId = "src-1",
             destinationAccountId = "dst-1",
             amount = "200.00",
-            date = today.toString()
+            date = today.toString(),
+            chargeGmf = true
         )
 
         coVerify { accountRepository.findById("dst-1", AccountCriteria(includeIncomes = true, includeExpenses = true)) }
@@ -360,7 +379,8 @@ class TransferCreatorTest {
                 sourceAccountId = "src-1",
                 destinationAccountId = "dst-1",
                 amount = "400.00",
-                date = today.toString()
+                date = today.toString(),
+                chargeGmf = true
             )
 
             val error = (result as Outcome.Failure).error as TransferCreationError.InvalidInput
@@ -380,6 +400,7 @@ class TransferCreatorTest {
                 categoryRepository = categoryRepository,
                 expenseRepository = expenseRepository,
                 incomeRepository = incomeRepository,
+                tagResolver = tagResolver,
                 transactionRunner = recordingRunner,
                 clock = fixedClock
             )
@@ -402,7 +423,8 @@ class TransferCreatorTest {
                 sourceAccountId = "src-1",
                 destinationAccountId = "dst-1",
                 amount = "300.00",
-                date = today.toString()
+                date = today.toString(),
+                chargeGmf = true
             )
 
             assertTrue(result is Outcome.Success)
@@ -428,7 +450,8 @@ class TransferCreatorTest {
                 sourceAccountId = "src-1",
                 destinationAccountId = "dst-1",
                 amount = "300.00",
-                date = "2026-03-10"
+                date = "2026-03-10",
+                chargeGmf = true
             )
 
             assertTrue(result is Outcome.Failure)
@@ -439,6 +462,101 @@ class TransferCreatorTest {
             coVerify(exactly = 0) { transferRepository.add(any()) }
         }
 
+    @Test
+    fun `given a non-exempt source, when transferring charging the tax, then the source expense carries its tax`() =
+        runTest {
+            stubTaxedSource()
+            stubSuccessfulSaves()
+            coEvery { tagResolver.resolve(listOf(TagInput.New("4x1000"))) } returns
+                Outcome.Success(listOf("tag-4x1000"))
+            val savedExpense = slot<Expense>()
+            coEvery { expenseRepository.add(capture(savedExpense)) } returns Outcome.Success(Unit)
+
+            val result = transferCreator.create(
+                sourceAccountId = "src-1",
+                destinationAccountId = "dst-1",
+                amount = "200000",
+                date = today.toString(),
+                chargeGmf = true
+            )
+
+            assertTrue(result is Outcome.Success)
+            val tax = savedExpense.captured.gmfTax!!
+            assertEquals(Money.of(BigDecimal("800.00"), Currency.COP), tax.amount)
+            assertEquals("4x1000 – Transferencia a Efectivo", tax.description)
+            assertEquals(listOf("tag-4x1000"), tax.tagIds)
+        }
+
+    @Test
+    fun `given a non-exempt source, when transferring without charging the tax, then no tax and no tax tags`() =
+        runTest {
+            stubTaxedSource()
+            stubSuccessfulSaves()
+            val savedExpense = slot<Expense>()
+            coEvery { expenseRepository.add(capture(savedExpense)) } returns Outcome.Success(Unit)
+
+            transferCreator.create(
+                sourceAccountId = "src-1",
+                destinationAccountId = "dst-1",
+                amount = "200000",
+                date = today.toString(),
+                chargeGmf = false
+            )
+
+            assertNull(savedExpense.captured.gmfTax)
+            coVerify(exactly = 0) { tagResolver.resolve(any()) }
+        }
+
+    @Test
+    fun `given a non-exempt source, when transferring an amount whose tax is zero, then no tax tags are resolved`() =
+        runTest {
+            stubTaxedSource()
+            stubSuccessfulSaves()
+            val savedExpense = slot<Expense>()
+            coEvery { expenseRepository.add(capture(savedExpense)) } returns Outcome.Success(Unit)
+
+            transferCreator.create(
+                sourceAccountId = "src-1",
+                destinationAccountId = "dst-1",
+                amount = "1.00",
+                date = today.toString(),
+                chargeGmf = true
+            )
+
+            assertNull(savedExpense.captured.gmfTax)
+            coVerify(exactly = 0) { tagResolver.resolve(any()) }
+        }
+
+    @Test
+    fun `given an exempt source, when transferring charging the tax, then no tax tags are resolved`() = runTest {
+        stubAccounts(destinationAccount)
+        stubSuccessfulSaves()
+
+        transferCreator.create(
+            sourceAccountId = "src-1",
+            destinationAccountId = "dst-1",
+            amount = "200.00",
+            date = today.toString(),
+            chargeGmf = true
+        )
+
+        coVerify(exactly = 0) { tagResolver.resolve(any()) }
+    }
+
+    private fun stubTaxedSource() {
+        val ahorros = AccountBuilder()
+            .id("src-1")
+            .name("Ahorros")
+            .initialBalance(Money.of(BigDecimal("1000000"), Currency.COP))
+            .gmf(GmfTreatment.Taxed("cat-impuestos", listOf("4x1000")))
+            .build()
+        every { accountRepository.findById("src-1", fullCriteria) } returns flowOf(Outcome.Success(ahorros))
+        every { accountRepository.findById("dst-1", fullCriteria) } returns flowOf(Outcome.Success(destinationAccount))
+        every {
+            categoryRepository.findByType(CategoryType.TRANSFER)
+        } returns flowOf(Outcome.Success(listOf(transferCategory)))
+    }
+
     private fun cardExpense(amount: String, date: String): Expense = Expense.restore(
         id = "expense-$date",
         accountId = "dst-1",
@@ -447,7 +565,8 @@ class TransferCreatorTest {
         categoryId = "cat-1",
         description = "",
         createdAt = Instant.parse("${date}T12:00:00Z"),
-        tagIds = emptyList()
+        tagIds = emptyList(),
+        gmfTax = null
     )
 
     private fun cardWithSpending() = AccountBuilder()

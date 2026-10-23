@@ -3,9 +3,11 @@ package dev.raiseexception.odin.accounting.application.usecase
 import dev.raiseexception.odin.accounting.domain.CategoryCreationError
 import dev.raiseexception.odin.accounting.domain.ExpenseCreationError
 import dev.raiseexception.odin.accounting.domain.TagResolutionError
+import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.TagInput
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
@@ -50,21 +52,17 @@ class ExpenseCreator(
             )
         }
         return this.transactionRunner.run {
-            val categoryId = when (categoryInput) {
-                is CategoryInput.Existing -> {
-                    val result = this.resolveExistingCategory(categoryInput.categoryId)
-                    if (result is Outcome.Failure) return@run result
-                    (result as Outcome.Success).value
-                }
-                is CategoryInput.New -> {
-                    val result = this.resolveNewCategory(categoryInput.categoryName)
-                    if (result is Outcome.Failure) return@run result
-                    (result as Outcome.Success).value
-                }
+            val categoryId = when (val categoryOutcome = this.resolveCategory(categoryInput)) {
+                is Outcome.Success -> categoryOutcome.value
+                is Outcome.Failure -> return@run categoryOutcome
             }
             val tagIds = when (val tagOutcome = this.resolveTags(tagInputs)) {
                 is Outcome.Success -> tagOutcome.value
                 is Outcome.Failure -> return@run tagOutcome
+            }
+            val gmfTagIds = when (val gmfTagOutcome = this.resolveGmfTags(account, amount)) {
+                is Outcome.Success -> gmfTagOutcome.value
+                is Outcome.Failure -> return@run gmfTagOutcome
             }
             val expense = when (
                 val creationOutcome = account.createExpense(
@@ -73,6 +71,8 @@ class ExpenseCreator(
                     categoryId = categoryId,
                     description = description,
                     tagIds = tagIds,
+                    chargeGmf = true,
+                    gmfTagIds = gmfTagIds,
                     clock = this.clock
                 )
             ) {
@@ -88,6 +88,19 @@ class ExpenseCreator(
                     )
                 )
             }
+        }
+    }
+
+    private suspend fun resolveCategory(categoryInput: CategoryInput): Outcome<String> = when (categoryInput) {
+        is CategoryInput.Existing -> this.resolveExistingCategory(categoryInput.categoryId)
+        is CategoryInput.New -> this.resolveNewCategory(categoryInput.categoryName)
+    }
+
+    private suspend fun resolveGmfTags(account: Account, amount: String): Outcome<List<String>> {
+        if (account.gmfTaxOn(amount).signum() == 0) return Outcome.Success(emptyList())
+        return when (val treatment = account.funding.gmfTreatment) {
+            is GmfTreatment.Exempt -> Outcome.Success(emptyList())
+            is GmfTreatment.Taxed -> this.resolveTags(treatment.tagNames.map { TagInput.New(it) })
         }
     }
 

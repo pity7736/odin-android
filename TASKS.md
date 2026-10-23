@@ -77,6 +77,7 @@ an organization account, so this test is by choice, not a release requirement.
 - [ ] The spending report shows only one total per category for the chosen dates, so the user cannot see how spending in a category changes from one month to the next (e.g. whether food spending is going up)
 - [ ] The spending report cannot be narrowed by tags, so the user cannot see how much went to a specific detail across categories (e.g. everything spent on the car, as opposed to the motorbike, within "Vehículos" and other categories)
 - [ ] App briefly flashes a content screen (e.g. account details) before navigating to login/registration on cold start. `StartupViewModel` check is async and the default navigation route renders before it resolves
+- [ ] An account's type can be changed after it has movements. Savings and cash differ in whether the 4x1000 applies, so changing the type rewrites what the account's history means, while the currency and initial balance are already frozen once the account has movements for the same reason
 
 ## v1.0.0 — Production
 
@@ -113,10 +114,13 @@ Not yet assigned to a version.
 
 - [ ] Expected failures on forms are shown in different ways: the income, expense, and transfer forms replace the whole form with the error text and lose what the user typed, while the other forms show a line under the form that cannot be dismissed
 - [ ] The account, expense, and income edit forms say the item does not exist when loading it fails for a storage reason. `EditAccountViewModel`, `EditExpenseViewModel`, and `EditIncomeViewModel` map every load failure to `NotFound`
+- [ ] Running `RegistrationRetryTest` deletes the app's real data on the device. `DatabaseProvider` hardcodes the database name `odin_db`, so the test registers on the real database and its cleanup deletes it, while it clears only its own salt store and leaves the app's salt behind. Afterwards the app still opens on login, and logging in with the real password fails with "Algo salió mal. Intente de nuevo más tarde" because the recreated database has no user
 - [ ] Login says "Contraseña incorrecta" when the encrypted database cannot be opened because its native library failed to load. `UserAuthenticator` maps every vault-unlock failure to invalid credentials, including the `UnsatisfiedLinkError` case returned by `DatabaseProvider.unlock()`
 
 ### Improvements / Refactorings
 
+- [ ] Forms do not follow the decided convention for required fields: a required field is marked with an asterisk and an optional one carries no mark. Today required fields (name, amount, date, category, currency, type, the 4x1000 category…) have no mark, while optional ones are labeled "(opcional)" (descriptions, color, the 4x1000 tags), and the expense tags field is optional with no mark at all
+- [ ] Form state kept in ViewModels is lost when Android closes the app in the background. When the user returns, the amount on the expense, expense edit and transfer forms, the type, currency and 4x1000 choice on the account forms, the tags selected on the expense forms, the account selected on the home income and expense forms, and the accounts selected on the transfer form are empty or back to their defaults, while the fields kept in the screen (date, category, description, name) come back. No ViewModel uses saved state
 - [ ] Saves are not safe to repeat. A save that fails after being stored is stored again if the user submits the form a second time, and because of this saving, logging in, and registering cannot have a time limit: a hung save keeps its spinner until the app is closed
 - [ ] `docs/05-code-standards.md` §2.3.1 allows `@Suppress("LongParameterList")` only on constructors, but screen composables take their state plus one callback per action and suppress it on the function (or file-wide) in most screens; the written rule and the practice disagree
 - [ ] Tests build standalone expenses and transaction details by hand. There is no test builder for `Expense` or `TransactionDetail`, so 32 call sites across 14 test files call `Expense.restore(...)` / `TransactionDetail(...)` directly with every field spelled out, against the builder-helper rule in `docs/05-code-standards.md` §3.5. Every new field on these types forces edits in all of them
@@ -130,7 +134,12 @@ Not yet assigned to a version.
 - [ ] `ExpenseCreator` and `IncomeCreator` read account balance outside the database transaction (`findById().first()` before `transactionRunner.run {}`). Two concurrent creations could both pass validation on stale balance. Move the read inside the transaction to guarantee consistency
 - [ ] Compose screen tests only run on an emulator (`src/androidTest`), which is slow and fragile: runs fail for emulator reasons unrelated to the code, and an implementation session once spent over an hour chasing such failures. As a result, implementers can only compile these tests, never run them, so screen-level spec scenarios go unverified until a manual run. Robolectric is already a test dependency and runs the Room tests on the JVM, but screen tests do not use it
 - [ ] An income's or an expense's description has no length limit, so a description of any length is saved, while account and category descriptions are limited to 500 characters
+
+### Performance
+
 - [ ] `RoomAccountRepository.getAll()` with transactions loads every transaction row into memory via `@Relation` just to compute balances. A SQL `SUM(amount) GROUP BY type` query would return balance directly without loading individual rows — matters when accounts accumulate hundreds of transactions
+- [ ] The transaction details watch a third query, for the movement's 4x1000, on every details screen, including incomes and 4x1000 entries that can never have one. `RoomTransactionRepository.findById` combines `findDetailById`, the tag query and `findGmfTaxOf`, so every write to `transactions` re-runs one more query for each open details screen
+- [ ] Reading an account's expenses builds a new list every time. `Account.expenses` flattens each expense with its 4x1000 on each access, and `transactions`, `balance` and the spending ceiling read it, so lists, the home summary and every validation rebuild the same list repeatedly
 
 ## Unlikely situations
 

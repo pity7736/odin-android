@@ -54,7 +54,7 @@ class CreateExpenseScreenTest {
                     categories = listOf(expenseCategory),
                     accountCreatedAt = LocalDate(2026, 1, 1)
                 ),
-                onSave = { _, _, _, _ -> },
+                onSave = { _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onNavigateBack = {}
             )
@@ -77,9 +77,8 @@ class CreateExpenseScreenTest {
                     categories = listOf(expenseCategory),
                     accountCreatedAt = LocalDate(2026, 1, 1)
                 ),
-                onSave = { amount, _, _, _ ->
-                    capturedAmount = amount
-                },
+                onSave = { _, _, _ -> },
+                onAmountChange = { amount -> capturedAmount = amount },
                 navigationEvent = emptyFlow(),
                 onNavigateBack = {}
             )
@@ -88,7 +87,7 @@ class CreateExpenseScreenTest {
         composeTestRule.onNodeWithTag("category_field").performClick()
         composeTestRule.onNodeWithTag("category_option_${expenseCategory.id}").performClick()
         composeTestRule.onNodeWithTag("save_button").performClick()
-        org.junit.Assert.assertEquals("500.00", capturedAmount)
+        org.junit.Assert.assertEquals("500,00", capturedAmount)
     }
 
     @Test
@@ -104,7 +103,7 @@ class CreateExpenseScreenTest {
                     dateError = null,
                     categoryError = null
                 ),
-                onSave = { _, _, _, _ -> },
+                onSave = { _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onNavigateBack = {}
             )
@@ -125,7 +124,7 @@ class CreateExpenseScreenTest {
                     dateError = "La fecha debe ser hoy o en el pasado.",
                     categoryError = null
                 ),
-                onSave = { _, _, _, _ -> },
+                onSave = { _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onNavigateBack = {}
             )
@@ -146,7 +145,7 @@ class CreateExpenseScreenTest {
                     dateError = null,
                     categoryError = "La categoría es obligatoria."
                 ),
-                onSave = { _, _, _, _ -> },
+                onSave = { _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onNavigateBack = {}
             )
@@ -264,7 +263,7 @@ class CreateExpenseScreenTest {
                 unexpectedFailureEvent = emptyFlow(),
                 onRetry = {},
                 uiState = uiState,
-                onSave = { _, _, _, _ -> },
+                onSave = { _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onNavigateBack = {}
             )
@@ -291,7 +290,7 @@ class CreateExpenseScreenTest {
                     tags = listOf(nalaTag, comidaTag),
                     tagSelection = tagSelection
                 ),
-                onSave = { _, _, _, _ -> },
+                onSave = { _, _, _ -> },
                 onTagTextChange = onTagTextChange,
                 onAddTag = onAddTag,
                 onTagPicked = onTagPicked,
@@ -310,7 +309,7 @@ class CreateExpenseScreenTest {
                 unexpectedFailureEvent = unexpectedFailures.receiveAsFlow(),
                 onRetry = {},
                 uiState = CreateExpenseUiState.Idle(categories = listOf(expenseCategory), accountCreatedAt = LocalDate(2026, 1, 1)),
-                onSave = { _, _, _, _ -> },
+                onSave = { _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onNavigateBack = {},
             )
@@ -331,7 +330,7 @@ class CreateExpenseScreenTest {
                 unexpectedFailureEvent = emptyFlow(),
                 onRetry = {},
                 uiState = CreateExpenseUiState.UnexpectedFailure,
-                onSave = { _, _, _, _ -> },
+                onSave = { _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onNavigateBack = {},
             )
@@ -341,5 +340,41 @@ class CreateExpenseScreenTest {
         composeTestRule.onNodeWithTag("amount_field").assertDoesNotExist()
         composeTestRule.onNodeWithTag("save_button").assertDoesNotExist()
         composeTestRule.onNodeWithTag("loading_indicator").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_a_tax_line_in_the_state_when_displayed_then_it_is_shown_under_the_amount() {
+        composeTestRule.setContent {
+            CreateExpenseScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
+                uiState = CreateExpenseUiState.Idle(
+                    categories = listOf(expenseCategory),
+                    accountCreatedAt = LocalDate(2026, 1, 1),
+                    amount = "100000",
+                    gmfTaxLine = "4x1000: $400,00"
+                ),
+                onSave = { _, _, _ -> },
+                navigationEvent = emptyFlow(),
+                onNavigateBack = {}
+            )
+        }
+        composeTestRule.onNodeWithText("100.000").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("gmf_tax_line").assertTextContains("4x1000: $400,00")
+    }
+
+    @Test
+    fun given_no_tax_line_in_the_state_when_displayed_then_no_tax_line_is_shown() {
+        composeTestRule.setContent {
+            CreateExpenseScreen(
+                unexpectedFailureEvent = emptyFlow(),
+                onRetry = {},
+                uiState = CreateExpenseUiState.Idle(categories = listOf(expenseCategory), amount = "1,00"),
+                onSave = { _, _, _ -> },
+                navigationEvent = emptyFlow(),
+                onNavigateBack = {}
+            )
+        }
+        composeTestRule.onNodeWithTag("gmf_tax_line").assertDoesNotExist()
     }
 }

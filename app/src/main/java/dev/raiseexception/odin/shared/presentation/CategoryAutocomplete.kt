@@ -1,4 +1,4 @@
-@file:Suppress("LongMethod")
+@file:Suppress("LongMethod", "LongParameterList")
 
 package dev.raiseexception.odin.shared.presentation
 
@@ -40,6 +40,7 @@ fun CategoryAutocomplete(
     onCategoryTextChange: (String) -> Unit,
     onSuggestionSelected: (Category) -> Unit,
     errorMessage: String?,
+    label: String = "Categoría",
 ) {
     val suggestions = categories.filter { it.name.contains(categoryText.trim(), ignoreCase = true) }
     var isFocused by remember { mutableStateOf(false) }
@@ -48,7 +49,7 @@ fun CategoryAutocomplete(
     LaunchedEffect(errorMessage) { justSelected = false }
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = "Categoría",
+            text = label,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             color = Slate800,

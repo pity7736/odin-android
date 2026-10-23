@@ -11,14 +11,22 @@ class AccountFundingTest {
 
     @Test
     fun `given funds funding, when reading its currency, then returns the initial balance currency`() {
-        val funding = AccountFunding.Funds(Money.of(BigDecimal("1000.00"), Currency.COP), MoneyAccountKind.SAVINGS)
+        val funding = AccountFunding.Funds(
+            Money.of(BigDecimal("1000.00"), Currency.COP),
+            MoneyAccountKind.SAVINGS,
+            GmfTreatment.Exempt
+        )
 
         assertEquals(Currency.COP, funding.currency)
     }
 
     @Test
     fun `given funds funding, when computing its balance, then returns the initial balance`() {
-        val funding = AccountFunding.Funds(Money.of(BigDecimal("1000.00"), Currency.COP), MoneyAccountKind.SAVINGS)
+        val funding = AccountFunding.Funds(
+            Money.of(BigDecimal("1000.00"), Currency.COP),
+            MoneyAccountKind.SAVINGS,
+            GmfTreatment.Exempt
+        )
 
         assertEquals(Money.of(BigDecimal("1000.00"), Currency.COP), funding.balance(emptyList(), emptyList()))
     }
@@ -131,7 +139,7 @@ class AccountFundingTest {
 
     @Test
     fun `given a money account, when any amount comes in, then no error`() {
-        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS)
+        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS, GmfTreatment.Exempt)
 
         assertNull(funding.validateIncomingAmount(BigDecimal("999999999"), emptyList(), emptyList()))
     }
@@ -155,21 +163,21 @@ class AccountFundingTest {
 
     @Test
     fun `given a money account, when editing an expense to any amount, then no error`() {
-        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS)
+        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS, GmfTreatment.Exempt)
 
         assertNull(funding.validateEditedExpenseAmount(BigDecimal("1"), listOf(this.income("400000")), emptyList()))
     }
 
     @Test
     fun `given 0 and an expense of 80000, when editing an income to 80000, then no error`() {
-        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS)
+        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS, GmfTreatment.Exempt)
 
         assertNull(funding.validateEditedIncomeAmount(BigDecimal("80000"), emptyList(), listOf(this.expense("80000"))))
     }
 
     @Test
     fun `given 0 and an expense of 80000, when editing an income to one cent less, then saldo error`() {
-        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS)
+        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS, GmfTreatment.Exempt)
 
         assertEquals(
             "El saldo de la cuenta no puede quedar negativo.",
@@ -179,7 +187,7 @@ class AccountFundingTest {
 
     @Test
     fun `given 0 and an expense of 80000, when editing an income to 150000, then no error`() {
-        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS)
+        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS, GmfTreatment.Exempt)
 
         assertNull(funding.validateEditedIncomeAmount(BigDecimal("150000"), emptyList(), listOf(this.expense("80000"))))
     }
@@ -204,7 +212,7 @@ class AccountFundingTest {
 
     @Test
     fun `given a money account, when asking what can be spent, then balance and a saldo message`() {
-        val funding = AccountFunding.Funds(this.pesos("1000000.00"), MoneyAccountKind.SAVINGS)
+        val funding = AccountFunding.Funds(this.pesos("1000000.00"), MoneyAccountKind.SAVINGS, GmfTreatment.Exempt)
         val expenses = listOf(this.expense("200000"))
         val incomes = listOf(this.income("50000"))
 
@@ -214,14 +222,14 @@ class AccountFundingTest {
 
     @Test
     fun `given a money account, when measuring the effect of an income, then it adds the amount`() {
-        val funding = AccountFunding.Funds(this.pesos("1000.00"), MoneyAccountKind.SAVINGS)
+        val funding = AccountFunding.Funds(this.pesos("1000.00"), MoneyAccountKind.SAVINGS, GmfTreatment.Exempt)
 
         assertEquals(BigDecimal("150"), funding.movementEffect(this.income("150")))
     }
 
     @Test
     fun `given a money account, when measuring the effect of an expense, then it subtracts the amount`() {
-        val funding = AccountFunding.Funds(this.pesos("1000.00"), MoneyAccountKind.SAVINGS)
+        val funding = AccountFunding.Funds(this.pesos("1000.00"), MoneyAccountKind.SAVINGS, GmfTreatment.Exempt)
 
         assertEquals(BigDecimal("-300"), funding.movementEffect(this.expense("300")))
     }
@@ -242,21 +250,21 @@ class AccountFundingTest {
 
     @Test
     fun `given a money account, when reading its opening figure, then returns the initial balance`() {
-        val funding = AccountFunding.Funds(this.pesos("50000.00"), MoneyAccountKind.SAVINGS)
+        val funding = AccountFunding.Funds(this.pesos("50000.00"), MoneyAccountKind.SAVINGS, GmfTreatment.Exempt)
 
         assertEquals(BigDecimal("50000.00"), funding.openingFigure())
     }
 
     @Test
     fun `given a money account, when a figure is below zero, then the negative balance phrase`() {
-        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS)
+        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS, GmfTreatment.Exempt)
 
         assertEquals("El saldo de la cuenta quedaría negativo", funding.historyBreachMessage(BigDecimal("-0.01")))
     }
 
     @Test
     fun `given a money account, when a figure is zero, then no breach`() {
-        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS)
+        val funding = AccountFunding.Funds(this.pesos("0.00"), MoneyAccountKind.SAVINGS, GmfTreatment.Exempt)
 
         assertNull(funding.historyBreachMessage(BigDecimal.ZERO))
     }
@@ -296,6 +304,36 @@ class AccountFundingTest {
         assertEquals("La deuda de la tarjeta superaría el cupo", funding.historyBreachMessage(BigDecimal("1000.01")))
     }
 
+    @Test
+    fun `given a non-exempt money account, when computing the tax on 100000, then 400`() {
+        val funding = AccountFunding.Funds(
+            this.pesos("1000000.00"),
+            MoneyAccountKind.SAVINGS,
+            GmfTreatment.Taxed(categoryId = "cat-impuestos", tagNames = listOf("4x1000"))
+        )
+
+        assertEquals(BigDecimal("400.00"), funding.gmfTaxOn(BigDecimal("100000")))
+    }
+
+    @Test
+    fun `given an exempt money account, when computing the tax on 100000, then zero`() {
+        val funding = AccountFunding.Funds(this.pesos("1000000.00"), MoneyAccountKind.SAVINGS, GmfTreatment.Exempt)
+
+        assertEquals(0, funding.gmfTaxOn(BigDecimal("100000")).signum())
+    }
+
+    @Test
+    fun `given a card, when computing the tax on 100000, then zero`() {
+        val funding = this.visaCredit()
+
+        assertEquals(0, funding.gmfTaxOn(BigDecimal("100000")).signum())
+    }
+
+    @Test
+    fun `given a card, when reading its tax treatment, then it is exempt`() {
+        assertEquals(GmfTreatment.Exempt, this.visaCredit().gmfTreatment)
+    }
+
     private fun smallCredit(): AccountFunding.Credit = AccountFunding.Credit(
         creditLimit = this.pesos("1000.00"),
         initialDebt = this.pesos("100.00")
@@ -325,7 +363,8 @@ class AccountFundingTest {
         categoryId = "cat-1",
         description = "",
         createdAt = Instant.parse("2026-03-10T12:00:00Z"),
-        tagIds = emptyList()
+        tagIds = emptyList(),
+        gmfTax = null
     )
 
     private fun income(amount: String): Income = Income.restore(
