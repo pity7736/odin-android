@@ -440,7 +440,8 @@ class TransactionDetailScreenTest {
         uiState: TransactionDetailUiState,
         onDelete: () -> Unit = {},
         deletionMessageEvent: Flow<String> = emptyFlow(),
-        onNavigateToHome: () -> Unit = {}
+        onNavigateToHome: () -> Unit = {},
+        onOpenTransaction: (String) -> Unit = {}
     ) {
         composeTestRule.setContent {
             TransactionDetailScreen(
@@ -455,9 +456,50 @@ class TransactionDetailScreenTest {
                 onNavigateToReports = {},
                 onEditExpense = {},
                 onEditIncome = {},
+                onOpenTransaction = onOpenTransaction,
             )
         }
     }
+
+    @Test
+    fun given_Mercado_with_its_tax_when_displayed_then_shows_the_tax_line() {
+        setDetailContent(mercadoWithTax())
+        composeTestRule.onNodeWithTag("gmf_tax_line").assertIsDisplayed()
+        composeTestRule.onNodeWithText("4x1000: $400,00").assertIsDisplayed()
+    }
+
+    @Test
+    fun given_Mercado_with_its_tax_when_opening_the_tax_line_then_opens_the_details_of_its_tax() {
+        var openedTransactionId: String? = null
+        setDetailContent(mercadoWithTax(), onOpenTransaction = { openedTransactionId = it })
+        composeTestRule.onNodeWithTag("gmf_tax_line").performClick()
+        assertEquals("tax-1", openedTransactionId)
+    }
+
+    @Test
+    fun given_an_expense_without_a_tax_when_displayed_then_no_tax_line_is_shown() {
+        setDetailContent(expenseContent(isEditable = true))
+        composeTestRule.onNodeWithTag("gmf_tax_line").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_Mercado_with_its_tax_when_tapping_delete_then_the_confirmation_mentions_its_tax() {
+        setDetailContent(mercadoWithTax())
+        composeTestRule.onNodeWithTag("delete_transaction_button").performClick()
+        composeTestRule.onNodeWithText(
+            "¿Eliminar este gasto? También se eliminará su 4x1000. Esta acción no se puede deshacer."
+        ).assertIsDisplayed()
+    }
+
+    @Test
+    fun given_the_details_of_a_tax_when_displayed_then_offers_no_way_to_edit_or_delete_it() {
+        setDetailContent(expenseContent(isEditable = false).copy(description = "4x1000 – Mercado"))
+        composeTestRule.onNodeWithTag("edit_transaction_button").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("delete_transaction_button").assertDoesNotExist()
+    }
+
+    private fun mercadoWithTax() =
+        expenseContent(isEditable = true).copy(gmfTaxLine = "4x1000: $400,00", gmfTaxId = "tax-1")
 
     private fun incomeContent(isEditable: Boolean) = TransactionDetailUiState.Content(
         formattedAmount = "+$1.000,00",

@@ -14,6 +14,7 @@ import dev.raiseexception.odin.accounting.domain.model.TransactionDetail
 import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.domain.StorageError
+import dev.raiseexception.odin.testutil.ExpenseBuilder
 import dev.raiseexception.odin.testutil.TagBuilder
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.IncomeGreen
@@ -36,6 +37,8 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -176,6 +179,7 @@ class TransactionDetailViewModelTest {
             categoryName = "Salario",
             accountName = "Ahorros",
             isTransfer = false,
+            isGmfTax = false,
             accountType = AccountType.SAVINGS,
             tags = emptyList()
         )
@@ -322,6 +326,67 @@ class TransactionDetailViewModelTest {
         assertTrue(state.tagNames.isEmpty())
     }
 
+    @Test
+    fun `given Mercado with its tax of 400, when observing, then Content shows the tax line and its id`() = runTest {
+        val content = loadedContent(mercadoDetail(isTransfer = false))
+        assertEquals("4x1000: $400,00", content.gmfTaxLine)
+        assertEquals("tax-1", content.gmfTaxId)
+        assertTrue(content.isEditable)
+    }
+
+    @Test
+    fun `given the outgoing side of a transfer with its tax of 800, when observing, then the tax line shows`() =
+        runTest {
+            val content = loadedContent(mercadoDetail(isTransfer = true, taxAmount = "800.00"))
+            assertEquals("4x1000: $800,00", content.gmfTaxLine)
+            assertEquals("tax-1", content.gmfTaxId)
+        }
+
+    @Test
+    fun `given the incoming side of a transfer, when observing, then no tax line is shown`() = runTest {
+        val content = loadedContent(incomeDetail().copy(isTransfer = true))
+        assertNull(content.gmfTaxLine)
+        assertNull(content.gmfTaxId)
+    }
+
+    @Test
+    fun `given an expense without a tax, when observing, then no tax line is shown`() = runTest {
+        val content = loadedContent(expenseDetail())
+        assertNull(content.gmfTaxLine)
+        assertNull(content.gmfTaxId)
+    }
+
+    @Test
+    fun `given the details of a tax, when observing, then it offers no way to edit or delete it`() = runTest {
+        val content = loadedContent(expenseDetail().copy(isGmfTax = true))
+        assertFalse(content.isEditable)
+    }
+
+    @Test
+    fun `given the details of a tax, when deleting, then nothing happens`() = runTest {
+        every { transactionFinder.find(transactionId) } returns flowOf(
+            Outcome.Success(expenseDetail().copy(isGmfTax = true))
+        )
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.delete()
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 0) { transactionDeleter.delete(any()) }
+    }
+
+    private fun loadedContent(detail: TransactionDetail): TransactionDetailUiState.Content {
+        every { transactionFinder.find(transactionId) } returns flowOf(Outcome.Success(detail))
+        val viewModel = buildViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        return viewModel.uiState.value as TransactionDetailUiState.Content
+    }
+
+    private fun mercadoDetail(isTransfer: Boolean, taxAmount: String = "400.00"): TransactionDetail {
+        val tax = ExpenseBuilder().id("tax-1").amount(taxAmount).description("4x1000 – Mercado").build()
+        val mercado = ExpenseBuilder().id(transactionId).amount("100000").description("Mercado").gmfTax(tax).build()
+        return expenseDetail().copy(transaction = mercado, isTransfer = isTransfer)
+    }
+
     private fun incomeDetail(): TransactionDetail =
         TransactionDetail(
             transaction = Income.restore(
@@ -336,6 +401,7 @@ class TransactionDetailViewModelTest {
             categoryName = "Salario",
             accountName = "Ahorros",
             isTransfer = false,
+            isGmfTax = false,
             accountType = AccountType.SAVINGS,
             tags = emptyList()
         )
@@ -350,11 +416,13 @@ class TransactionDetailViewModelTest {
                 categoryId = "cat-2",
                 description = "Mercado semanal",
                 createdAt = Instant.parse("2026-09-15T10:00:00Z"),
-                tagIds = emptyList()
+                tagIds = emptyList(),
+                gmfTax = null
             ),
             categoryName = "Alimentación",
             accountName = "Efectivo",
             isTransfer = false,
+            isGmfTax = false,
             accountType = AccountType.CASH,
             tags = emptyList()
         )

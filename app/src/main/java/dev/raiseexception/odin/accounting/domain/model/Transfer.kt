@@ -22,6 +22,8 @@ class Transfer private constructor(
             amount: String,
             date: String,
             categoryId: String,
+            chargeGmf: Boolean,
+            gmfTagIds: List<String>,
             clock: Clock = Clock.System
         ): Outcome<Transfer> {
             val preValidationError = validateAccounts(sourceAccount, destinationAccount)
@@ -34,6 +36,8 @@ class Transfer private constructor(
                     categoryId = categoryId,
                     description = expenseDescription,
                     tagIds = emptyList(),
+                    chargeGmf = chargeGmf,
+                    gmfTagIds = gmfTagIds,
                     clock = clock
                 )
             ) {

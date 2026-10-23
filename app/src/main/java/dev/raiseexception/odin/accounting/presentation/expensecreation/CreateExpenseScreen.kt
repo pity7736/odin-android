@@ -37,12 +37,12 @@ import dev.raiseexception.odin.shared.presentation.AccountAutocomplete
 import dev.raiseexception.odin.shared.presentation.AmountField
 import dev.raiseexception.odin.shared.presentation.CategoryAutocomplete
 import dev.raiseexception.odin.shared.presentation.DatePickerField
+import dev.raiseexception.odin.shared.presentation.GmfTaxLine
 import dev.raiseexception.odin.shared.presentation.OdinField
 import dev.raiseexception.odin.shared.presentation.TagField
 import dev.raiseexception.odin.shared.presentation.TagSelection
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureDialogHost
-import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.shared.presentation.resolveCategoryInput
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.Slate50
@@ -58,7 +58,8 @@ import kotlinx.datetime.toLocalDateTime
 @Composable
 fun CreateExpenseScreen(
     uiState: CreateExpenseUiState,
-    onSave: (String, String, CategoryInput, String) -> Unit,
+    onSave: (String, CategoryInput, String) -> Unit,
+    onAmountChange: (String) -> Unit = {},
     onAccountSelected: (String) -> Unit = {},
     onTagTextChange: (String) -> Unit = {},
     onAddTag: () -> Unit = {},
@@ -85,8 +86,15 @@ fun CreateExpenseScreen(
         else -> null
     }
     var lastTagSelection by remember { mutableStateOf(TagSelection()) }
+    val currentAmount = when (uiState) {
+        is CreateExpenseUiState.Idle -> uiState.amount
+        is CreateExpenseUiState.ValidationError -> uiState.amount
+        else -> null
+    }
+    var lastAmount by remember { mutableStateOf("") }
     SideEffect {
         if (currentTagSelection != null) lastTagSelection = currentTagSelection
+        if (currentAmount != null) lastAmount = currentAmount
     }
     when (uiState) {
         is CreateExpenseUiState.UnexpectedFailure -> UnexpectedFailureContent(onRetry = onRetry, modifier = modifier)
@@ -114,6 +122,13 @@ fun CreateExpenseScreen(
                 else -> null
             },
             accountError = (uiState as? CreateExpenseUiState.ValidationError)?.accountError,
+            amount = currentAmount ?: lastAmount,
+            onAmountChange = onAmountChange,
+            gmfTaxLine = when (uiState) {
+                is CreateExpenseUiState.Idle -> uiState.gmfTaxLine
+                is CreateExpenseUiState.ValidationError -> uiState.gmfTaxLine
+                else -> null
+            },
             onAccountSelected = onAccountSelected,
             tagSelection = currentTagSelection ?: lastTagSelection,
             tags = when (uiState) {
@@ -168,6 +183,9 @@ private fun ExpenseForm(
     accounts: List<dev.raiseexception.odin.accounting.domain.model.Account>,
     selectedAccountId: String?,
     accountError: String?,
+    amount: String,
+    onAmountChange: (String) -> Unit,
+    gmfTaxLine: String?,
     onAccountSelected: (String) -> Unit,
     tagSelection: TagSelection,
     tags: List<Tag>,
@@ -177,10 +195,9 @@ private fun ExpenseForm(
     onTagRemoved: (Int) -> Unit,
     validation: CreateExpenseUiState.ValidationError?,
     isSaving: Boolean,
-    onSave: (String, String, CategoryInput, String) -> Unit,
+    onSave: (String, CategoryInput, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var amount by rememberSaveable { mutableStateOf("") }
     var rawDate by rememberSaveable {
         mutableStateOf(Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString())
     }
@@ -216,11 +233,12 @@ private fun ExpenseForm(
         }
         AmountField(
             value = amount,
-            onValueChange = { amount = it },
+            onValueChange = onAmountChange,
             label = "Monto",
             testTag = "amount_field",
             errorMessage = validation?.amountError,
         )
+        GmfTaxLine(gmfTaxLine)
         Spacer(modifier = Modifier.height(16.dp))
         DatePickerField(rawDate, { rawDate = it }, validation?.dateError, accountCreatedAt)
         Spacer(modifier = Modifier.height(16.dp))
@@ -264,7 +282,7 @@ private fun ExpenseForm(
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
             else -> Button(
-                onClick = { onSave(amountInputToRaw(amount), rawDate, categoryInput, description) },
+                onClick = { onSave(rawDate, categoryInput, description) },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Slate800,

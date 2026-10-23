@@ -9,7 +9,8 @@ sealed interface CreateAccountCommand {
         val balance: String,
         val currency: Currency?,
         val kind: MoneyAccountKind?,
-        val description: String
+        val description: String,
+        val gmf: GmfInput
     ) : CreateAccountCommand
 
     data class CreditCard(

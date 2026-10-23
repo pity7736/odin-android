@@ -25,6 +25,7 @@ sealed interface EditExpenseUiState {
         val isSaving: Boolean = false,
         val saveError: String? = null,
         val tags: List<Tag> = emptyList(),
-        val tagSelection: TagSelection = TagSelection()
+        val tagSelection: TagSelection = TagSelection(),
+        val gmfTaxLine: String? = null
     ) : EditExpenseUiState
 }

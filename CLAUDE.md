@@ -47,6 +47,7 @@ cannot read. Built with **Kotlin** and **Jetpack Compose**.
 
 ### Code Standards
 
+- **Fix the root, never work around it.** When existing code makes a change awkward, smelly, or ugly (state in the wrong layer, a workaround function, an extra flag to compensate), find the root cause and improve that code as part of the change. Never pile new code on top of a bad design to avoid touching it — the codebase improves feature after feature.
 - Private by default; expose only what is part of the contract
 - **Prefer immutability:** `val` over `var`; domain models and `UiState` are immutable `data class`es, changed via `.copy()`
 - Class/type names MUST be descriptive

@@ -4,6 +4,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 private const val SCHEMA_VERSION_WITH_TAGS = 3
+private const val SCHEMA_VERSION_WITH_GMF = 4
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -51,5 +52,21 @@ val MIGRATION_2_3 = object : Migration(2, SCHEMA_VERSION_WITH_TAGS) {
                 "FOREIGN KEY(`tagId`) REFERENCES `tags`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )"
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_expense_tags_tagId` ON `expense_tags` (`tagId`)")
+    }
+}
+
+val MIGRATION_3_4 = object : Migration(SCHEMA_VERSION_WITH_TAGS, SCHEMA_VERSION_WITH_GMF) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE `accounts` ADD COLUMN `gmfCategoryId` TEXT " +
+                "REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION"
+        )
+        db.execSQL("ALTER TABLE `accounts` ADD COLUMN `gmfTagNames` TEXT")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_accounts_gmfCategoryId` ON `accounts` (`gmfCategoryId`)")
+        db.execSQL(
+            "ALTER TABLE `transactions` ADD COLUMN `gmfMovementId` TEXT " +
+                "REFERENCES `transactions`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_gmfMovementId` ON `transactions` (`gmfMovementId`)")
     }
 }

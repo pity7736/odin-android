@@ -68,9 +68,18 @@ The `<topic>` is a short kebab-case name describing the change
 Discovery (above) must be complete first.
 
 1. **Plan investigation & discussion** — do this BEFORE writing any plan file.
-   a. **Read the relevant code.** Read `docs/02-architecture.md`,
-      `docs/05-code-standards.md`, the affected features' code and `design.md`
-      files, and any other code the change touches.
+   a. **Read ALL the code the change touches — COMPLETELY, BEFORE the first
+      finding.** This is a GATE, not something done along the way.
+      - Every file the change will create next to or modify, in EVERY layer:
+        domain models, use cases, ViewModels and their `UiState`, screens,
+        repositories, DAOs/entities, migrations, and DI wiring, across every
+        affected feature.
+      - Also `docs/02-architecture.md`, `docs/05-code-standards.md`, and the
+        affected features' `design.md` files.
+      - **Every claim in a finding cites the code it rests on** (file:line plus
+        the quoted snippet). If a finding depends on code not yet read, STOP and
+        read it before presenting the finding — never propose a design over code
+        you have not read.
    b. **Surface findings one at a time.** Present ONE finding, concern, or
       decision point. Wait for the user's response. Do not advance to the next
       finding until the current one is settled. When a finding opens a

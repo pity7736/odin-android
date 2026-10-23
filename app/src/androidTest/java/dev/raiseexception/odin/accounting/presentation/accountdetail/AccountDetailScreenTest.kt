@@ -11,6 +11,7 @@ import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.model.TransactionFilter
@@ -174,7 +175,7 @@ class AccountDetailScreenTest {
         val savingsAccount = Account.restore(
             id = "savings-1",
             name = "Ahorros",
-            funding = AccountFunding.Funds(pesos("1000000.00"), MoneyAccountKind.SAVINGS),
+            funding = AccountFunding.Funds(pesos("1000000.00"), MoneyAccountKind.SAVINGS, GmfTreatment.Exempt),
             description = "",
             createdAt = Instant.parse("2026-09-01T10:00:00Z")
         )
@@ -234,7 +235,8 @@ class AccountDetailScreenTest {
         categoryId = "category-2",
         description = description,
         createdAt = Instant.parse("${date}T10:00:00Z"),
-        tagIds = emptyList()
+        tagIds = emptyList(),
+        gmfTax = null
     )
 
     @Test

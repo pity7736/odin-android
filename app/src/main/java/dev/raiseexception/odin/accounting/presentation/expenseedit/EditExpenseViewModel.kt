@@ -11,12 +11,17 @@ import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Tag
+import dev.raiseexception.odin.accounting.domain.model.gmfTaxOf
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
+import dev.raiseexception.odin.shared.presentation.DEFAULT_DECIMAL_SEPARATOR
 import dev.raiseexception.odin.shared.presentation.RestartableLoad
 import dev.raiseexception.odin.shared.presentation.TagSelection
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureSignal
+import dev.raiseexception.odin.shared.presentation.amountInputToNumber
+import dev.raiseexception.odin.shared.presentation.amountInputToRaw
+import dev.raiseexception.odin.shared.presentation.gmfTaxLineOf
 import dev.raiseexception.odin.shared.presentation.launchObservation
 import dev.raiseexception.odin.shared.presentation.launchOperation
 import kotlinx.coroutines.CoroutineDispatcher
@@ -57,6 +62,8 @@ class EditExpenseViewModel(
 
     private val restartableLoad = RestartableLoad { this.load() }
 
+    private var loadedExpense: Expense? = null
+
     init {
         this.restartableLoad.start()
     }
@@ -66,7 +73,7 @@ class EditExpenseViewModel(
         this.restartableLoad.start()
     }
 
-    fun save(rawAmount: String, rawDate: String, categoryInput: CategoryInput, rawDescription: String) {
+    fun save(rawDate: String, categoryInput: CategoryInput, rawDescription: String) {
         val current = this.mutableUiState.value
         if (current !is EditExpenseUiState.Editing || current.isSaving) return
         val tagSelection = current.tagSelection.withTextAdded(current.tags)
@@ -90,7 +97,7 @@ class EditExpenseViewModel(
                 withContext(this.ioDispatcher) {
                     expenseUpdater.update(
                         expenseId,
-                        rawAmount,
+                        amountInputToRaw(current.amount),
                         rawDate,
                         categoryInput,
                         rawDescription,
@@ -108,6 +115,11 @@ class EditExpenseViewModel(
             is Outcome.Success -> this.navigationChannel.send(Unit)
             is Outcome.Failure -> this.mutableUiState.value = this.mapError(this.savingState(), outcome.error)
         }
+    }
+
+    fun onAmountChanged(amount: String) {
+        val current = this.mutableUiState.value as? EditExpenseUiState.Editing ?: return
+        this.mutableUiState.value = current.copy(amount = amount, gmfTaxLine = this.editedGmfTaxLine(amount))
     }
 
     fun onTagTextChange(text: String) {
@@ -143,13 +155,15 @@ class EditExpenseViewModel(
     private suspend fun loadEditing(): EditExpenseUiState.Editing? {
         val detail = (this.transactionFinder.find(this.expenseId).first() as? Outcome.Success)?.value
         val expense = detail?.transaction as? Expense
-        if (expense == null || detail.isTransfer) return null
+        if (expense == null || detail.isTransfer || detail.isGmfTax) return null
         val account = (this.accountFinder.find(expense.accountId).first() as? Outcome.Success)?.value ?: return null
         val categories = (this.categoryLister.list(CategoryType.EXPENSE, "").first() as? Outcome.Success)?.value
             ?: return null
         val tags = (this.tagLister.list().first() as? Outcome.Success)?.value ?: return null
+        this.loadedExpense = expense
+        val amount = expense.amount.amount.toPlainString().replace('.', DEFAULT_DECIMAL_SEPARATOR)
         return EditExpenseUiState.Editing(
-            amount = expense.amount.amount.toPlainString(),
+            amount = amount,
             date = expense.date.toString(),
             categoryId = expense.categoryId,
             categoryName = detail.categoryName,
@@ -158,8 +172,15 @@ class EditExpenseViewModel(
             accountCreatedAt = account.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date,
             categories = categories,
             tags = tags,
-            tagSelection = TagSelection.of(detail.tags)
+            tagSelection = TagSelection.of(detail.tags),
+            gmfTaxLine = this.editedGmfTaxLine(amount)
         )
+    }
+
+    private fun editedGmfTaxLine(amount: String): String? {
+        val expense = this.loadedExpense?.takeIf { it.gmfTax != null } ?: return null
+        val parsedAmount = amountInputToNumber(amount) ?: return null
+        return gmfTaxLineOf(gmfTaxOf(parsedAmount), expense.amount.currency)
     }
 
     private fun savingState(): EditExpenseUiState.Editing =

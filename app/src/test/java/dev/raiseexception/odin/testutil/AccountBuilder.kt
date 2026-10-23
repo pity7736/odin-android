@@ -4,6 +4,7 @@ import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
@@ -20,6 +21,7 @@ class AccountBuilder {
     private var creditLimit: Money? = null
     private var initialDebt: Money? = null
     private var kind = MoneyAccountKind.SAVINGS
+    private var gmf: GmfTreatment = GmfTreatment.Exempt
     private var description = ""
     private var createdAt = Instant.parse("2026-01-01T00:00:00Z")
     private var incomes: List<Income> = emptyList()
@@ -44,6 +46,11 @@ class AccountBuilder {
 
     fun kind(kind: MoneyAccountKind): AccountBuilder {
         this.kind = kind
+        return this
+    }
+
+    fun gmf(gmf: GmfTreatment): AccountBuilder {
+        this.gmf = gmf
         return this
     }
 
@@ -132,6 +139,8 @@ class AccountBuilder {
                 categoryId = params.categoryId,
                 description = params.description,
                 tagIds = emptyList(),
+                chargeGmf = true,
+                gmfTagIds = emptyList(),
                 clock = params.clock
             )
             (outcome as Outcome.Success).value
@@ -153,7 +162,7 @@ class AccountBuilder {
         return if (limit != null && openingDebt != null) {
             AccountFunding.Credit(limit, openingDebt)
         } else {
-            AccountFunding.Funds(this.initialBalance, this.kind)
+            AccountFunding.Funds(this.initialBalance, this.kind, this.gmf)
         }
     }
 

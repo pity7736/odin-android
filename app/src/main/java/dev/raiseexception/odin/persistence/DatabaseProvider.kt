@@ -37,7 +37,7 @@ class DatabaseProvider(
         val formattedKey = "x'$rawKeyHex'"
         val factory = this.openHelperFactoryProvider(formattedKey.toByteArray())
         val builder = Room.databaseBuilder(this.context, OdinDatabase::class.java, DATABASE_NAME)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
         if (factory != null) {
             builder.openHelperFactory(factory)
         }

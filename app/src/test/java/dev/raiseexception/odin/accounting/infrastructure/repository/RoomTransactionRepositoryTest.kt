@@ -13,10 +13,13 @@ import dev.raiseexception.odin.accounting.domain.model.Tag
 import dev.raiseexception.odin.persistence.OdinDatabase
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
+import dev.raiseexception.odin.testutil.ExpenseBuilder
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -222,6 +225,71 @@ class RoomTransactionRepositoryTest {
                 cancelAndIgnoreRemainingEvents()
             }
         }
+
+    @Test
+    fun `given the tax of Mercado, when finding it, then isGmfTax is true and it has no tax of its own`() = runTest {
+        seedAccountsAndCategories()
+        seedMercadoWithTax()
+        val detail = (repository.findById("tax-1").first() as Outcome.Success).value
+        assertTrue(detail.isGmfTax)
+        assertEquals(listOf("4x1000"), detail.tags.map { it.name })
+        assertNull((detail.transaction as Expense).gmfTax)
+    }
+
+    @Test
+    fun `given Mercado with its tax, when finding Mercado, then its tax is attached`() = runTest {
+        seedAccountsAndCategories()
+        seedMercadoWithTax()
+        val detail = (repository.findById("exp-1").first() as Outcome.Success).value
+        val tax = (detail.transaction as Expense).gmfTax!!
+        assertFalse(detail.isGmfTax)
+        assertEquals("tax-1", tax.id)
+        assertEquals(Money.of(BigDecimal("400.00"), Currency.COP), tax.amount)
+        assertEquals(listOf("tag-4x1000"), tax.tagIds)
+    }
+
+    @Test
+    fun `given the outgoing side of a transfer with its tax, when finding it, then its tax is attached`() = runTest {
+        seedAccountsAndCategories()
+        seedMercadoWithTax()
+        database.transactionDao().insert(transaction("inc-1", "INCOME", "acc-cash", "cat-transfer"))
+        database.transferDao().insert(
+            TransferEntity(id = "tr-1", expenseId = "exp-1", incomeId = "inc-1", createdAt = "2026-08-01T10:00:00Z")
+        )
+        val detail = (repository.findById("exp-1").first() as Outcome.Success).value
+        assertTrue(detail.isTransfer)
+        assertEquals("tax-1", (detail.transaction as Expense).gmfTax!!.id)
+    }
+
+    @Test
+    fun `given an expense without a tax, when finding it, then it has no tax and is not a tax`() = runTest {
+        seedAccountsAndCategories()
+        database.transactionDao().insert(transaction("exp-1", "EXPENSE", "acc-savings", "cat-food"))
+        val detail = (repository.findById("exp-1").first() as Outcome.Success).value
+        assertFalse(detail.isGmfTax)
+        assertNull((detail.transaction as Expense).gmfTax)
+    }
+
+    private suspend fun seedMercadoWithTax() {
+        seedTag("tag-4x1000", "4x1000")
+        val tax = ExpenseBuilder()
+            .id("tax-1")
+            .accountId("acc-savings")
+            .amount("400.00")
+            .categoryId("cat-food")
+            .description("4x1000 – Mercado")
+            .tagIds(listOf("tag-4x1000"))
+            .build()
+        val mercado = ExpenseBuilder()
+            .id("exp-1")
+            .accountId("acc-savings")
+            .amount("100000.00")
+            .categoryId("cat-food")
+            .description("Mercado")
+            .gmfTax(tax)
+            .build()
+        RoomExpenseRepository(this.database.transactionDao(), this.database.expenseTagDao()).add(mercado)
+    }
 
     private suspend fun seedTag(id: String, name: String) {
         this.database.tagDao().insert(TagEntity(id, name, Tag.normalize(name), "2026-01-01T00:00:00Z"))

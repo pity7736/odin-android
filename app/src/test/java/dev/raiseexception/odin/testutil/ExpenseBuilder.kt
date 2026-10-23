@@ -17,6 +17,7 @@ class ExpenseBuilder {
     private var description = ""
     private var createdAt = Instant.parse("2026-10-01T10:00:00Z")
     private var tagIds: List<String> = emptyList()
+    private var gmfTax: Expense? = null
 
     fun id(id: String): ExpenseBuilder {
         this.id = id
@@ -58,6 +59,11 @@ class ExpenseBuilder {
         return this
     }
 
+    fun gmfTax(gmfTax: Expense?): ExpenseBuilder {
+        this.gmfTax = gmfTax
+        return this
+    }
+
     fun build(): Expense = Expense.restore(
         id = this.id ?: UUID.randomUUID().toString(),
         accountId = this.accountId,
@@ -67,5 +73,6 @@ class ExpenseBuilder {
         description = this.description,
         createdAt = this.createdAt,
         tagIds = this.tagIds,
+        gmfTax = this.gmfTax,
     )
 }

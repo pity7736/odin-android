@@ -3,6 +3,8 @@ package dev.raiseexception.odin.accounting.application.usecase
 import dev.raiseexception.odin.accounting.domain.TransferCreationError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
+import dev.raiseexception.odin.accounting.domain.model.TagInput
 import dev.raiseexception.odin.accounting.domain.model.Transfer
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.accounting.domain.repository.AccountRepository
@@ -23,6 +25,7 @@ class TransferCreator(
     private val categoryRepository: CategoryRepository,
     private val expenseRepository: ExpenseRepository,
     private val incomeRepository: IncomeRepository,
+    private val tagResolver: TagResolver,
     private val transactionRunner: TransactionRunner,
     private val clock: Clock = Clock.System
 ) {
@@ -31,7 +34,8 @@ class TransferCreator(
         sourceAccountId: String,
         destinationAccountId: String,
         amount: String,
-        date: String
+        date: String,
+        chargeGmf: Boolean
     ): Outcome<Transfer> {
         val accountError = this.validateAccountIds(sourceAccountId, destinationAccountId)
         if (accountError != null) return Outcome.Failure(accountError)
@@ -47,7 +51,8 @@ class TransferCreator(
             is Outcome.Success -> outcome.value
             is Outcome.Failure -> return outcome
         }
-        return this.persistTransfer(sourceAccount, destinationAccount, amount, date, categoryId)
+        val accounts = TransferAccounts(source = sourceAccount, destination = destinationAccount)
+        return this.persistTransfer(accounts, amount, date, categoryId, chargeGmf)
     }
 
     private fun validateAccountIds(
@@ -78,21 +83,26 @@ class TransferCreator(
             is Outcome.Failure -> Outcome.Failure(storageFailure(outcome.error))
         }
 
-    @Suppress("LongParameterList")
     private suspend fun persistTransfer(
-        sourceAccount: Account,
-        destinationAccount: Account,
+        accounts: TransferAccounts,
         amount: String,
         date: String,
-        categoryId: String
+        categoryId: String,
+        chargeGmf: Boolean
     ): Outcome<Transfer> = this.transactionRunner.run {
+        val gmfTagIds = when (val outcome = this.resolveGmfTags(accounts.source, chargeGmf, amount)) {
+            is Outcome.Success -> outcome.value
+            is Outcome.Failure -> return@run outcome
+        }
         val transfer = when (
             val outcome = Transfer.create(
-                sourceAccount = sourceAccount,
-                destinationAccount = destinationAccount,
+                sourceAccount = accounts.source,
+                destinationAccount = accounts.destination,
                 amount = amount,
                 date = date,
                 categoryId = categoryId,
+                chargeGmf = chargeGmf,
+                gmfTagIds = gmfTagIds,
                 clock = this.clock
             )
         ) {
@@ -103,6 +113,20 @@ class TransferCreator(
         when (val outcome = this.transferRepository.add(transfer)) {
             is Outcome.Failure -> Outcome.Failure(storageFailure(outcome.error))
             is Outcome.Success -> Outcome.Success(transfer)
+        }
+    }
+
+    private suspend fun resolveGmfTags(
+        sourceAccount: Account,
+        chargeGmf: Boolean,
+        amount: String
+    ): Outcome<List<String>> {
+        val treatment = sourceAccount.funding.gmfTreatment
+        val taxIsZero = sourceAccount.gmfTaxOn(amount).signum() == 0
+        if (!chargeGmf || taxIsZero || treatment !is GmfTreatment.Taxed) return Outcome.Success(emptyList())
+        return when (val outcome = this.tagResolver.resolve(treatment.tagNames.map { TagInput.New(it) })) {
+            is Outcome.Success -> outcome
+            is Outcome.Failure -> Outcome.Failure(storageFailure(outcome.error))
         }
     }
 
@@ -138,4 +162,6 @@ class TransferCreator(
         internalMessage = error.internalMessage,
         externalMessage = error.externalMessage
     )
+
+    private data class TransferAccounts(val source: Account, val destination: Account)
 }

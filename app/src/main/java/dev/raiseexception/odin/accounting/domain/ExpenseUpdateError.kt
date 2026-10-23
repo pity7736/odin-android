@@ -23,6 +23,11 @@ sealed class ExpenseUpdateError(
         externalMessage: String = "Las transferencias no se pueden editar."
     ) : ExpenseUpdateError(internalMessage, externalMessage)
 
+    class GmfTaxNotEditable(
+        internalMessage: String,
+        externalMessage: String = "El 4x1000 no se puede editar."
+    ) : ExpenseUpdateError(internalMessage, externalMessage)
+
     class StorageFailure(
         internalMessage: String,
         externalMessage: String = "No se pudo editar el gasto. Inténtalo de nuevo."

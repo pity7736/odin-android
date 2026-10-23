@@ -12,6 +12,7 @@ import dev.raiseexception.odin.accounting.domain.model.CategoryInput
 import dev.raiseexception.odin.accounting.domain.model.CategoryType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.Tag
 import dev.raiseexception.odin.accounting.domain.model.TagInput
@@ -139,13 +140,16 @@ class CreateExpenseViewModelTest {
                 categoryId = expenseCategory.id,
                 description = "",
                 createdAt = kotlinx.datetime.Instant.parse("2026-08-29T10:00:00Z"),
-                tagIds = emptyList()
+                tagIds = emptyList(),
+                gmfTax = null
             )
         )
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.navigationEvent.test {
@@ -180,13 +184,16 @@ class CreateExpenseViewModelTest {
                 categoryId = "new-cat-id",
                 description = "",
                 createdAt = kotlinx.datetime.Instant.parse("2026-08-29T10:00:00Z"),
-                tagIds = emptyList()
+                tagIds = emptyList(),
+                gmfTax = null
             )
         )
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("500.00", "2026-08-29", CategoryInput.New("Transporte"), "")
+        viewModel.onAmountChanged("500,00")
+
+        viewModel.save("2026-08-29", CategoryInput.New("Transporte"), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.navigationEvent.test {
@@ -212,7 +219,9 @@ class CreateExpenseViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("0", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("0")
+
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.uiState.test {
@@ -239,7 +248,9 @@ class CreateExpenseViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("500.00", "2099-01-01", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+
+        viewModel.save("2099-01-01", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.uiState.test {
@@ -266,7 +277,9 @@ class CreateExpenseViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("500.00", "2025-12-31", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+
+        viewModel.save("2025-12-31", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.uiState.test {
@@ -293,7 +306,9 @@ class CreateExpenseViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("", "", CategoryInput.New(""), "")
+        viewModel.onAmountChanged("")
+
+        viewModel.save("", CategoryInput.New(""), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.uiState.test {
@@ -322,7 +337,9 @@ class CreateExpenseViewModelTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("999999.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("999999,00")
+
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.uiState.test {
@@ -406,7 +423,8 @@ class CreateExpenseViewModelTest {
             ioDispatcher = testDispatcher
         )
         testDispatcher.scheduler.advanceUntilIdle()
-        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         viewModel.uiState.test {
             val state = awaitItem() as CreateExpenseUiState.ValidationError
             assertEquals("La cuenta es obligatoria.", state.accountError)
@@ -443,7 +461,8 @@ class CreateExpenseViewModelTest {
                 categoryId = expenseCategory.id,
                 description = "",
                 createdAt = kotlinx.datetime.Instant.parse("2026-08-29T10:00:00Z"),
-                tagIds = emptyList()
+                tagIds = emptyList(),
+                gmfTax = null
             )
         )
         val viewModel = CreateExpenseViewModel(
@@ -458,7 +477,8 @@ class CreateExpenseViewModelTest {
         )
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.onAccountSelected(accountId)
-        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.navigationEvent.test {
             assertEquals(NavigationTarget.Back, awaitItem())
@@ -500,14 +520,18 @@ class CreateExpenseViewModelTest {
                 categoryId = expenseCategory.id,
                 description = "",
                 createdAt = kotlinx.datetime.Instant.parse("2026-08-29T10:00:00Z"),
-                tagIds = emptyList()
+                tagIds = emptyList(),
+                gmfTax = null
             )
         )
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
-        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
 
         io.mockk.coVerify(exactly = 1) { expenseCreator.create(any(), any(), any(), any(), any(), any()) }
@@ -518,10 +542,11 @@ class CreateExpenseViewModelTest {
         every { categoryLister.list(CategoryType.EXPENSE, "") } returns flowOf(Outcome.Success(listOf(expenseCategory)))
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.onAmountChanged("500,00")
         val stateBeforeSaving = viewModel.uiState.value
         coEvery { expenseCreator.create(any(), any(), any(), any(), any(), any()) } throws
             IllegalStateException("falla")
-        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
         assertTrue(stateBeforeSaving is CreateExpenseUiState.Idle)
         assertEquals(stateBeforeSaving, viewModel.uiState.value)
@@ -548,11 +573,13 @@ class CreateExpenseViewModelTest {
                     categoryId = expenseCategory.id,
                     description = "",
                     createdAt = Instant.parse("2026-08-29T10:00:00Z"),
-                    tagIds = emptyList()
+                    tagIds = emptyList(),
+                    gmfTax = null
                 )
             )
         }
-        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(NavigationTarget.AccountDetail(accountId), viewModel.navigationEvent.first())
         verify(exactly = 0) { failureRecorder.record(any()) }
@@ -568,7 +595,8 @@ class CreateExpenseViewModelTest {
             )
             val viewModel = buildViewModel()
             testDispatcher.scheduler.advanceUntilIdle()
-            viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+            viewModel.onAmountChanged("500,00")
+            viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
             testDispatcher.scheduler.advanceUntilIdle()
             assertEquals(CreateExpenseUiState.Error("No se pudo guardar"), viewModel.uiState.value)
             verify(exactly = 0) { failureRecorder.record(any()) }
@@ -733,7 +761,8 @@ class CreateExpenseViewModelTagsTest {
             coEvery { expenseCreator.create(any(), any(), any(), any(), any(), any()) } returns amountFailure()
             val viewModel = buildViewModel()
             testDispatcher.scheduler.advanceUntilIdle()
-            viewModel.save("0", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+            viewModel.onAmountChanged("0")
+            viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
             testDispatcher.scheduler.advanceUntilIdle()
             viewModel.pickTag(nalaTag)
             viewModel.onTagTextChange("Carro")
@@ -751,7 +780,8 @@ class CreateExpenseViewModelTagsTest {
         coEvery { expenseCreator.create(any(), any(), any(), any(), any(), any()) } coAnswers { pendingSave.await() }
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
-        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         viewModel.pickTag(nalaTag)
         assertEquals(CreateExpenseUiState.Saving, viewModel.uiState.value)
         pendingSave.complete(Outcome.Success(savedExpense()))
@@ -768,7 +798,8 @@ class CreateExpenseViewModelTagsTest {
         viewModel.pickTag(nalaTag)
         viewModel.onTagTextChange("Carro")
         viewModel.addTag()
-        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify {
             expenseCreator.create(
@@ -792,7 +823,8 @@ class CreateExpenseViewModelTagsTest {
         viewModel.onTagTextChange("Carro")
         viewModel.addTag()
         viewModel.onTagTextChange("Gasolina")
-        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify {
             expenseCreator.create(
@@ -815,7 +847,8 @@ class CreateExpenseViewModelTagsTest {
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.pickTag(nalaTag)
         viewModel.onTagTextChange("nala")
-        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { expenseCreator.create(any(), any(), any(), any(), any(), listOf(TagInput.Existing("tag-nala"))) }
     }
@@ -832,7 +865,8 @@ class CreateExpenseViewModelTagsTest {
             viewModel.onTagTextChange(name)
             viewModel.addTag()
         }
-        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { expenseCreator.create(any(), any(), any(), any(), any(), match { it.size == FIVE_TAGS }) }
     }
@@ -843,7 +877,8 @@ class CreateExpenseViewModelTagsTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.onTagTextChange("a".repeat(Tag.MAX_NAME_LENGTH + 1))
-        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
         val state = viewModel.uiState.value as CreateExpenseUiState.ValidationError
         assertEquals("La etiqueta no puede superar 30 caracteres.", state.tagSelection.error)
@@ -864,7 +899,8 @@ class CreateExpenseViewModelTagsTest {
         val viewModel = buildViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.pickTag(nalaTag)
-        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
         val state = viewModel.uiState.value as CreateExpenseUiState.ValidationError
         assertEquals("La etiqueta no puede superar 30 caracteres.", state.tagSelection.error)
@@ -880,7 +916,8 @@ class CreateExpenseViewModelTagsTest {
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.pickTag(nalaTag)
         viewModel.onTagTextChange("Carro")
-        viewModel.save("0", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("0")
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         testDispatcher.scheduler.advanceUntilIdle()
         val state = viewModel.uiState.value as CreateExpenseUiState.ValidationError
         assertEquals(listOf("Nala", "Carro"), state.tagSelection.selected.map { it.name })
@@ -894,7 +931,8 @@ class CreateExpenseViewModelTagsTest {
         val viewModel = buildHomeViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.pickTag(nalaTag)
-        viewModel.save("500.00", "2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+        viewModel.onAmountChanged("500,00")
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
         val state = viewModel.uiState.value as CreateExpenseUiState.ValidationError
         assertEquals("La cuenta es obligatoria.", state.accountError)
         assertEquals(listOf("Nala"), state.tagSelection.selected.map { it.name })
@@ -945,10 +983,147 @@ class CreateExpenseViewModelTagsTest {
         categoryId = expenseCategory.id,
         description = "",
         createdAt = Instant.parse("2026-08-29T10:00:00Z"),
-        tagIds = emptyList()
+        tagIds = emptyList(),
+        gmfTax = null
     )
 
     private companion object {
         const val FIVE_TAGS = 5
+    }
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class CreateExpenseViewModelGmfTest {
+
+    private val expenseCreator = mockk<ExpenseCreator>()
+    private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
+    private val categoryLister = mockk<CategoryLister>()
+    private val accountFinder = mockk<AccountFinder>()
+    private val accountLister = mockk<AccountLister>()
+    private val tagLister = mockk<TagLister>()
+    private val testDispatcher = StandardTestDispatcher()
+    private val expenseCategory = CategoryBuilder().type(CategoryType.EXPENSE).build()
+    private val ahorros = AccountBuilder()
+        .id("ahorros")
+        .name("Ahorros")
+        .gmf(GmfTreatment.Taxed("cat-impuestos", listOf("4x1000")))
+        .build()
+    private val nomina = AccountBuilder().id("nomina").name("Nómina").build()
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+        every { accountFinder.find("ahorros") } returns flowOf(Outcome.Success(ahorros))
+        every { accountFinder.find("nomina") } returns flowOf(Outcome.Success(nomina))
+        every { accountLister.list() } returns flowOf(Outcome.Success(listOf(ahorros, nomina)))
+        every { tagLister.list() } returns flowOf(Outcome.Success(emptyList()))
+        every { categoryLister.list(CategoryType.EXPENSE, "") } returns flowOf(Outcome.Success(listOf(expenseCategory)))
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `given Ahorros not exempt, when typing 100000, then the tax line reads 4x1000 400`() = runTest {
+        val viewModel = loadedViewModel("ahorros")
+
+        viewModel.onAmountChanged("100000")
+
+        val state = viewModel.uiState.value as CreateExpenseUiState.Idle
+        assertEquals("100000", state.amount)
+        assertEquals("4x1000: $400,00", state.gmfTaxLine)
+    }
+
+    @Test
+    fun `given Ahorros not exempt, when typing 1, then no tax line is shown because it rounds to zero`() = runTest {
+        val viewModel = loadedViewModel("ahorros")
+
+        viewModel.onAmountChanged("1,00")
+
+        assertNull((viewModel.uiState.value as CreateExpenseUiState.Idle).gmfTaxLine)
+    }
+
+    @Test
+    fun `given an exempt account, when typing 100000, then no tax line is shown`() = runTest {
+        val viewModel = loadedViewModel("nomina")
+
+        viewModel.onAmountChanged("100000")
+
+        assertNull((viewModel.uiState.value as CreateExpenseUiState.Idle).gmfTaxLine)
+    }
+
+    @Test
+    fun `given the home form with 100000 typed, when choosing Ahorros and then Nomina, then the line follows`() =
+        runTest {
+            val viewModel = loadedViewModel(null)
+            viewModel.onAmountChanged("100000")
+
+            viewModel.onAccountSelected("ahorros")
+            val withAhorros = (viewModel.uiState.value as CreateExpenseUiState.Idle).gmfTaxLine
+            viewModel.onAccountSelected("nomina")
+
+            assertEquals("4x1000: $400,00", withAhorros)
+            assertNull((viewModel.uiState.value as CreateExpenseUiState.Idle).gmfTaxLine)
+        }
+
+    @Test
+    fun `given a typed amount, when saving, then the creator receives it as a plain number`() = runTest {
+        coEvery { expenseCreator.create(any(), any(), any(), any(), any(), any()) } returns
+            Outcome.Failure(ExpenseCreationError.StorageFailure("storage", "No se pudo guardar"))
+        val viewModel = loadedViewModel("ahorros")
+        viewModel.onAmountChanged("12345,67")
+
+        viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "Mercado")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify {
+            expenseCreator.create(
+                accountId = "ahorros",
+                amount = "12345.67",
+                date = "2026-08-29",
+                categoryInput = CategoryInput.Existing(expenseCategory.id),
+                description = "Mercado",
+                tagInputs = emptyList()
+            )
+        }
+    }
+
+    @Test
+    fun `given an amount that does not fit with its tax, when saving, then the error keeps amount and tax line`() =
+        runTest {
+            coEvery { expenseCreator.create(any(), any(), any(), any(), any(), any()) } returns Outcome.Failure(
+                ExpenseCreationError.InvalidInput(
+                    amountError = "El monto más el 4x1000 supera el saldo disponible.",
+                    dateError = null,
+                    categoryError = null
+                )
+            )
+            val viewModel = loadedViewModel("ahorros")
+            viewModel.onAmountChanged("100000")
+
+            viewModel.save("2026-08-29", CategoryInput.Existing(expenseCategory.id), "")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            val state = viewModel.uiState.value as CreateExpenseUiState.ValidationError
+            assertEquals("El monto más el 4x1000 supera el saldo disponible.", state.amountError)
+            assertEquals("100000", state.amount)
+            assertEquals("4x1000: $400,00", state.gmfTaxLine)
+        }
+
+    private fun loadedViewModel(accountId: String?): CreateExpenseViewModel {
+        val viewModel = CreateExpenseViewModel(
+            accountId = accountId,
+            expenseCreator = expenseCreator,
+            categoryLister = categoryLister,
+            accountFinder = accountFinder,
+            accountLister = accountLister,
+            tagLister = tagLister,
+            failureRecorder = failureRecorder,
+            ioDispatcher = testDispatcher
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+        return viewModel
     }
 }

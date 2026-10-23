@@ -6,8 +6,10 @@ import androidx.test.core.app.ApplicationProvider
 import dev.raiseexception.odin.accounting.application.usecase.AccountCreator
 import dev.raiseexception.odin.accounting.application.usecase.AccountFinder
 import dev.raiseexception.odin.accounting.application.usecase.CategoryCreator
+import dev.raiseexception.odin.accounting.application.usecase.CategoryResolver
 import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
+import dev.raiseexception.odin.accounting.application.usecase.GmfInput
 import dev.raiseexception.odin.accounting.application.usecase.IncomeCreator
 import dev.raiseexception.odin.accounting.application.usecase.TagResolver
 import dev.raiseexception.odin.accounting.domain.model.Account
@@ -61,7 +63,11 @@ class BalanceIntegrationTest {
         val tagRepository = RoomTagRepository(database.tagDao())
         val tagResolver = TagResolver(tagRepository)
         categoryCreator = CategoryCreator(categoryRepository)
-        accountCreator = AccountCreator(accountRepository)
+        accountCreator = AccountCreator(
+            accountRepository,
+            CategoryResolver(categoryRepository, categoryCreator),
+            transactionRunner
+        )
         accountFinder = AccountFinder(accountRepository)
         incomeCreator = IncomeCreator(
             accountRepository = accountRepository,
@@ -94,12 +100,20 @@ class BalanceIntegrationTest {
                     "1000000",
                     Currency.COP,
                     MoneyAccountKind.SAVINGS,
-                    ""
+                    "",
+                    GmfInput.Exempt
                 )
             ) as Outcome.Success
             ).value
         accountCreator.create(
-            CreateAccountCommand.MoneyAccount("Efectivo", "50000", Currency.COP, MoneyAccountKind.CASH, "")
+            CreateAccountCommand.MoneyAccount(
+                "Efectivo",
+                "50000",
+                Currency.COP,
+                MoneyAccountKind.CASH,
+                "",
+                GmfInput.Exempt
+            )
         )
         categoryCreator.create("Alimentación", CategoryType.EXPENSE, "", null)
         categoryCreator.create("Transporte", CategoryType.EXPENSE, "", null)
@@ -140,7 +154,8 @@ class BalanceIntegrationTest {
                     "1000000",
                     Currency.COP,
                     MoneyAccountKind.SAVINGS,
-                    ""
+                    "",
+                    GmfInput.Exempt
                 )
             ) as Outcome.Success
             ).value
@@ -171,7 +186,8 @@ class BalanceIntegrationTest {
                     "1000000",
                     Currency.COP,
                     MoneyAccountKind.SAVINGS,
-                    ""
+                    "",
+                    GmfInput.Exempt
                 )
             ) as Outcome.Success
             ).value

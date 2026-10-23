@@ -23,6 +23,7 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -71,7 +72,8 @@ class RoomExpenseRepositoryTest {
             categoryId = "cat-1",
             description = "Mercado",
             createdAt = Instant.parse("2026-08-01T10:00:00Z"),
-            tagIds = emptyList()
+            tagIds = emptyList(),
+            gmfTax = null
         )
         val result = repository.add(expense)
         assertTrue(result is Outcome.Success)
@@ -98,7 +100,8 @@ class RoomExpenseRepositoryTest {
                 categoryId = "cat-1",
                 description = "Mercado",
                 createdAt = Instant.parse("2026-08-01T10:00:00Z"),
-                tagIds = emptyList()
+                tagIds = emptyList(),
+                gmfTax = null
             )
             repository.add(original)
             val edited = Expense.restore(
@@ -109,7 +112,8 @@ class RoomExpenseRepositoryTest {
                 categoryId = "cat-2",
                 description = "Cena",
                 createdAt = Instant.parse("2026-08-01T10:00:00Z"),
-                tagIds = emptyList()
+                tagIds = emptyList(),
+                gmfTax = null
             )
             val result = repository.update(edited)
             assertTrue(result is Outcome.Success)
@@ -196,17 +200,105 @@ class RoomExpenseRepositoryTest {
     @Test
     fun `given the storage fails, when deleting an expense, then fails with a storage error`() = runTest {
         val failingExpenseTagDao = mockk<ExpenseTagDao>()
-        coEvery { failingExpenseTagDao.deleteByExpenseId(any()) } throws SQLiteException("disk I/O error")
+        coEvery { failingExpenseTagDao.deleteByGmfMovementId(any()) } throws SQLiteException("disk I/O error")
         val failingRepository = RoomExpenseRepository(database.transactionDao(), failingExpenseTagDao)
         val result = failingRepository.delete("exp-1")
         assertTrue((result as Outcome.Failure).error is StorageError)
         assertEquals("disk I/O error", result.error.internalMessage)
     }
 
+    @Test
+    fun `given Mercado with its tax, when added, then the tax is its own row pointing to Mercado with its tags`() =
+        runTest {
+            seedAccountCategoryAndTags()
+            repository.add(mercado(listOf("tag-nala"), tax("400.00")))
+            val rows = storedRows()
+            val mercadoRow = rows.single { it.transaction.id == "exp-1" }
+            val taxRow = rows.single { it.transaction.id == "tax-1" }
+            assertNull(mercadoRow.transaction.gmfMovementId)
+            assertEquals(listOf("tag-nala"), mercadoRow.tagIds)
+            assertEquals("exp-1", taxRow.transaction.gmfMovementId)
+            assertEquals("EXPENSE", taxRow.transaction.type)
+            assertEquals("400.00", taxRow.transaction.amount)
+            assertEquals(listOf("tag-4x1000"), taxRow.tagIds)
+        }
+
+    @Test
+    fun `given Mercado with its tax, when updated with a recalculated tax, then the stored tax is replaced`() =
+        runTest {
+            seedAccountCategoryAndTags()
+            repository.add(mercado(emptyList(), tax("400.00")))
+            repository.update(mercado(emptyList(), tax("200.00")))
+            val taxRow = storedRows().single { it.transaction.id == "tax-1" }
+            assertEquals("200.00", taxRow.transaction.amount)
+            assertEquals("exp-1", taxRow.transaction.gmfMovementId)
+            assertEquals(listOf("tag-4x1000"), taxRow.tagIds)
+        }
+
+    @Test
+    fun `given Mercado with its tax, when updated without a tax, then the stored tax and its links are removed`() =
+        runTest {
+            seedAccountCategoryAndTags()
+            repository.add(mercado(emptyList(), tax("0.40")))
+            repository.update(mercado(emptyList(), null))
+            assertEquals(listOf("exp-1"), storedRows().map { it.transaction.id })
+            assertTrue(database.tagDao().findByExpenseId("tax-1").first().isEmpty())
+        }
+
+    @Test
+    fun `given an expense that never had a tax, when updated, then no tax row appears`() = runTest {
+        seedAccountCategoryAndTags()
+        repository.add(mercado(emptyList(), null))
+        repository.update(mercado(listOf("tag-nala"), null))
+        assertEquals(listOf("exp-1"), storedRows().map { it.transaction.id })
+    }
+
+    @Test
+    fun `given Mercado with its tax, when deleting Mercado, then both rows and all their links are removed`() =
+        runTest {
+            seedAccountCategoryAndTags()
+            repository.add(mercado(listOf("tag-nala"), tax("400.00")))
+            val result = repository.delete("exp-1")
+            assertTrue(result is Outcome.Success)
+            assertTrue(storedRows().isEmpty())
+            assertTrue(database.tagDao().findByExpenseId("tax-1").first().isEmpty())
+        }
+
+    @Test
+    fun `given Mercado with its tax in the period, when finding spending, then the tax is its own row`() = runTest {
+        seedAccountCategoryAndTags()
+        repository.add(mercado(emptyList(), tax("400.00")))
+        val spending = spendingBetween("2026-10-01", "2026-10-07")
+        assertEquals(setOf("exp-1", "tax-1"), spending.map { it.id }.toSet())
+        assertEquals("cat-1", spending.single { it.id == "tax-1" }.categoryId)
+    }
+
+    private fun mercado(tagIds: List<String>, gmfTax: Expense?): Expense = ExpenseBuilder()
+        .id("exp-1")
+        .accountId("acc-1")
+        .amount("100000.00")
+        .date("2026-10-03")
+        .description("Mercado")
+        .tagIds(tagIds)
+        .gmfTax(gmfTax)
+        .build()
+
+    private fun tax(amount: String): Expense = ExpenseBuilder()
+        .id("tax-1")
+        .accountId("acc-1")
+        .amount(amount)
+        .date("2026-10-03")
+        .description("4x1000 – Mercado")
+        .tagIds(listOf("tag-4x1000"))
+        .build()
+
+    private suspend fun storedRows(): List<TransactionWithTagIds> =
+        database.accountDao().findByIdWithTransactions("acc-1").first()!!.transactions
+
     private suspend fun seedAccountCategoryAndTags() {
         database.accountDao().insert(AccountBuilder().id("acc-1").build().toEntity())
         database.categoryDao().insert(expenseCategory("cat-1", "Perros"))
-        listOf("tag-nala", "tag-comida", "tag-toby", "tag-carro", "tag-gasolina").forEach { tagId ->
+        listOf("tag-nala", "tag-comida", "tag-toby", "tag-carro", "tag-gasolina", "tag-4x1000").forEach { tagId ->
             database.tagDao().insert(TagEntity(tagId, tagId, tagId, "2026-01-01T00:00:00Z"))
         }
     }
@@ -219,7 +311,8 @@ class RoomExpenseRepositoryTest {
         categoryId = "cat-1",
         description = "",
         createdAt = Instant.parse("2026-08-01T10:00:00Z"),
-        tagIds = tagIds
+        tagIds = tagIds,
+        gmfTax = null
     )
 
     private suspend fun storedTagIds(): Set<String> {

@@ -40,6 +40,8 @@ class TransferTest {
             amount = "200.00",
             date = "2026-08-29",
             categoryId = "cat-transfer",
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
         assertTrue(result is Outcome.Success)
@@ -58,6 +60,8 @@ class TransferTest {
             amount = "200.00",
             date = "2026-08-29",
             categoryId = "cat-transfer",
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
         val transfer = (result as Outcome.Success).value
@@ -72,6 +76,8 @@ class TransferTest {
             amount = "200.00",
             date = "2026-08-29",
             categoryId = "cat-transfer",
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
         val transfer = (result as Outcome.Success).value
@@ -86,6 +92,8 @@ class TransferTest {
             amount = "200.00",
             date = "2026-08-29",
             categoryId = "cat-transfer",
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
         val transfer = (result as Outcome.Success).value
@@ -100,6 +108,8 @@ class TransferTest {
             amount = "200.00",
             date = "2026-08-29",
             categoryId = "cat-transfer",
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
         assertTrue(result is Outcome.Failure)
@@ -120,6 +130,8 @@ class TransferTest {
             amount = "200.00",
             date = "2026-08-29",
             categoryId = "cat-transfer",
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
         assertTrue(result is Outcome.Failure)
@@ -135,6 +147,8 @@ class TransferTest {
             amount = "0",
             date = "2026-08-29",
             categoryId = "cat-transfer",
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
         assertTrue(result is Outcome.Failure)
@@ -150,6 +164,8 @@ class TransferTest {
             amount = "-100",
             date = "2026-08-29",
             categoryId = "cat-transfer",
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
         assertTrue(result is Outcome.Failure)
@@ -165,6 +181,8 @@ class TransferTest {
             amount = "1500.00",
             date = "2026-08-29",
             categoryId = "cat-transfer",
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = fixedClock
         )
         assertTrue(result is Outcome.Failure)
@@ -182,7 +200,8 @@ class TransferTest {
             categoryId = "cat-transfer",
             description = "Transferencia a Efectivo",
             createdAt = fixedInstant,
-            tagIds = emptyList()
+            tagIds = emptyList(),
+            gmfTax = null
         )
         val income = Income.restore(
             id = "inc-1",
@@ -329,6 +348,8 @@ class TransferTest {
             amount = "300.00",
             date = "2026-09-10",
             categoryId = "cat-transfer",
+            chargeGmf = true,
+            gmfTagIds = emptyList(),
             clock = laterClock
         )
 
@@ -457,7 +478,8 @@ class TransferTest {
         categoryId = "cat-1",
         description = "",
         createdAt = Instant.parse("${date}T12:00:00Z"),
-        tagIds = emptyList()
+        tagIds = emptyList(),
+        gmfTax = null
     )
 
     private fun visaCard(initialDebt: String): Account = AccountBuilder()
@@ -474,7 +496,8 @@ class TransferTest {
         categoryId = "cat-1",
         description = "",
         createdAt = Instant.parse("${date}T12:00:00Z"),
-        tagIds = emptyList()
+        tagIds = emptyList(),
+        gmfTax = null
     )
 
     private fun transfer(
@@ -488,6 +511,8 @@ class TransferTest {
         amount = amount,
         date = date,
         categoryId = "cat-transfer",
+        chargeGmf = true,
+        gmfTagIds = emptyList(),
         clock = this.fixedClock
     )
 
@@ -495,6 +520,115 @@ class TransferTest {
         assertTrue(result is Outcome.Failure)
         return (result as Outcome.Failure).error as TransferCreationError.InvalidInput
     }
+
+    private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)
+}
+
+class TransferGmfTest {
+
+    private val fixedClock = object : Clock {
+        override fun now(): Instant = Instant.parse("2026-08-29T12:00:00Z")
+    }
+    private val impuestos = GmfTreatment.Taxed(categoryId = "cat-impuestos", tagNames = listOf("4x1000"))
+
+    @Test
+    fun `given Ahorros with 1000000, when transferring 200000 to Corriente charging the tax, then a tax of 800`() {
+        val ahorros = this.ahorros("1000000")
+        val corriente = this.corriente()
+
+        val transfer = (this.transfer(ahorros, corriente, "200000", chargeGmf = true) as Outcome.Success).value
+
+        val tax = transfer.expense.gmfTax!!
+        assertEquals("Transferencia a Corriente", transfer.expense.description)
+        assertEquals("4x1000 – Transferencia a Corriente", tax.description)
+        assertEquals(this.pesos("800.00"), tax.amount)
+        assertEquals("cat-impuestos", tax.categoryId)
+        assertEquals(listOf("tag-4x1000"), tax.tagIds)
+        assertEquals(this.pesos("799200"), ahorros.balance)
+        assertEquals(this.pesos("700000"), corriente.balance)
+    }
+
+    @Test
+    fun `given Ahorros with 1000000, when transferring 200000 without charging the tax, then no tax is recorded`() {
+        val ahorros = this.ahorros("1000000")
+
+        val transfer = (this.transfer(ahorros, this.corriente(), "200000", chargeGmf = false) as Outcome.Success).value
+
+        assertNull(transfer.expense.gmfTax)
+        assertEquals(this.pesos("800000"), ahorros.balance)
+    }
+
+    @Test
+    fun `given Visa with a debt of 500000, when paying it all from Ahorros charging the tax, then a tax of 2000`() {
+        val ahorros = this.ahorros("1000000")
+        val visa = AccountBuilder()
+            .id("visa")
+            .name("Visa")
+            .creditCard(this.pesos("3000000"), this.pesos("500000"))
+            .build()
+
+        val transfer = (this.transfer(ahorros, visa, "500000", chargeGmf = true) as Outcome.Success).value
+
+        assertEquals("4x1000 – Pago a Visa", transfer.expense.gmfTax!!.description)
+        assertEquals(this.pesos("2000.00"), transfer.expense.gmfTax!!.amount)
+        assertEquals(this.pesos("0"), visa.balance)
+        assertEquals(this.pesos("498000"), ahorros.balance)
+    }
+
+    @Test
+    fun `given Ahorros with 200000, when transferring 200000 charging the tax, then the amount plus tax error`() {
+        val ahorros = this.ahorros("200000")
+
+        val result = this.transfer(ahorros, this.corriente(), "200000", chargeGmf = true)
+
+        val error = (result as Outcome.Failure).error as TransferCreationError.InvalidInput
+        assertEquals("El monto más el 4x1000 supera el saldo disponible.", error.amountError)
+    }
+
+    @Test
+    fun `given a non-exempt destination, when transferring to it, then the destination never pays a tax`() {
+        val ahorros = this.ahorros("1000000")
+        val taxedDestination = AccountBuilder()
+            .id("otros-ahorros")
+            .name("Otros ahorros")
+            .initialBalance(this.pesos("0"))
+            .gmf(this.impuestos)
+            .build()
+
+        this.transfer(ahorros, taxedDestination, "200000", chargeGmf = true)
+
+        assertTrue(taxedDestination.expenses.isEmpty())
+        assertEquals(this.pesos("200000"), taxedDestination.balance)
+    }
+
+    private fun ahorros(initialBalance: String): Account = AccountBuilder()
+        .id("ahorros")
+        .name("Ahorros")
+        .initialBalance(this.pesos(initialBalance))
+        .gmf(this.impuestos)
+        .build()
+
+    private fun corriente(): Account = AccountBuilder()
+        .id("corriente")
+        .name("Corriente")
+        .initialBalance(this.pesos("500000"))
+        .build()
+
+    private fun transfer(
+        source: Account,
+        destination: Account,
+        amount: String,
+        chargeGmf: Boolean
+    ): Outcome<Transfer> = Transfer.create(
+        sourceAccount = source,
+        destinationAccount = destination,
+        amount = amount,
+        date = "2026-08-29",
+        categoryId = "cat-transfer",
+        chargeGmf = chargeGmf,
+        gmfTagIds = listOf("tag-4x1000"),
+        clock = this.fixedClock
+    )
 
     private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)
 }

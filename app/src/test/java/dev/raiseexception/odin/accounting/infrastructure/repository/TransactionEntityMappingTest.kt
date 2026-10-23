@@ -45,11 +45,12 @@ class TransactionEntityMappingTest {
             categoryId = "cat-2",
             description = "Mercado",
             createdAt = Instant.parse("2026-08-20T15:00:00Z"),
-            tagIds = emptyList()
+            tagIds = emptyList(),
+            gmfTax = null
         )
-        val entity = expense.toEntity()
+        val entity = expense.toEntity(gmfMovementId = null)
         assertEquals("EXPENSE", entity.type)
-        val restored = entity.toExpense(emptyList())
+        val restored = entity.toExpense(emptyList(), null)
         assertEquals(expense.id, restored.id)
         assertEquals(expense.accountId, restored.accountId)
         assertEquals(expense.amount, restored.amount)

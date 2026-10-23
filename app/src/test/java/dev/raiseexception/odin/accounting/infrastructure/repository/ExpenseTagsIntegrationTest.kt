@@ -10,6 +10,7 @@ import dev.raiseexception.odin.accounting.application.usecase.CategoryResolver
 import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseCreator
 import dev.raiseexception.odin.accounting.application.usecase.ExpenseUpdater
+import dev.raiseexception.odin.accounting.application.usecase.GmfInput
 import dev.raiseexception.odin.accounting.application.usecase.TagResolver
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
 import dev.raiseexception.odin.accounting.domain.model.Account
@@ -64,7 +65,11 @@ class ExpenseTagsIntegrationTest {
         tagRepository = RoomTagRepository(database.tagDao())
         val tagResolver = TagResolver(tagRepository)
         val failingCleanupTagRepository = FailingCleanupTagRepository(tagRepository)
-        accountCreator = AccountCreator(accountRepository)
+        accountCreator = AccountCreator(
+            accountRepository,
+            CategoryResolver(categoryRepository, categoryCreator),
+            transactionRunner
+        )
         expenseCreator = ExpenseCreator(
             accountRepository = accountRepository,
             expenseRepository = expenseRepository,
@@ -176,7 +181,14 @@ class ExpenseTagsIntegrationTest {
         )
         return (
             this.accountCreator.create(
-                CreateAccountCommand.MoneyAccount("Ahorros", initialBalance, Currency.COP, MoneyAccountKind.SAVINGS, "")
+                CreateAccountCommand.MoneyAccount(
+                    "Ahorros",
+                    initialBalance,
+                    Currency.COP,
+                    MoneyAccountKind.SAVINGS,
+                    "",
+                    GmfInput.Exempt
+                )
             ) as Outcome.Success
             ).value
     }

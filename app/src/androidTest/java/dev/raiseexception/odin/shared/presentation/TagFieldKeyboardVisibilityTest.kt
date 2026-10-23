@@ -22,6 +22,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.model.Tag
 import dev.raiseexception.odin.accounting.presentation.expensecreation.CreateExpenseScreen
@@ -60,7 +61,7 @@ class TagFieldKeyboardVisibilityTest {
     }
 
     private fun setForm(existingTags: List<Tag>) {
-        val savingsAccount = (Account.create("Ahorros", "100000", Currency.COP, MoneyAccountKind.SAVINGS, "") as Outcome.Success)
+        val savingsAccount = (Account.create("Ahorros", "100000", Currency.COP, MoneyAccountKind.SAVINGS, "", GmfTreatment.Exempt) as Outcome.Success)
             .value
         composeTestRule.runOnUiThread { composeTestRule.activity.enableEdgeToEdge() }
         composeTestRule.setContent {
@@ -75,7 +76,7 @@ class TagFieldKeyboardVisibilityTest {
                         unexpectedFailureEvent = emptyFlow(),
                         onRetry = {},
                         uiState = uiState,
-                        onSave = { _, _, _, _ -> },
+                        onSave = { _, _, _ -> },
                         onTagTextChange = { text ->
                             uiState = uiState.copy(tagSelection = uiState.tagSelection.withText(text))
                         },

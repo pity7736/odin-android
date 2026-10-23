@@ -128,10 +128,12 @@ class AppContainer(
     private val accountRepository: AccountRepository by lazy {
         RoomAccountRepository(databaseProvider.requireDatabase().accountDao())
     }
-    private val accountCreator by lazy { AccountCreator(accountRepository) }
+    private val accountCreator by lazy { AccountCreator(accountRepository, categoryResolver, transactionRunner) }
     private val accountLister by lazy { AccountLister(accountRepository) }
     private val accountFinder by lazy { AccountFinder(accountRepository) }
-    private val accountUpdater by lazy { AccountUpdater(accountFinder, accountRepository) }
+    private val accountUpdater by lazy {
+        AccountUpdater(accountFinder, accountRepository, categoryResolver, transactionRunner)
+    }
     private val accountTransactionLister by lazy { AccountTransactionLister() }
     private val recentTransactionLister by lazy { RecentTransactionLister() }
     private val homeSummaryLoader by lazy { HomeSummaryLoader(accountLister, recentTransactionLister) }
@@ -225,6 +227,7 @@ class AppContainer(
             categoryRepository = categoryRepository,
             expenseRepository = expenseRepository,
             incomeRepository = incomeRepository,
+            tagResolver = tagResolver,
             transactionRunner = transactionRunner
         )
     }
@@ -248,8 +251,11 @@ class AppContainer(
     fun startupViewModel(): StartupViewModel = StartupViewModel(this.saltRepository, this.failureRecorder)
 
     fun createAccountViewModel(): CreateAccountViewModel = CreateAccountViewModel(
-        this.accountCreator,
-        this.failureRecorder
+        accountCreator = this.accountCreator,
+        categoryLister = this.categoryLister,
+        tagLister = this.tagLister,
+        failureRecorder = this.failureRecorder,
+        ioDispatcher = this.ioDispatcher
     )
 
     fun accountsListViewModel(): AccountsListViewModel =
@@ -276,6 +282,8 @@ class AppContainer(
                     accountId,
                     accountFinder,
                     accountUpdater,
+                    categoryLister,
+                    tagLister,
                     this@AppContainer.failureRecorder,
                     ioDispatcher
                 )

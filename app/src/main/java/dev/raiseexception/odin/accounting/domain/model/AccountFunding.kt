@@ -7,12 +7,16 @@ sealed interface AccountFunding {
 
     val overSpendMessage: String
 
+    val gmfTreatment: GmfTreatment
+
     fun balance(incomes: List<Income>, expenses: List<Expense>): Money = Money.of(
         (incomes + expenses).fold(this.openingFigure()) { figure, movement ->
             figure.add(this.movementEffect(movement))
         },
         this.currency
     )
+
+    fun gmfTaxOn(amount: BigDecimal): BigDecimal = this.gmfTreatment.taxOn(amount)
 
     fun spendable(incomes: List<Income>, expenses: List<Expense>): Money
 
@@ -28,8 +32,14 @@ sealed interface AccountFunding {
 
     fun historyBreachMessage(figure: BigDecimal): String?
 
-    data class Funds(val initialBalance: Money, val kind: MoneyAccountKind) : AccountFunding {
+    data class Funds(
+        val initialBalance: Money,
+        val kind: MoneyAccountKind,
+        val gmf: GmfTreatment
+    ) : AccountFunding {
         override val currency: Currency get() = this.initialBalance.currency
+
+        override val gmfTreatment: GmfTreatment get() = this.gmf
 
         override val overSpendMessage: String get() = "El monto supera el saldo disponible."
 
@@ -75,6 +85,8 @@ sealed interface AccountFunding {
 
     data class Credit(val creditLimit: Money, val initialDebt: Money) : AccountFunding {
         override val currency: Currency get() = this.creditLimit.currency
+
+        override val gmfTreatment: GmfTreatment get() = GmfTreatment.Exempt
 
         override val overSpendMessage: String get() = "El monto supera el cupo disponible."
 

@@ -6,12 +6,15 @@ import dev.raiseexception.odin.accounting.application.usecase.TransferCreator
 import dev.raiseexception.odin.accounting.domain.TransferCreationError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.AccountFunding
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.Transfer
 import dev.raiseexception.odin.shared.domain.DomainError
 import dev.raiseexception.odin.shared.domain.FailureRecorder
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.presentation.RestartableLoad
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureSignal
+import dev.raiseexception.odin.shared.presentation.amountInputToRaw
+import dev.raiseexception.odin.shared.presentation.gmfTaxLineFor
 import dev.raiseexception.odin.shared.presentation.isMoneyAccount
 import dev.raiseexception.odin.shared.presentation.launchObservation
 import dev.raiseexception.odin.shared.presentation.launchOperation
@@ -58,51 +61,50 @@ class CreateTransferViewModel(
     }
 
     fun onSourceSelected(sourceAccountId: String) {
+        val form = this.selectSource(this.currentForm(), sourceAccountId)
         when (val current = this.mutableUiState.value) {
-            is CreateTransferUiState.Idle -> {
-                val selection = this.selectSource(this.currentSelection(), sourceAccountId)
-                this.mutableUiState.value = this.idle(selection)
-            }
+            is CreateTransferUiState.Idle -> this.mutableUiState.value = this.idle(form)
             is CreateTransferUiState.ValidationError -> {
-                val selection = this.selectSource(this.currentSelection(), sourceAccountId)
-                this.mutableUiState.value = current.copy(
-                    destinationAccounts = this.destinationAccountsFor(selection.sourceAccountId),
-                    selectedSourceAccountId = selection.sourceAccountId,
-                    selectedDestinationAccountId = selection.destinationAccountId,
-                    saveLabel = this.saveLabelFor(selection.destinationAccountId),
-                    sourceAccountError = null
-                )
+                this.mutableUiState.value = this.validationError(form, current).copy(sourceAccountError = null)
             }
             else -> Unit
         }
     }
 
     fun onDestinationSelected(destinationAccountId: String) {
+        val form = this.currentForm().copy(destinationAccountId = destinationAccountId)
         when (val current = this.mutableUiState.value) {
-            is CreateTransferUiState.Idle -> this.mutableUiState.value = current.copy(
-                selectedDestinationAccountId = destinationAccountId,
-                saveLabel = this.saveLabelFor(destinationAccountId)
-            )
-            is CreateTransferUiState.ValidationError -> this.mutableUiState.value = current.copy(
-                selectedDestinationAccountId = destinationAccountId,
-                saveLabel = this.saveLabelFor(destinationAccountId),
-                destinationAccountError = null
-            )
+            is CreateTransferUiState.Idle -> this.mutableUiState.value = this.idle(form)
+            is CreateTransferUiState.ValidationError -> {
+                this.mutableUiState.value = this.validationError(form, current).copy(destinationAccountError = null)
+            }
             else -> Unit
         }
     }
 
-    fun save(amount: String, date: String) {
+    fun onAmountChanged(amount: String) {
+        this.updateForm { form -> form.copy(amount = amount) }
+    }
+
+    fun onChargeGmfChanged(chargeGmf: Boolean) {
+        this.updateForm { form -> form.copy(chargeGmf = chargeGmf) }
+    }
+
+    fun save(date: String) {
         val stateBeforeSaving = this.mutableUiState.value
         if (stateBeforeSaving is CreateTransferUiState.Saving) return
-        val selection = this.currentSelection()
-        val formState = this.idle(selection)
+        val form = this.currentForm()
+        val formState = this.idle(form)
         this.mutableUiState.value = CreateTransferUiState.Saving(
             sourceAccounts = formState.sourceAccounts,
             destinationAccounts = formState.destinationAccounts,
             selectedSourceAccountId = formState.selectedSourceAccountId,
             selectedDestinationAccountId = formState.selectedDestinationAccountId,
-            saveLabel = formState.saveLabel
+            saveLabel = formState.saveLabel,
+            amount = formState.amount,
+            chargeGmf = formState.chargeGmf,
+            showsGmfOption = formState.showsGmfOption,
+            gmfTaxLine = formState.gmfTaxLine
         )
         this.launchOperation(
             operation = SUBMIT_OPERATION,
@@ -110,22 +112,32 @@ class CreateTransferViewModel(
             work = {
                 withContext(this.ioDispatcher) {
                     transferCreator.create(
-                        sourceAccountId = selection.sourceAccountId,
-                        destinationAccountId = selection.destinationAccountId,
-                        amount = amount,
-                        date = date
+                        sourceAccountId = form.sourceAccountId,
+                        destinationAccountId = form.destinationAccountId,
+                        amount = amountInputToRaw(form.amount),
+                        date = date,
+                        chargeGmf = form.chargeGmf && formState.showsGmfOption
                     )
                 }
             },
-            onResult = { outcome -> this.handleSave(outcome, selection) },
+            onResult = { outcome -> this.handleSave(outcome, form) },
             onUnexpectedFailure = { this.unexpectedFailure.restore(stateBeforeSaving) }
         )
     }
 
-    private suspend fun handleSave(outcome: Outcome<Transfer>, selection: Selection) {
+    private fun updateForm(update: (TransferForm) -> TransferForm) {
+        val form = update(this.currentForm())
+        when (val current = this.mutableUiState.value) {
+            is CreateTransferUiState.Idle -> this.mutableUiState.value = this.idle(form)
+            is CreateTransferUiState.ValidationError -> this.mutableUiState.value = this.validationError(form, current)
+            else -> Unit
+        }
+    }
+
+    private suspend fun handleSave(outcome: Outcome<Transfer>, form: TransferForm) {
         when (outcome) {
-            is Outcome.Success -> this.navigationChannel.send(NavigationTarget.AccountDetail(selection.sourceAccountId))
-            is Outcome.Failure -> this.mutableUiState.value = this.mapError(outcome.error, selection)
+            is Outcome.Success -> this.navigationChannel.send(NavigationTarget.AccountDetail(form.sourceAccountId))
+            is Outcome.Failure -> this.mutableUiState.value = this.mapError(outcome.error, form)
         }
     }
 
@@ -148,30 +160,52 @@ class CreateTransferViewModel(
 
     private fun initialState(): CreateTransferUiState.Idle {
         val origin = this.accounts.firstOrNull { it.id == this.originAccountId }
-        val selection = when (origin?.funding) {
-            is AccountFunding.Funds -> Selection(sourceAccountId = origin.id, destinationAccountId = "")
-            is AccountFunding.Credit -> Selection(sourceAccountId = "", destinationAccountId = origin.id)
-            null -> Selection(sourceAccountId = "", destinationAccountId = "")
+        val form = when (origin?.funding) {
+            is AccountFunding.Funds -> TransferForm(sourceAccountId = origin.id, destinationAccountId = "")
+            is AccountFunding.Credit -> TransferForm(sourceAccountId = "", destinationAccountId = origin.id)
+            null -> TransferForm(sourceAccountId = "", destinationAccountId = "")
         }
-        return this.idle(selection)
+        return this.idle(form)
     }
 
-    private fun selectSource(selection: Selection, sourceAccountId: String): Selection = Selection(
+    private fun selectSource(form: TransferForm, sourceAccountId: String): TransferForm = form.copy(
         sourceAccountId = sourceAccountId,
-        destinationAccountId = if (selection.destinationAccountId == sourceAccountId) {
-            ""
-        } else {
-            selection.destinationAccountId
-        }
+        destinationAccountId = if (form.destinationAccountId == sourceAccountId) "" else form.destinationAccountId,
+        chargeGmf = true
     )
 
-    private fun idle(selection: Selection): CreateTransferUiState.Idle = CreateTransferUiState.Idle(
-        sourceAccounts = this.accounts.filter { isMoneyAccount(it) },
-        destinationAccounts = this.destinationAccountsFor(selection.sourceAccountId),
-        selectedSourceAccountId = selection.sourceAccountId,
-        selectedDestinationAccountId = selection.destinationAccountId,
-        saveLabel = this.saveLabelFor(selection.destinationAccountId)
-    )
+    private fun idle(form: TransferForm): CreateTransferUiState.Idle {
+        val source = this.accounts.firstOrNull { it.id == form.sourceAccountId }
+        val showsGmfOption = source?.funding?.gmfTreatment is GmfTreatment.Taxed
+        return CreateTransferUiState.Idle(
+            sourceAccounts = this.accounts.filter { isMoneyAccount(it) },
+            destinationAccounts = this.destinationAccountsFor(form.sourceAccountId),
+            selectedSourceAccountId = form.sourceAccountId,
+            selectedDestinationAccountId = form.destinationAccountId,
+            saveLabel = this.saveLabelFor(form.destinationAccountId),
+            amount = form.amount,
+            chargeGmf = form.chargeGmf,
+            showsGmfOption = showsGmfOption,
+            gmfTaxLine = if (showsGmfOption && form.chargeGmf) gmfTaxLineFor(source, form.amount) else null
+        )
+    }
+
+    private fun validationError(
+        form: TransferForm,
+        current: CreateTransferUiState.ValidationError
+    ): CreateTransferUiState.ValidationError {
+        val formState = this.idle(form)
+        return current.copy(
+            destinationAccounts = formState.destinationAccounts,
+            selectedSourceAccountId = formState.selectedSourceAccountId,
+            selectedDestinationAccountId = formState.selectedDestinationAccountId,
+            saveLabel = formState.saveLabel,
+            amount = formState.amount,
+            chargeGmf = formState.chargeGmf,
+            showsGmfOption = formState.showsGmfOption,
+            gmfTaxLine = formState.gmfTaxLine
+        )
+    }
 
     private fun destinationAccountsFor(sourceAccountId: String): List<Account> =
         this.accounts.filter { it.id != sourceAccountId }
@@ -182,15 +216,19 @@ class CreateTransferViewModel(
             is AccountFunding.Funds, null -> TRANSFER_LABEL
         }
 
-    private fun mapError(error: DomainError, selection: Selection): CreateTransferUiState = when (error) {
+    private fun mapError(error: DomainError, form: TransferForm): CreateTransferUiState = when (error) {
         is TransferCreationError.InvalidInput -> {
-            val formState = this.idle(selection)
+            val formState = this.idle(form)
             CreateTransferUiState.ValidationError(
                 sourceAccounts = formState.sourceAccounts,
                 destinationAccounts = formState.destinationAccounts,
                 selectedSourceAccountId = formState.selectedSourceAccountId,
                 selectedDestinationAccountId = formState.selectedDestinationAccountId,
                 saveLabel = formState.saveLabel,
+                amount = formState.amount,
+                chargeGmf = formState.chargeGmf,
+                showsGmfOption = formState.showsGmfOption,
+                gmfTaxLine = formState.gmfTaxLine,
                 amountError = error.amountError,
                 dateError = error.dateError,
                 sourceAccountError = error.sourceAccountError,
@@ -200,19 +238,28 @@ class CreateTransferViewModel(
         else -> CreateTransferUiState.Error(error.externalMessage)
     }
 
-    private fun currentSelection(): Selection = when (val current = this.mutableUiState.value) {
-        is CreateTransferUiState.Idle -> Selection(
+    private fun currentForm(): TransferForm = when (val current = this.mutableUiState.value) {
+        is CreateTransferUiState.Idle -> TransferForm(
             sourceAccountId = current.selectedSourceAccountId,
-            destinationAccountId = current.selectedDestinationAccountId
+            destinationAccountId = current.selectedDestinationAccountId,
+            amount = current.amount,
+            chargeGmf = current.chargeGmf
         )
-        is CreateTransferUiState.ValidationError -> Selection(
+        is CreateTransferUiState.ValidationError -> TransferForm(
             sourceAccountId = current.selectedSourceAccountId,
-            destinationAccountId = current.selectedDestinationAccountId
+            destinationAccountId = current.selectedDestinationAccountId,
+            amount = current.amount,
+            chargeGmf = current.chargeGmf
         )
-        else -> Selection(sourceAccountId = "", destinationAccountId = "")
+        else -> TransferForm(sourceAccountId = "", destinationAccountId = "")
     }
 
-    private data class Selection(val sourceAccountId: String, val destinationAccountId: String)
+    private data class TransferForm(
+        val sourceAccountId: String,
+        val destinationAccountId: String,
+        val amount: String = "",
+        val chargeGmf: Boolean = true
+    )
 
     companion object {
         private const val LOAD_OPERATION = "transfer-creation.load"

@@ -6,6 +6,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,6 +30,7 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -47,9 +49,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.shared.presentation.AmountField
+import dev.raiseexception.odin.shared.presentation.GmfTaxLine
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureContent
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureDialogHost
-import dev.raiseexception.odin.shared.presentation.amountInputToRaw
 import dev.raiseexception.odin.ui.theme.ExpenseRed
 import dev.raiseexception.odin.ui.theme.Slate200
 import dev.raiseexception.odin.ui.theme.Slate50
@@ -69,12 +71,14 @@ fun CreateTransferScreen(
     uiState: CreateTransferUiState,
     onSourceSelected: (String) -> Unit,
     onDestinationSelected: (String) -> Unit,
-    onSave: (String, String) -> Unit,
+    onSave: (String) -> Unit,
     navigationEvent: Flow<NavigationTarget>,
     unexpectedFailureEvent: Flow<Unit>,
     onRetry: () -> Unit,
     onNavigateBack: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onAmountChange: (String) -> Unit = {},
+    onChargeGmfChange: (Boolean) -> Unit = {},
 ) {
     LaunchedEffect(Unit) {
         navigationEvent.collect { target ->
@@ -94,6 +98,8 @@ fun CreateTransferScreen(
             isSaving = uiState is CreateTransferUiState.Saving,
             onSourceSelected = onSourceSelected,
             onDestinationSelected = onDestinationSelected,
+            onAmountChange = onAmountChange,
+            onChargeGmfChange = onChargeGmfChange,
             onSave = onSave,
             modifier = modifier,
         )
@@ -106,6 +112,10 @@ private data class TransferFormState(
     val selectedSourceAccountId: String,
     val selectedDestinationAccountId: String,
     val saveLabel: String,
+    val amount: String,
+    val chargeGmf: Boolean,
+    val showsGmfOption: Boolean,
+    val gmfTaxLine: String?,
 )
 
 @Composable
@@ -143,10 +153,11 @@ private fun TransferForm(
     isSaving: Boolean,
     onSourceSelected: (String) -> Unit,
     onDestinationSelected: (String) -> Unit,
-    onSave: (String, String) -> Unit,
+    onAmountChange: (String) -> Unit,
+    onChargeGmfChange: (Boolean) -> Unit,
+    onSave: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var amount by rememberSaveable { mutableStateOf("") }
     var rawDate by rememberSaveable {
         mutableStateOf(Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString())
     }
@@ -188,12 +199,17 @@ private fun TransferForm(
         )
         Spacer(modifier = Modifier.height(16.dp))
         AmountField(
-            value = amount,
-            onValueChange = { amount = it },
+            value = form.amount,
+            onValueChange = onAmountChange,
             label = "Monto",
             testTag = "amount_field",
             errorMessage = validation?.amountError,
         )
+        GmfTaxLine(form.gmfTaxLine)
+        if (form.showsGmfOption) {
+            Spacer(modifier = Modifier.height(16.dp))
+            ChargeGmfOption(chargeGmf = form.chargeGmf, onChargeGmfChange = onChargeGmfChange)
+        }
         Spacer(modifier = Modifier.height(16.dp))
         DatePickerField(rawDate, { rawDate = it }, validation?.dateError, transferMinDate)
         Spacer(modifier = Modifier.height(24.dp))
@@ -205,7 +221,7 @@ private fun TransferForm(
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
             else -> Button(
-                onClick = { onSave(amountInputToRaw(amount), rawDate) },
+                onClick = { onSave(rawDate) },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Slate800,
@@ -412,6 +428,10 @@ private fun transferFormState(uiState: CreateTransferUiState): TransferFormState
         selectedSourceAccountId = uiState.selectedSourceAccountId,
         selectedDestinationAccountId = uiState.selectedDestinationAccountId,
         saveLabel = uiState.saveLabel,
+        amount = uiState.amount,
+        chargeGmf = uiState.chargeGmf,
+        showsGmfOption = uiState.showsGmfOption,
+        gmfTaxLine = uiState.gmfTaxLine,
     )
     is CreateTransferUiState.ValidationError -> TransferFormState(
         sourceAccounts = uiState.sourceAccounts,
@@ -419,6 +439,10 @@ private fun transferFormState(uiState: CreateTransferUiState): TransferFormState
         selectedSourceAccountId = uiState.selectedSourceAccountId,
         selectedDestinationAccountId = uiState.selectedDestinationAccountId,
         saveLabel = uiState.saveLabel,
+        amount = uiState.amount,
+        chargeGmf = uiState.chargeGmf,
+        showsGmfOption = uiState.showsGmfOption,
+        gmfTaxLine = uiState.gmfTaxLine,
     )
     is CreateTransferUiState.Saving -> TransferFormState(
         sourceAccounts = uiState.sourceAccounts,
@@ -426,6 +450,10 @@ private fun transferFormState(uiState: CreateTransferUiState): TransferFormState
         selectedSourceAccountId = uiState.selectedSourceAccountId,
         selectedDestinationAccountId = uiState.selectedDestinationAccountId,
         saveLabel = uiState.saveLabel,
+        amount = uiState.amount,
+        chargeGmf = uiState.chargeGmf,
+        showsGmfOption = uiState.showsGmfOption,
+        gmfTaxLine = uiState.gmfTaxLine,
     )
     else -> TransferFormState(
         sourceAccounts = emptyList(),
@@ -433,7 +461,39 @@ private fun transferFormState(uiState: CreateTransferUiState): TransferFormState
         selectedSourceAccountId = "",
         selectedDestinationAccountId = "",
         saveLabel = "",
+        amount = "",
+        chargeGmf = true,
+        showsGmfOption = false,
+        gmfTaxLine = null,
     )
+}
+
+@Composable
+private fun ChargeGmfOption(chargeGmf: Boolean, onChargeGmfChange: (Boolean) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Cobrar 4x1000",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = Slate800,
+            )
+            Text(
+                text = "Desactívalo si transfieres entre tus cuentas del mismo banco.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Slate500,
+                modifier = Modifier.testTag("charge_gmf_note"),
+            )
+        }
+        Switch(
+            checked = chargeGmf,
+            onCheckedChange = onChargeGmfChange,
+            modifier = Modifier.testTag("charge_gmf_switch"),
+        )
+    }
 }
 
 private fun transferMinDate(sourceAccount: Account?, destinationAccount: Account?): LocalDate? {

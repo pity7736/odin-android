@@ -469,7 +469,8 @@ class HomeSummaryLoaderTest {
         categoryId = "cat-2",
         description = "",
         createdAt = Instant.parse(recordedAt),
-        tagIds = emptyList()
+        tagIds = emptyList(),
+        gmfTax = null
     )
 
     private fun pesos(amount: String): Money = Money.of(BigDecimal(amount), Currency.COP)

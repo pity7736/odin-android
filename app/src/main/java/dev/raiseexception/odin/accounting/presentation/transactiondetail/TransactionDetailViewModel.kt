@@ -5,6 +5,7 @@ import dev.raiseexception.odin.accounting.application.usecase.TransactionDeleter
 import dev.raiseexception.odin.accounting.application.usecase.TransactionFinder
 import dev.raiseexception.odin.accounting.domain.TransactionLookupError
 import dev.raiseexception.odin.accounting.domain.model.AccountType
+import dev.raiseexception.odin.accounting.domain.model.Expense
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.TransactionDetail
 import dev.raiseexception.odin.shared.domain.FailureRecorder
@@ -13,6 +14,7 @@ import dev.raiseexception.odin.shared.presentation.RestartableLoad
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureSignal
 import dev.raiseexception.odin.shared.presentation.formatFullSpanishDate
 import dev.raiseexception.odin.shared.presentation.formatMoney
+import dev.raiseexception.odin.shared.presentation.gmfTaxLineOf
 import dev.raiseexception.odin.shared.presentation.launchObservation
 import dev.raiseexception.odin.shared.presentation.launchOperation
 import dev.raiseexception.odin.ui.theme.ExpenseRed
@@ -117,6 +119,7 @@ class TransactionDetailViewModel(
         val transaction = detail.transaction
         val isIncome = transaction is Income
         val prefix = if (isIncome) "+" else "-"
+        val gmfTax = (transaction as? Expense)?.gmfTax
         return TransactionDetailUiState.Content(
             formattedAmount = "$prefix${formatMoney(transaction.amount)}",
             amountColor = if (isIncome) IncomeGreen else ExpenseRed,
@@ -126,8 +129,10 @@ class TransactionDetailViewModel(
             description = transaction.description,
             isIncome = isIncome,
             typeLabel = this.typeLabel(detail),
-            isEditable = !detail.isTransfer,
+            isEditable = !detail.isTransfer && !detail.isGmfTax,
             tagNames = detail.tags.map { it.name },
+            gmfTaxLine = gmfTax?.let { gmfTaxLineOf(it.amount.amount, it.amount.currency) },
+            gmfTaxId = gmfTax?.id,
         )
     }
 

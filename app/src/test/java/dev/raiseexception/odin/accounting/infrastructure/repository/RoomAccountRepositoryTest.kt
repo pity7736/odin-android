@@ -7,18 +7,21 @@ import dev.raiseexception.odin.accounting.domain.AccountLookupError
 import dev.raiseexception.odin.accounting.domain.model.AccountFunding
 import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
 import dev.raiseexception.odin.accounting.domain.repository.AccountCriteria
 import dev.raiseexception.odin.persistence.OdinDatabase
 import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.testutil.AccountBuilder
+import dev.raiseexception.odin.testutil.ExpenseBuilder
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.Instant
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -110,7 +113,8 @@ class RoomAccountRepositoryTest {
             initialBalance = "2000.00",
             currency = Currency.USD,
             kind = MoneyAccountKind.CASH,
-            description = "Gastos diarios"
+            description = "Gastos diarios",
+            gmf = GmfTreatment.Exempt
         )
         val edited = (editOutcome as Outcome.Success).value
 
@@ -372,6 +376,113 @@ class RoomAccountRepositoryTest {
         assertTrue(expenses.single { it.id == "exp-untagged" }.tagIds.isEmpty())
         assertEquals(1, accounts.single().incomes.size)
     }
+
+    @Test
+    fun `given a non-exempt account, when added and read back, then its tax category and tags are restored`() =
+        runTest {
+            database.categoryDao().insert(expenseCategory("cat-impuestos"))
+            val treatment = GmfTreatment.Taxed("cat-impuestos", listOf("4x1000", "Impuestos"))
+            repository.add(AccountBuilder().id("acc-1").gmf(treatment).build())
+
+            val restored = (repository.findById("acc-1").first() as Outcome.Success).value
+
+            assertEquals(treatment, (restored.funding as AccountFunding.Funds).gmf)
+        }
+
+    @Test
+    fun `given an exempt account, when added and read back, then it is exempt with no tax columns`() = runTest {
+        repository.add(AccountBuilder().id("acc-1").gmf(GmfTreatment.Exempt).build())
+
+        val restored = (repository.findById("acc-1").first() as Outcome.Success).value
+        val stored = database.accountDao().findById("acc-1").first()!!
+
+        assertEquals(GmfTreatment.Exempt, (restored.funding as AccountFunding.Funds).gmf)
+        assertNull(stored.gmfCategoryId)
+        assertNull(stored.gmfTagNames)
+    }
+
+    @Test
+    fun `given a stored savings row from before the tax existed, when findById, then it is exempt`() = runTest {
+        database.accountDao().insert(
+            AccountEntity(
+                id = "acc-1",
+                name = "Ahorros",
+                initialBalanceAmount = "1500.00",
+                currency = "COP",
+                type = "SAVINGS",
+                description = "",
+                createdAt = "2026-08-01T10:00:00Z"
+            )
+        )
+
+        val account = (repository.findById("acc-1").first() as Outcome.Success).value
+
+        assertEquals(GmfTreatment.Exempt, (account.funding as AccountFunding.Funds).gmf)
+    }
+
+    @Test
+    fun `given a movement with its tax, when findById with full criteria, then the tax is nested in its movement`() =
+        runTest {
+            seedTaxedMovement()
+            val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
+
+            val account = (repository.findById("acc-1", criteria).first() as Outcome.Success).value
+
+            val mercado = account.expenses.first()
+            assertEquals("exp-mercado", mercado.id)
+            assertEquals("tax-mercado", mercado.gmfTax!!.id)
+            assertEquals(listOf("tag-4x1000"), mercado.gmfTax!!.tagIds)
+            assertEquals(listOf("exp-mercado", "tax-mercado"), account.expenses.map { it.id })
+            assertEquals(Money.of(BigDecimal("99600.00"), Currency.COP), account.balance)
+        }
+
+    @Test
+    fun `given a movement with its tax, when getAll with full criteria, then the tax is nested in its movement`() =
+        runTest {
+            seedTaxedMovement()
+            val criteria = AccountCriteria(includeIncomes = true, includeExpenses = true)
+
+            val accounts = (repository.getAll(criteria).first() as Outcome.Success).value
+
+            assertEquals(listOf("exp-mercado", "tax-mercado"), accounts.single().expenses.map { it.id })
+            assertEquals("tax-mercado", accounts.single().expenses.first().gmfTax!!.id)
+        }
+
+    private suspend fun seedTaxedMovement() {
+        val ahorros = AccountBuilder()
+            .id("acc-1")
+            .initialBalance(Money.of(BigDecimal("200000.00"), Currency.COP))
+            .build()
+        repository.add(ahorros)
+        database.categoryDao().insert(this.expenseCategory("cat-1"))
+        database.tagDao().insert(TagEntity("tag-4x1000", "4x1000", "4x1000", "2026-01-01T00:00:00Z"))
+        val tax = ExpenseBuilder()
+            .id("tax-mercado")
+            .accountId("acc-1")
+            .amount("400.00")
+            .categoryId("cat-1")
+            .description("4x1000 – Mercado")
+            .tagIds(listOf("tag-4x1000"))
+            .build()
+        val mercado = ExpenseBuilder()
+            .id("exp-mercado")
+            .accountId("acc-1")
+            .amount("100000.00")
+            .categoryId("cat-1")
+            .description("Mercado")
+            .gmfTax(tax)
+            .build()
+        RoomExpenseRepository(database.transactionDao(), database.expenseTagDao()).add(mercado)
+    }
+
+    private fun expenseCategory(id: String) = CategoryEntity(
+        id = id,
+        name = id,
+        type = "EXPENSE",
+        description = "",
+        color = "#FF0000",
+        createdAt = "2026-01-01T00:00:00Z"
+    )
 
     private suspend fun seedAccountWithTransactions() {
         repository.add(AccountBuilder().id("acc-1").build())

@@ -73,7 +73,8 @@ class IncomeUpdaterTest {
         categoryId = "cat-food",
         description = "",
         createdAt = Instant.parse("2026-03-08T12:00:00Z"),
-        tagIds = emptyList()
+        tagIds = emptyList(),
+        gmfTax = null
     )
     private val account: Account = AccountBuilder()
         .id("acc-1")
@@ -268,6 +269,7 @@ class IncomeUpdaterTest {
         "Salario",
         "Ahorros",
         isTransfer = isTransfer,
+        isGmfTax = false,
         accountType = AccountType.SAVINGS,
         tags = emptyList()
     )

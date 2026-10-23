@@ -7,12 +7,15 @@ sealed class AccountUpdateError(
     override val externalMessage: String
 ) : DomainError {
 
-    class InvalidInput(
+    @Suppress("LongParameterList")
+    data class InvalidInput(
         val nameError: String?,
         val balanceError: String?,
         val currencyError: String?,
         val typeError: String?,
-        val descriptionError: String?
+        val descriptionError: String?,
+        val gmfCategoryError: String? = null,
+        val gmfTagsError: String? = null
     ) : AccountUpdateError(
         internalMessage = "One or more account fields are invalid",
         externalMessage = "Revisa los datos de la cuenta"

@@ -19,6 +19,8 @@ import dev.raiseexception.odin.shared.domain.Outcome
 import dev.raiseexception.odin.shared.presentation.RestartableLoad
 import dev.raiseexception.odin.shared.presentation.TagSelection
 import dev.raiseexception.odin.shared.presentation.UnexpectedFailureSignal
+import dev.raiseexception.odin.shared.presentation.amountInputToRaw
+import dev.raiseexception.odin.shared.presentation.gmfTaxLineFor
 import dev.raiseexception.odin.shared.presentation.launchObservation
 import dev.raiseexception.odin.shared.presentation.launchOperation
 import kotlinx.coroutines.CoroutineDispatcher
@@ -60,6 +62,8 @@ class CreateExpenseViewModel(
 
     private val restartableLoad = RestartableLoad { this.load() }
 
+    private var fixedAccount: Account? = null
+
     init {
         this.restartableLoad.start()
     }
@@ -69,7 +73,7 @@ class CreateExpenseViewModel(
         this.restartableLoad.start()
     }
 
-    fun save(amount: String, date: String, categoryInput: CategoryInput, description: String) {
+    fun save(date: String, categoryInput: CategoryInput, description: String) {
         val stateBeforeSaving = this.mutableUiState.value
         if (stateBeforeSaving is CreateExpenseUiState.Saving) return
         val snapshot = this.currentSnapshot().withTypedTagAdded()
@@ -90,7 +94,7 @@ class CreateExpenseViewModel(
                 withContext(this.ioDispatcher) {
                     expenseCreator.create(
                         accountId = resolvedAccountId,
-                        amount = amount,
+                        amount = amountInputToRaw(snapshot.amount),
                         date = date,
                         categoryInput = categoryInput,
                         description = description,
@@ -121,11 +125,27 @@ class CreateExpenseViewModel(
         val current = this.mutableUiState.value
         when (current) {
             is CreateExpenseUiState.Idle -> this.mutableUiState.value = current.copy(
-                selectedAccountId = selectedAccountId
+                selectedAccountId = selectedAccountId,
+                gmfTaxLine = gmfTaxLineFor(this.chosenAccount(current.accounts, selectedAccountId), current.amount)
             )
             is CreateExpenseUiState.ValidationError -> this.mutableUiState.value = current.copy(
                 selectedAccountId = selectedAccountId,
-                accountError = null
+                accountError = null,
+                gmfTaxLine = gmfTaxLineFor(this.chosenAccount(current.accounts, selectedAccountId), current.amount)
+            )
+            else -> Unit
+        }
+    }
+
+    fun onAmountChanged(amount: String) {
+        when (val current = this.mutableUiState.value) {
+            is CreateExpenseUiState.Idle -> this.mutableUiState.value = current.copy(
+                amount = amount,
+                gmfTaxLine = gmfTaxLineFor(this.chosenAccount(current.accounts, current.selectedAccountId), amount)
+            )
+            is CreateExpenseUiState.ValidationError -> this.mutableUiState.value = current.copy(
+                amount = amount,
+                gmfTaxLine = gmfTaxLineFor(this.chosenAccount(current.accounts, current.selectedAccountId), amount)
             )
             else -> Unit
         }
@@ -191,6 +211,7 @@ class CreateExpenseViewModel(
             else -> {
                 val categories = (categoriesOutcome as Outcome.Success).value
                 val account = (accountOutcome as Outcome.Success).value
+                this.fixedAccount = account
                 val createdAt = account.createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
                 CreateExpenseUiState.Idle(
                     categories = categories,
@@ -237,7 +258,9 @@ class CreateExpenseViewModel(
                 categoryError = error.categoryError,
                 descriptionError = error.descriptionError,
                 tags = snapshot.tags,
-                tagSelection = snapshot.tagSelection.copy(error = error.tagsError ?: snapshot.tagSelection.error)
+                tagSelection = snapshot.tagSelection.copy(error = error.tagsError ?: snapshot.tagSelection.error),
+                amount = snapshot.amount,
+                gmfTaxLine = snapshot.gmfTaxLine
             )
             else -> CreateExpenseUiState.Error(error.externalMessage)
         }
@@ -251,7 +274,9 @@ class CreateExpenseViewModel(
             selectedAccountId = snapshot.selectedAccountId,
             accountError = accountError,
             tags = snapshot.tags,
-            tagSelection = snapshot.tagSelection
+            tagSelection = snapshot.tagSelection,
+            amount = snapshot.amount,
+            gmfTaxLine = snapshot.gmfTaxLine
         )
 
     private fun currentSnapshot() = when (val current = this.mutableUiState.value) {
@@ -262,6 +287,8 @@ class CreateExpenseViewModel(
             current.selectedAccountId,
             current.tags,
             current.tagSelection,
+            current.amount,
+            current.gmfTaxLine,
         )
         is CreateExpenseUiState.ValidationError -> FormSnapshot(
             current.categories,
@@ -270,9 +297,14 @@ class CreateExpenseViewModel(
             current.selectedAccountId,
             current.tags,
             current.tagSelection,
+            current.amount,
+            current.gmfTaxLine,
         )
-        else -> FormSnapshot(emptyList(), EPOCH_DATE, emptyList(), null, emptyList(), TagSelection())
+        else -> FormSnapshot(emptyList(), EPOCH_DATE, emptyList(), null, emptyList(), TagSelection(), "", null)
     }
+
+    private fun chosenAccount(accounts: List<Account>, selectedAccountId: String?): Account? =
+        this.fixedAccount ?: accounts.firstOrNull { it.id == selectedAccountId }
 
     private data class FormSnapshot(
         val categories: List<Category>,
@@ -281,6 +313,8 @@ class CreateExpenseViewModel(
         val selectedAccountId: String?,
         val tags: List<Tag>,
         val tagSelection: TagSelection,
+        val amount: String,
+        val gmfTaxLine: String?,
     ) {
         fun withTypedTagAdded(): FormSnapshot = this.copy(tagSelection = this.tagSelection.withTextAdded(this.tags))
     }

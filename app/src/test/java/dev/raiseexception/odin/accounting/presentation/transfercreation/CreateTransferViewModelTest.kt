@@ -7,6 +7,7 @@ import dev.raiseexception.odin.accounting.domain.TransferCreationError
 import dev.raiseexception.odin.accounting.domain.model.Account
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import dev.raiseexception.odin.accounting.domain.model.Expense
+import dev.raiseexception.odin.accounting.domain.model.GmfTreatment
 import dev.raiseexception.odin.accounting.domain.model.Income
 import dev.raiseexception.odin.accounting.domain.model.Money
 import dev.raiseexception.odin.accounting.domain.model.MoneyAccountKind
@@ -35,6 +36,7 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -212,11 +214,13 @@ class CreateTransferViewModelTest {
     @Test
     fun `given selections made in the form, when saving, then creates the transfer with the selected accounts`() =
         runTest {
-            coEvery { transferCreator.create(any(), any(), any(), any()) } returns Outcome.Success(transfer())
+            coEvery { transferCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Success(transfer())
             val viewModel = loadedViewModel(originAccountId = "card-1")
             viewModel.onSourceSelected("src-1")
 
-            viewModel.save("200.00", "2026-08-29")
+            viewModel.onAmountChanged("200,00")
+
+            viewModel.save("2026-08-29")
             testDispatcher.scheduler.advanceUntilIdle()
 
             coVerify {
@@ -224,7 +228,8 @@ class CreateTransferViewModelTest {
                     sourceAccountId = "src-1",
                     destinationAccountId = "card-1",
                     amount = "200.00",
-                    date = "2026-08-29"
+                    date = "2026-08-29",
+                    chargeGmf = false
                 )
             }
         }
@@ -232,7 +237,7 @@ class CreateTransferViewModelTest {
     @Test
     fun `given a payment being filled, when the save fails validation, then keeps selections lists and label`() =
         runTest {
-            coEvery { transferCreator.create(any(), any(), any(), any()) } returns Outcome.Failure(
+            coEvery { transferCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Failure(
                 TransferCreationError.InvalidInput(
                     amountError = "El pago no puede superar la deuda actual.",
                     dateError = null,
@@ -243,7 +248,9 @@ class CreateTransferViewModelTest {
             val viewModel = loadedViewModel(originAccountId = "src-1")
             viewModel.onDestinationSelected("card-1")
 
-            viewModel.save("600.00", "2026-08-29")
+            viewModel.onAmountChanged("600,00")
+
+            viewModel.save("2026-08-29")
             testDispatcher.scheduler.advanceUntilIdle()
 
             assertEquals(
@@ -253,6 +260,7 @@ class CreateTransferViewModelTest {
                     selectedSourceAccountId = "src-1",
                     selectedDestinationAccountId = "card-1",
                     saveLabel = "Pagar",
+                    amount = "600,00",
                     amountError = "El pago no puede superar la deuda actual."
                 ),
                 viewModel.uiState.value
@@ -262,11 +270,13 @@ class CreateTransferViewModelTest {
     @Test
     fun `given a payment being filled, when saving starts, then the saving state keeps selections lists and label`() =
         runTest {
-            coEvery { transferCreator.create(any(), any(), any(), any()) } returns Outcome.Success(transfer())
+            coEvery { transferCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Success(transfer())
             val viewModel = loadedViewModel(originAccountId = "src-1")
             viewModel.onDestinationSelected("card-1")
 
-            viewModel.save("200.00", "2026-08-29")
+            viewModel.onAmountChanged("200,00")
+
+            viewModel.save("2026-08-29")
 
             assertEquals(
                 CreateTransferUiState.Saving(
@@ -274,7 +284,8 @@ class CreateTransferViewModelTest {
                     destinationAccounts = listOf(cashAccount, creditCard),
                     selectedSourceAccountId = "src-1",
                     selectedDestinationAccountId = "card-1",
-                    saveLabel = "Pagar"
+                    saveLabel = "Pagar",
+                    amount = "200,00"
                 ),
                 viewModel.uiState.value
             )
@@ -282,11 +293,13 @@ class CreateTransferViewModelTest {
 
     @Test
     fun `given a valid transfer, when saving, then navigates back to the source account`() = runTest {
-        coEvery { transferCreator.create(any(), any(), any(), any()) } returns Outcome.Success(transfer())
+        coEvery { transferCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Success(transfer())
         val viewModel = loadedViewModel(originAccountId = "src-1")
         viewModel.onDestinationSelected("dst-1")
 
-        viewModel.save("200.00", "2026-08-29")
+        viewModel.onAmountChanged("200,00")
+
+        viewModel.save("2026-08-29")
         testDispatcher.scheduler.advanceUntilIdle()
 
         viewModel.navigationEvent.test {
@@ -298,7 +311,7 @@ class CreateTransferViewModelTest {
     @Test
     fun `given Idle state, when saving and the transfer fails to save, then emits Error with the external message`() =
         runTest {
-            coEvery { transferCreator.create(any(), any(), any(), any()) } returns Outcome.Failure(
+            coEvery { transferCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Failure(
                 TransferCreationError.StorageFailure(
                     internalMessage = "Failed to add income",
                     externalMessage = "No se pudo guardar la transferencia."
@@ -306,7 +319,9 @@ class CreateTransferViewModelTest {
             )
             val viewModel = loadedViewModel(originAccountId = "src-1")
 
-            viewModel.save("100", "2026-08-29")
+            viewModel.onAmountChanged("100")
+
+            viewModel.save("2026-08-29")
             testDispatcher.scheduler.advanceUntilIdle()
 
             assertEquals(CreateTransferUiState.Error("No se pudo guardar la transferencia."), viewModel.uiState.value)
@@ -314,22 +329,26 @@ class CreateTransferViewModelTest {
 
     @Test
     fun `given Saving state, when save called again, then ignores duplicate`() = runTest {
-        coEvery { transferCreator.create(any(), any(), any(), any()) } returns Outcome.Success(transfer())
+        coEvery { transferCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Success(transfer())
         val viewModel = loadedViewModel(originAccountId = "src-1")
         viewModel.onDestinationSelected("dst-1")
 
-        viewModel.save("200.00", "2026-08-29")
-        viewModel.save("200.00", "2026-08-29")
+        viewModel.onAmountChanged("200,00")
+
+        viewModel.save("2026-08-29")
+        viewModel.onAmountChanged("200,00")
+        viewModel.save("2026-08-29")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coVerify(exactly = 1) { transferCreator.create(any(), any(), any(), any()) }
+        coVerify(exactly = 1) { transferCreator.create(any(), any(), any(), any(), any()) }
     }
 
     @Test
     fun `given the saving state, when a selection event arrives, then the state is unchanged`() = runTest {
-        coEvery { transferCreator.create(any(), any(), any(), any()) } returns Outcome.Success(transfer())
+        coEvery { transferCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Success(transfer())
         val viewModel = loadedViewModel(originAccountId = "src-1")
-        viewModel.save("200.00", "2026-08-29")
+        viewModel.onAmountChanged("200,00")
+        viewModel.save("2026-08-29")
 
         val savingState = viewModel.uiState.value
 
@@ -347,7 +366,7 @@ class CreateTransferViewModelTest {
     }
 
     private fun viewModelWithAccountErrors(): CreateTransferViewModel {
-        coEvery { transferCreator.create(any(), any(), any(), any()) } returns Outcome.Failure(
+        coEvery { transferCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Failure(
             TransferCreationError.InvalidInput(
                 amountError = "El monto debe ser mayor que cero.",
                 dateError = null,
@@ -356,7 +375,8 @@ class CreateTransferViewModelTest {
             )
         )
         val viewModel = this.loadedViewModel(originAccountId = null)
-        viewModel.save("0", "2026-08-29")
+        viewModel.onAmountChanged("0")
+        viewModel.save("2026-08-29")
         this.testDispatcher.scheduler.advanceUntilIdle()
         return viewModel
     }
@@ -383,7 +403,8 @@ class CreateTransferViewModelTest {
                 categoryId = "cat-transfer",
                 description = "Transferencia a Efectivo",
                 createdAt = fixedInstant,
-                tagIds = emptyList()
+                tagIds = emptyList(),
+                gmfTax = null
             ),
             income = Income.restore(
                 id = "inc-1",
@@ -403,9 +424,10 @@ class CreateTransferViewModelTest {
         every { accountLister.list() } returns flowOf(Outcome.Success(listOf(savingsAccount, cashAccount)))
         val viewModel = buildViewModel(originAccountId = "src-1")
         testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.onAmountChanged("200,00")
         val stateBeforeSaving = viewModel.uiState.value
-        coEvery { transferCreator.create(any(), any(), any(), any()) } throws IllegalStateException("falla")
-        viewModel.save("200.00", "2026-08-29")
+        coEvery { transferCreator.create(any(), any(), any(), any(), any()) } throws IllegalStateException("falla")
+        viewModel.save("2026-08-29")
         testDispatcher.scheduler.advanceUntilIdle()
         assertTrue(stateBeforeSaving is CreateTransferUiState.Idle)
         assertEquals(stateBeforeSaving, viewModel.uiState.value)
@@ -421,11 +443,12 @@ class CreateTransferViewModelTest {
         every { accountLister.list() } returns flowOf(Outcome.Success(listOf(savingsAccount, cashAccount)))
         val viewModel = buildViewModel(originAccountId = "src-1")
         testDispatcher.scheduler.advanceUntilIdle()
-        coEvery { transferCreator.create(any(), any(), any(), any()) } coAnswers {
+        coEvery { transferCreator.create(any(), any(), any(), any(), any()) } coAnswers {
             delay(60.seconds)
             Outcome.Success(transfer())
         }
-        viewModel.save("200.00", "2026-08-29")
+        viewModel.onAmountChanged("200,00")
+        viewModel.save("2026-08-29")
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(NavigationTarget.AccountDetail("src-1"), viewModel.navigationEvent.first())
         verify(exactly = 0) { failureRecorder.record(any()) }
@@ -435,12 +458,13 @@ class CreateTransferViewModelTest {
     fun `given an expected failure, when saving a transfer, then it shows as before and is not recorded`() =
         runTest {
             every { accountLister.list() } returns flowOf(Outcome.Success(listOf(savingsAccount, cashAccount)))
-            coEvery { transferCreator.create(any(), any(), any(), any()) } returns Outcome.Failure(
+            coEvery { transferCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Failure(
                 TransferCreationError.StorageFailure("storage", "No se pudo guardar")
             )
             val viewModel = buildViewModel(originAccountId = "src-1")
             testDispatcher.scheduler.advanceUntilIdle()
-            viewModel.save("200.00", "2026-08-29")
+            viewModel.onAmountChanged("200,00")
+            viewModel.save("2026-08-29")
             testDispatcher.scheduler.advanceUntilIdle()
             assertEquals(CreateTransferUiState.Error("No se pudo guardar"), viewModel.uiState.value)
             verify(exactly = 0) { failureRecorder.record(any()) }
@@ -500,4 +524,142 @@ class CreateTransferViewModelTest {
             assertEquals(CreateTransferUiState.Error("Error al acceder a los datos"), viewModel.uiState.value)
             verify(exactly = 0) { failureRecorder.record(any()) }
         }
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class CreateTransferViewModelGmfTest {
+
+    private val transferCreator = mockk<TransferCreator>()
+    private val failureRecorder = mockk<FailureRecorder>(relaxed = true)
+    private val accountLister = mockk<AccountLister>()
+    private val testDispatcher = StandardTestDispatcher()
+    private val ahorros = AccountBuilder()
+        .id("ahorros")
+        .name("Ahorros")
+        .initialBalance(Money.of(BigDecimal("1000000"), Currency.COP))
+        .gmf(GmfTreatment.Taxed("cat-impuestos", listOf("4x1000")))
+        .build()
+    private val nomina = AccountBuilder().id("nomina").name("Nómina").build()
+    private val corriente = AccountBuilder().id("corriente").name("Corriente").build()
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+        every { accountLister.list() } returns flowOf(Outcome.Success(listOf(ahorros, nomina, corriente)))
+        coEvery { transferCreator.create(any(), any(), any(), any(), any()) } returns Outcome.Failure(
+            TransferCreationError.StorageFailure("storage", "No se pudo guardar")
+        )
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `given no source chosen yet, when the form loads, then the tax option is not shown`() = runTest {
+        val viewModel = loadedViewModel(null)
+
+        assertFalse((viewModel.uiState.value as CreateTransferUiState.Idle).showsGmfOption)
+    }
+
+    @Test
+    fun `given an exempt source, when it is chosen, then the tax option is not shown`() = runTest {
+        val viewModel = loadedViewModel(null)
+
+        viewModel.onSourceSelected("nomina")
+
+        assertFalse((viewModel.uiState.value as CreateTransferUiState.Idle).showsGmfOption)
+    }
+
+    @Test
+    fun `given Ahorros not exempt, when it is chosen as the source, then the option appears on`() = runTest {
+        val viewModel = loadedViewModel(null)
+
+        viewModel.onSourceSelected("ahorros")
+
+        val state = viewModel.uiState.value as CreateTransferUiState.Idle
+        assertTrue(state.showsGmfOption)
+        assertTrue(state.chargeGmf)
+    }
+
+    @Test
+    fun `given Ahorros as source and 200000 typed, when the option is on, then the tax line reads 800`() = runTest {
+        val viewModel = loadedViewModel("ahorros")
+
+        viewModel.onAmountChanged("200000")
+
+        assertEquals("4x1000: $800,00", (viewModel.uiState.value as CreateTransferUiState.Idle).gmfTaxLine)
+    }
+
+    @Test
+    fun `given Ahorros as source and 200000 typed, when turning the option off, then no tax line`() = runTest {
+        val viewModel = loadedViewModel("ahorros")
+        viewModel.onAmountChanged("200000")
+
+        viewModel.onChargeGmfChanged(false)
+
+        val state = viewModel.uiState.value as CreateTransferUiState.Idle
+        assertFalse(state.chargeGmf)
+        assertNull(state.gmfTaxLine)
+    }
+
+    @Test
+    fun `given the option turned off, when choosing the source again, then the option is back on`() = runTest {
+        val viewModel = loadedViewModel("ahorros")
+        viewModel.onChargeGmfChanged(false)
+
+        viewModel.onSourceSelected("ahorros")
+
+        assertTrue((viewModel.uiState.value as CreateTransferUiState.Idle).chargeGmf)
+    }
+
+    @Test
+    fun `given the option turned off, when saving, then the transfer is created without charging the tax`() = runTest {
+        val viewModel = loadedViewModel("ahorros")
+        viewModel.onDestinationSelected("corriente")
+        viewModel.onAmountChanged("200000")
+        viewModel.onChargeGmfChanged(false)
+
+        viewModel.save("2026-08-29")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify { transferCreator.create("ahorros", "corriente", "200000", "2026-08-29", chargeGmf = false) }
+    }
+
+    @Test
+    fun `given the option on, when saving, then the transfer is created charging the tax`() = runTest {
+        val viewModel = loadedViewModel("ahorros")
+        viewModel.onDestinationSelected("corriente")
+        viewModel.onAmountChanged("200000")
+
+        viewModel.save("2026-08-29")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify { transferCreator.create("ahorros", "corriente", "200000", "2026-08-29", chargeGmf = true) }
+    }
+
+    @Test
+    fun `given an exempt source, when saving, then the transfer is created without charging the tax`() = runTest {
+        val viewModel = loadedViewModel("nomina")
+        viewModel.onDestinationSelected("corriente")
+        viewModel.onAmountChanged("200000")
+
+        viewModel.save("2026-08-29")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify { transferCreator.create("nomina", "corriente", "200000", "2026-08-29", chargeGmf = false) }
+    }
+
+    private fun loadedViewModel(originAccountId: String?): CreateTransferViewModel {
+        val viewModel = CreateTransferViewModel(
+            originAccountId,
+            transferCreator,
+            accountLister,
+            failureRecorder,
+            testDispatcher
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+        return viewModel
+    }
 }

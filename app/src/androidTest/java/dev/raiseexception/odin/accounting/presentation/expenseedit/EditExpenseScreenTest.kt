@@ -59,7 +59,7 @@ class EditExpenseScreenTest {
     private val nalaTag = Tag.restore("tag-nala", "Nala", "nala", createdAt)
     private val comidaTag = Tag.restore("tag-comida", "Comida", "comida", createdAt)
     private val editing = EditExpenseUiState.Editing(
-        amount = "30000.50",
+        amount = "30000,50",
         date = "2026-03-10",
         categoryId = "cat-food",
         categoryName = "Alimentación",
@@ -90,11 +90,9 @@ class EditExpenseScreenTest {
     @Test
     fun given_editing_when_changing_the_fields_and_saving_then_on_save_receives_the_raw_values_and_an_existing_or_new_category_input() {
         val savedValues = mutableListOf<List<Any>>()
-        setScreen(editing, onSave = { amount, date, category, description ->
-            savedValues += listOf(amount, date, category, description)
+        setScreen(editing, onSave = { date, category, description ->
+            savedValues += listOf(date, category, description)
         })
-        composeTestRule.onNodeWithTag("amount_field").performTextClearance()
-        composeTestRule.onNodeWithTag("amount_field").performTextInput("45000,5")
         composeTestRule.onNodeWithTag("category_field").performTextClearance()
         composeTestRule.onNodeWithTag("category_field").performTextInput("Transporte")
         composeTestRule.onNodeWithTag("description_field").performTextClearance()
@@ -103,30 +101,24 @@ class EditExpenseScreenTest {
         composeTestRule.onNodeWithTag("category_field").performTextClearance()
         composeTestRule.onNodeWithTag("category_field").performTextInput("Viajes")
         composeTestRule.onNodeWithTag("save_button").performClick()
-        assertEquals(
-            listOf("45000.5", "2026-03-10", CategoryInput.Existing("cat-transport"), "Bus"),
-            savedValues[0]
-        )
-        assertEquals(listOf("45000.5", "2026-03-10", CategoryInput.New("Viajes"), "Bus"), savedValues[1])
+        assertEquals(listOf("2026-03-10", CategoryInput.Existing("cat-transport"), "Bus"), savedValues[0])
+        assertEquals(listOf("2026-03-10", CategoryInput.New("Viajes"), "Bus"), savedValues[1])
     }
 
     @Test
     fun given_editing_without_changes_when_saving_then_on_save_receives_the_original_values_and_existing_with_the_original_category_id() {
         val savedValues = mutableListOf<List<Any>>()
-        setScreen(editing, onSave = { amount, date, category, description ->
-            savedValues += listOf(amount, date, category, description)
+        setScreen(editing, onSave = { date, category, description ->
+            savedValues += listOf(date, category, description)
         })
         composeTestRule.onNodeWithTag("save_button").performClick()
-        assertEquals(
-            listOf(listOf("30000.50", "2026-03-10", CategoryInput.Existing("cat-food"), "Mercado")),
-            savedValues
-        )
+        assertEquals(listOf(listOf("2026-03-10", CategoryInput.Existing("cat-food"), "Mercado")), savedValues)
     }
 
     @Test
     fun given_editing_when_clearing_the_description_and_saving_then_on_save_receives_an_empty_description() {
         var savedDescription: String? = null
-        setScreen(editing, onSave = { _, _, _, description -> savedDescription = description })
+        setScreen(editing, onSave = { _, _, description -> savedDescription = description })
         composeTestRule.onNodeWithTag("description_field").performTextClearance()
         composeTestRule.onNodeWithTag("save_button").performClick()
         assertEquals("", savedDescription)
@@ -140,17 +132,18 @@ class EditExpenseScreenTest {
                 unexpectedFailureEvent = emptyFlow(),
                 onRetry = {},
                 uiState = uiState,
-                onSave = { _, _, _, _ -> },
+                onSave = { _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onSaved = {},
                 onCancel = {},
+                onAmountChange = { amount -> uiState = (uiState as EditExpenseUiState.Editing).copy(amount = amount) },
             )
         }
         composeTestRule.onNodeWithTag("amount_field").performTextClearance()
         composeTestRule.onNodeWithTag("amount_field").performTextInput("999999")
         composeTestRule.onNodeWithTag("description_field").performTextClearance()
         composeTestRule.onNodeWithTag("description_field").performTextInput("Cena")
-        uiState = editing.copy(
+        uiState = (uiState as EditExpenseUiState.Editing).copy(
             amountError = "El monto supera el saldo disponible.",
             dateError = "La fecha debe ser hoy o en el pasado.",
             categoryError = "La categoría es obligatoria.",
@@ -173,15 +166,16 @@ class EditExpenseScreenTest {
                 unexpectedFailureEvent = emptyFlow(),
                 onRetry = {},
                 uiState = uiState,
-                onSave = { _, _, _, _ -> },
+                onSave = { _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onSaved = {},
                 onCancel = {},
+                onAmountChange = { amount -> uiState = (uiState as EditExpenseUiState.Editing).copy(amount = amount) },
             )
         }
         composeTestRule.onNodeWithTag("amount_field").performTextClearance()
         composeTestRule.onNodeWithTag("amount_field").performTextInput("45000")
-        uiState = editing.copy(saveError = "No se pudo editar el gasto. Inténtalo de nuevo.")
+        uiState = (uiState as EditExpenseUiState.Editing).copy(saveError = "No se pudo editar el gasto. Inténtalo de nuevo.")
         composeTestRule.onNodeWithTag("save_error").assertTextContains("No se pudo editar el gasto. Inténtalo de nuevo.")
         composeTestRule.onNodeWithText("45.000").assertIsDisplayed()
     }
@@ -246,7 +240,7 @@ class EditExpenseScreenTest {
                 unexpectedFailureEvent = emptyFlow(),
                 onRetry = {},
                 uiState = editing.copy(tagSelection = TagSelection.of(listOf(nalaTag, comidaTag))),
-                onSave = { _, _, _, _ -> },
+                onSave = { _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onSaved = {},
                 onCancel = {},
@@ -275,7 +269,7 @@ class EditExpenseScreenTest {
 
     private fun setScreen(
         uiState: EditExpenseUiState,
-        onSave: (String, String, CategoryInput, String) -> Unit = { _, _, _, _ -> },
+        onSave: (String, CategoryInput, String) -> Unit = { _, _, _ -> },
         onCancel: () -> Unit = {},
     ) {
         composeTestRule.setContent {
@@ -299,7 +293,7 @@ class EditExpenseScreenTest {
                 unexpectedFailureEvent = unexpectedFailures.receiveAsFlow(),
                 onRetry = {},
                 uiState = editing,
-                onSave = { _, _, _, _ -> },
+                onSave = { _, _, _ -> },
                 navigationEvent = emptyFlow(),
                 onSaved = {},
                 onCancel = {},
@@ -322,5 +316,17 @@ class EditExpenseScreenTest {
         composeTestRule.onNodeWithTag("amount_field").assertDoesNotExist()
         composeTestRule.onNodeWithTag("save_button").assertDoesNotExist()
         composeTestRule.onNodeWithTag("not_found_message").assertDoesNotExist()
+    }
+
+    @Test
+    fun given_an_expense_with_its_tax_when_editing_then_the_tax_line_is_shown_under_the_amount() {
+        setScreen(editing.copy(amount = "100000", gmfTaxLine = "4x1000: $400,00"))
+        composeTestRule.onNodeWithTag("gmf_tax_line").assertTextContains("4x1000: $400,00")
+    }
+
+    @Test
+    fun given_an_expense_without_a_tax_when_editing_then_no_tax_line_is_shown() {
+        setScreen(editing)
+        composeTestRule.onNodeWithTag("gmf_tax_line").assertDoesNotExist()
     }
 }

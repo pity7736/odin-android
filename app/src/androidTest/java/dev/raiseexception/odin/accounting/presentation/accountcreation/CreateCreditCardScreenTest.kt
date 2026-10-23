@@ -6,7 +6,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
-import dev.raiseexception.odin.accounting.application.usecase.CreateAccountCommand
+import dev.raiseexception.odin.accounting.domain.model.AccountType
 import dev.raiseexception.odin.accounting.domain.model.Currency
 import kotlinx.coroutines.flow.emptyFlow
 import org.junit.Assert.assertEquals
@@ -23,13 +23,12 @@ class CreateCreditCardScreenTest {
         composeTestRule.setContent {
             CreateAccountScreen(
                 unexpectedFailureEvent = emptyFlow(),
-                uiState = CreateAccountUiState.Idle,
+                uiState = CreateAccountUiState.Idle(AccountForm(type = AccountType.CREDIT_CARD)),
                 onCreate = {},
                 navigationEvent = emptyFlow(),
                 onCreateSuccess = {}
             )
         }
-        composeTestRule.onNodeWithTag("type_option_CREDIT_CARD").performClick()
         composeTestRule.onNodeWithTag("credit_limit_field").assertIsDisplayed()
         composeTestRule.onNodeWithTag("debt_field").assertIsDisplayed()
         composeTestRule.onNodeWithTag("balance_field").assertDoesNotExist()
@@ -37,28 +36,25 @@ class CreateCreditCardScreenTest {
 
     @Test
     fun given_filled_credit_card_fields_when_create_clicked_then_onCreate_receives_a_credit_card_command() {
-        var captured: CreateAccountCommand? = null
+        var captured: AccountFormFields? = null
         composeTestRule.setContent {
             CreateAccountScreen(
                 unexpectedFailureEvent = emptyFlow(),
-                uiState = CreateAccountUiState.Idle,
+                uiState = CreateAccountUiState.Idle(AccountForm(type = AccountType.CREDIT_CARD, currency = Currency.COP)),
                 onCreate = { captured = it },
                 navigationEvent = emptyFlow(),
                 onCreateSuccess = {}
             )
         }
-        composeTestRule.onNodeWithTag("type_option_CREDIT_CARD").performClick()
         composeTestRule.onNodeWithTag("name_field").performTextInput("Visa")
         composeTestRule.onNodeWithTag("credit_limit_field").performTextInput("3000000")
         composeTestRule.onNodeWithTag("debt_field").performTextClearance()
         composeTestRule.onNodeWithTag("debt_field").performTextInput("500000")
-        composeTestRule.onNodeWithTag("currency_option_COP").performClick()
         composeTestRule.onNodeWithTag("create_button").performClick()
-        val card = captured as CreateAccountCommand.CreditCard
-        assertEquals("Visa", card.name)
-        assertEquals("3000000", card.creditLimit)
-        assertEquals("500000", card.existingDebt)
-        assertEquals(Currency.COP, card.currency)
+        val fields = captured!!
+        assertEquals("Visa", fields.name)
+        assertEquals("3000000", fields.creditLimit)
+        assertEquals("500000", fields.debt)
     }
 
     @Test
@@ -67,6 +63,7 @@ class CreateCreditCardScreenTest {
             CreateAccountScreen(
                 unexpectedFailureEvent = emptyFlow(),
                 uiState = CreateAccountUiState.ValidationError(
+                    form = AccountForm(type = AccountType.CREDIT_CARD),
                     creditLimitError = "El cupo es obligatorio.",
                     debtError = "La deuda actual no puede ser negativa."
                 ),
@@ -75,7 +72,6 @@ class CreateCreditCardScreenTest {
                 onCreateSuccess = {}
             )
         }
-        composeTestRule.onNodeWithTag("type_option_CREDIT_CARD").performClick()
         composeTestRule.onNodeWithTag("credit_limit_field_error").assertIsDisplayed()
         composeTestRule.onNodeWithTag("debt_field_error").assertIsDisplayed()
     }
